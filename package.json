@@ -1,0 +1,27 @@
+{
+  "name": "stagecraft",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "db:migrate": "npm run migrate --workspace=@stagecraft/db",
+    "db:generate": "npm run generate --workspace=@stagecraft/db",
+    "db:seed": "npm run seed --workspace=@stagecraft/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}

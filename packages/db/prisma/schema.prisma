@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── NextAuth Models ─────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Platform Models ─────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts            Account[]
+  sessions            Session[]
+  integrationAccounts IntegrationAccount[]
+  sites               Site[]
+  siteJobs            SiteJob[]
+  changeRequests      ChangeRequest[]
+  assetUploads        AssetUpload[]
+  auditEvents         AuditEvent[]
+}
+
+model IntegrationAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   // "github" | "netlify"
+  providerAccountId String
+  accessToken       String?  @db.Text
+  refreshToken      String?  @db.Text
+  tokenExpiresAt    DateTime?
+  scopes            String?
+  metadata          Json?
+  connectedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([provider])
+}
+
+model Site {
+  id                  String   @id @default(cuid())
+  userId              String
+  name                String
+  slug                String   @unique
+  status              String   @default("creating") // creating | active | error | archived
+  blueprintType       String   // solo-artist | band | composer-educator | epk-focused | tour-focused
+  githubRepoOwner     String?
+  githubRepoName      String?
+  githubDefaultBranch String   @default("main")
+  netlifySiteId       String?
+  productionUrl       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  environments   SiteEnvironment[]
+  jobs           SiteJob[]
+  changeRequests ChangeRequest[]
+  assetUploads   AssetUpload[]
+  auditEvents    AuditEvent[]
+
+  @@index([userId])
+  @@index([slug])
+}
+
+model SiteEnvironment {
+  id        String   @id @default(cuid())
+  siteId    String
+  key       String
+  value     String   @db.Text
+  scope     String   @default("all") // preview | production | all
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, key, scope])
+}
+
+model SiteJob {
+  id             String    @id @default(cuid())
+  siteId         String
+  userId         String
+  type           String    // create_site | edit_site | migrate_site | repair_site | deploy_config
+  status         String    @default("queued") // queued | running | completed | failed | awaiting_review | canceled
+  requestPayload Json?
+  resultPayload  Json?
+  errorMessage   String?   @db.Text
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  site           Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id])
+  changeRequests ChangeRequest[]
+
+  @@index([siteId])
+  @@index([status])
+  @@index([type, status])
+}
+
+model ChangeRequest {
+  id             String   @id @default(cuid())
+  siteId         String
+  userId         String
+  jobId          String?
+  requestText    String   @db.Text
+  classifiedMode String?  // content_edit | asset_update | page_add | page_remove | nav_change | style_update | widget_update | repair
+  branchName     String?
+  prNumber       Int?
+  previewUrl     String?
+  summary        String?  @db.Text
+  status         String   @default("pending") // pending | in_progress | ready_for_review | approved | rejected | discarded
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User    @relation(fields: [userId], references: [id])
+  job  SiteJob? @relation(fields: [jobId], references: [id])
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model AssetUpload {
+  id                  String   @id @default(cuid())
+  siteId              String
+  userId              String
+  originalFilename    String
+  normalizedFilename  String
+  mimeType            String
+  fileSize            Int
+  uploadStatus        String   @default("uploading") // uploading | processing | ready | committed | failed
+  temporaryStorageRef String?
+  targetRepoPath      String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([siteId])
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  siteId    String?
+  actorType String   // user | system | ai
+  eventType String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+  site Site? @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([eventType])
+  @@index([createdAt])
+}

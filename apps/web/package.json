@@ -1,0 +1,29 @@
+{
+  "name": "@stagecraft/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "op run --env-file=.op.env -- next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stagecraft/db": "*",
+    "@stagecraft/queue": "*",
+    "@stagecraft/shared": "*",
+    "next": "^15.2.0",
+    "next-auth": "^5.0.0-beta.25",
+    "@auth/prisma-adapter": "^2.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}

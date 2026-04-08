@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
 import type { BlueprintType } from "@stagecraft/shared";
 
@@ -10,13 +11,6 @@ const VALID_BLUEPRINTS: BlueprintType[] = [
   "epk-focused",
   "tour-focused",
 ];
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth();

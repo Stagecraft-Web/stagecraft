@@ -21,9 +21,11 @@ export const themeSchema = z.object({
   typography: z.object({
     headingFont: z.string(),
     bodyFont: z.string(),
-    scale: z.record(z.string()),
+    fontSize: z.record(z.string()),
+    fontWeight: z.record(z.string()),
   }),
   spacing: z.record(z.string()),
+  breakpoints: z.record(z.string()),
   layout: z.object({
     maxContentWidth: z.string(),
     maxTextWidth: z.string(),

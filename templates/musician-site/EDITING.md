@@ -111,6 +111,7 @@ The site includes reusable components in `src/components/`:
 ## Images
 - Place source images in `src/assets/images/`
 - Astro optimizes images at build time
+- SVG placeholders are included for demo — replace with real images
 - Always provide alt text for accessibility
 
 ## Deployment

@@ -11,7 +11,7 @@ interface Props {
   /** Additional CSS classes */
   class?: string;
   /** Open link in new tab */
-  external?: boolean;
+  isExternal?: boolean;
 }
 
 const {
@@ -20,11 +20,11 @@ const {
   ariaLabel,
   type = "button",
   class: className,
-  external,
+  isExternal,
 } = Astro.props;
 
 const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
-const externalAttrs = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
+const externalAttrs = isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {};
 ---
 
 {href ? (
@@ -39,7 +39,10 @@ const externalAttrs = external ? { target: "_blank", rel: "noopener noreferrer" 
 
 <style>
   .btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
     padding: 0.75rem 1.5rem;
     border-radius: var(--radius);
     font-weight: var(--font-weight-semibold);

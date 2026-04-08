@@ -1,11 +1,11 @@
 [
   {
-    "src": "/src/assets/images/photo-1.jpg",
+    "src": "/src/assets/images/photo-1.svg",
     "alt": "Live performance at venue",
     "caption": "Live at The Venue, 2024"
   },
   {
-    "src": "/src/assets/images/photo-2.jpg",
+    "src": "/src/assets/images/photo-2.svg",
     "alt": "Studio recording session",
     "caption": "In the studio"
   }

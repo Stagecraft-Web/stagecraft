@@ -10,10 +10,10 @@ import Button from "./Button.astro";
     <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
   </div>
 
-  <FormGroup label="Name" name="name" required />
-  <FormGroup label="Email" name="email" type="email" required />
+  <FormGroup label="Name" name="name" isRequired />
+  <FormGroup label="Email" name="email" type="email" isRequired />
   <FormGroup label="Subject" name="subject" />
-  <FormGroup label="Message" name="message" textarea rows={5} required />
+  <FormGroup label="Message" name="message" isTextarea rows={5} isRequired />
 
   <Button type="submit" variant="primary">Send Message</Button>
 </form>

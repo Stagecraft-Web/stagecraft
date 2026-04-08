@@ -2,7 +2,7 @@
   "title": "Debut Album",
   "type": "album",
   "releaseDate": "2024-03-15",
-  "coverImage": "/src/assets/images/release-cover.jpg",
+  "coverImage": "/src/assets/images/release-cover.svg",
   "description": "The debut full-length album featuring 10 original tracks.",
   "links": {
     "spotify": "",

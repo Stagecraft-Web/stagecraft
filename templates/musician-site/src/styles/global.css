@@ -51,7 +51,8 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Breakpoints (for reference — use in @media manually) */
+  /* Breakpoints (reference only — CSS custom properties cannot be used in @media queries.
+     When writing @media rules, add a comment linking back: "-- breakpoint-md (768px)" ) */
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
@@ -122,6 +123,7 @@ p:last-child {
   margin-bottom: 0;
 }
 
+/* --breakpoint-md (768px) */
 @media (max-width: 768px) {
   h1 { font-size: var(--font-size-5xl); }
   h2 { font-size: var(--font-size-4xl); }

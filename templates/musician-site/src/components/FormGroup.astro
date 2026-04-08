@@ -7,22 +7,22 @@ interface Props {
   /** Input type (ignored for textarea) */
   type?: astroHTML.JSX.HTMLInputTypeAttribute;
   /** Render as textarea instead of input */
-  textarea?: boolean;
+  isTextarea?: boolean;
   /** Number of rows for textarea */
   rows?: number;
   /** Whether the field is required */
-  required?: boolean;
+  isRequired?: boolean;
   /** Autocomplete attribute */
-  autocomplete?: string;
+  autocomplete?: "name" | "email" | "tel" | "organization" | "street-address" | "address-line1" | "address-line2" | "city" | "state" | "postal-code" | "country" | "off" | "on";
 }
 
 const {
   label,
   name,
   type = "text",
-  textarea = false,
+  isTextarea = false,
   rows = 5,
-  required = false,
+  isRequired = false,
   autocomplete,
 } = Astro.props;
 ---
@@ -30,12 +30,12 @@ const {
 <div class="form-group">
   <label for={name}>
     {label}
-    {required && <span class="form-group-required">*</span>}
+    {isRequired && <span class="form-group-required">*</span>}
   </label>
-  {textarea ? (
-    <textarea id={name} name={name} rows={rows} required={required} autocomplete={autocomplete} />
+  {isTextarea ? (
+    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} />
   ) : (
-    <input type={type} id={name} name={name} required={required} autocomplete={autocomplete} />
+    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} />
   )}
 </div>
 

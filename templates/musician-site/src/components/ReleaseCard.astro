@@ -21,7 +21,7 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
     {streamLinks.length > 0 && (
       <div class="release-links">
         {streamLinks.map(([platform, url]) => (
-          <Button href={url} variant="outline" external class="release-link-btn">
+          <Button href={url} variant="outline" isExternal class="release-link-btn">
             {platform}
           </Button>
         ))}

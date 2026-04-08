@@ -23,7 +23,7 @@ All visual values (colors, fonts, spacing, etc.) must use CSS custom properties.
 | Font weights | `--font-weight-*` | `var(--font-weight-medium)`, `var(--font-weight-bold)` |
 | Font families | `--font-*` | `var(--font-heading)`, `var(--font-body)` |
 | Layout | `--max-content`, `--max-text`, `--radius` | |
-| Breakpoints | `--breakpoint-*` | 768px (use in `@media` directly) |
+| Breakpoints | `--breakpoint-*` | Reference only — use literal values in `@media` with a comment |
 
 ### Token sources
 
@@ -39,12 +39,12 @@ Polymorphic button/link component with variants.
 - Renders `<a>` when `href` is provided, `<button>` otherwise
 - Variants: `primary`, `outline`
 - Supports `ariaLabel` for icon-only buttons
-- Supports `external` prop for target="_blank" links
+- Supports `isExternal` prop for target="_blank" links
 
 ### `FormGroup.astro`
 Form field wrapper with label, input/textarea, and required indicator.
-- Props: `label`, `name`, `type`, `textarea`, `rows`, `required`
-- Handles both `<input>` and `<textarea>` via the `textarea` prop
+- Props: `label`, `name`, `type`, `isTextarea`, `rows`, `isRequired`, `autocomplete`
+- Handles both `<input>` and `<textarea>` via the `isTextarea` prop
 
 ### `Image.tsx` (React)
 Image component with loading/error state handling.
@@ -55,6 +55,20 @@ Image component with loading/error state handling.
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
 - Use `Image` in React components (Lightbox, PhotoGallery). In `.astro` components, use native `<img>` with Astro image optimization.
+
+### Styling in React components
+- Use CSS modules (`.module.css`) for React component styles — no CSS-in-JS.
+- See `Lightbox.module.css` and `PhotoGallery.module.css` for examples.
+
+### Boolean prop naming
+All boolean props must start with `is` or `has` (e.g. `isExternal`, `isRequired`, `isTextarea`).
+
+### Breakpoints in `@media` queries
+CSS custom properties cannot be used in `@media` queries (spec limitation). When writing media queries, use the literal pixel value and add a comment linking back to the token name:
+```css
+/* --breakpoint-md (768px) */
+@media (max-width: 768px) { ... }
+```
 
 ## Utility Classes
 

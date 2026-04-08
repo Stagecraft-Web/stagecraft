@@ -1,0 +1,39 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import ReleaseCard from "../components/ReleaseCard.astro";
+import type { Release } from "../lib/schemas";
+
+// @ts-ignore - markdown import
+import musicContent from "../content/pages/music.md?raw";
+
+const frontmatterMatch = musicContent.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = frontmatterMatch
+  ? Object.fromEntries(
+      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
+        const [key, ...rest] = line.split(": ");
+        return [key.trim(), rest.join(": ").trim()];
+      })
+    )
+  : {};
+
+const body = musicContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+
+// Load releases
+const releaseFiles = import.meta.glob("../content/collections/releases/*.json", { eager: true });
+const releases: Release[] = Object.values(releaseFiles).map((mod: any) => mod.default);
+---
+
+<BaseLayout title="Music">
+  <PageHeader headline={frontmatter.headline || "Music"} />
+  <section class="section">
+    <div class="container">
+      {body && <p class="prose" style="margin-bottom: 2rem;">{body}</p>}
+      <div class="grid grid-2">
+        {releases.map((release) => (
+          <ReleaseCard release={release} />
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

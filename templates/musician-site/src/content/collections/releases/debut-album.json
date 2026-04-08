@@ -1,0 +1,16 @@
+{
+  "title": "Debut Album",
+  "type": "album",
+  "releaseDate": "2024-03-15",
+  "coverImage": "/src/assets/images/release-cover.jpg",
+  "description": "The debut full-length album featuring 10 original tracks.",
+  "links": {
+    "spotify": "",
+    "appleMusic": "",
+    "bandcamp": ""
+  },
+  "tracks": [
+    { "title": "Opening Track", "duration": "3:42" },
+    { "title": "Second Song", "duration": "4:15" }
+  ]
+}

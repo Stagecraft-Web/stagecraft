@@ -1,0 +1,50 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import type { Photo } from "../lib/schemas";
+
+const photoFiles = import.meta.glob("../content/collections/photos/*.json", { eager: true });
+const photoSets: Photo[][] = Object.values(photoFiles).map((mod: any) => mod.default);
+const photos: Photo[] = photoSets.flat();
+---
+
+<BaseLayout title="Photos">
+  <PageHeader headline="Photos" />
+  <section class="section">
+    <div class="container">
+      <div class="photo-grid grid grid-3">
+        {photos.map((photo, index) => (
+          <figure class="photo-item" data-index={index}>
+            <img src={photo.src} alt={photo.alt} loading="lazy" />
+            {photo.caption && <figcaption>{photo.caption}</figcaption>}
+          </figure>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .photo-item {
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .photo-item img {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    transition: transform 0.2s;
+  }
+
+  .photo-item:hover img {
+    transform: scale(1.02);
+  }
+
+  .photo-item figcaption {
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+</style>

@@ -1,0 +1,30 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import ContactForm from "../components/ContactForm.astro";
+
+// @ts-ignore - markdown import
+import contactContent from "../content/pages/contact.md?raw";
+
+const frontmatterMatch = contactContent.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = frontmatterMatch
+  ? Object.fromEntries(
+      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
+        const [key, ...rest] = line.split(": ");
+        return [key.trim(), rest.join(": ").trim()];
+      })
+    )
+  : {};
+
+const body = contactContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+---
+
+<BaseLayout title="Contact">
+  <PageHeader headline={frontmatter.headline || "Contact"} />
+  <section class="section">
+    <div class="container">
+      {body && <div class="prose" style="margin-bottom: 2rem;"><p>{body}</p></div>}
+      <ContactForm />
+    </div>
+  </section>
+</BaseLayout>

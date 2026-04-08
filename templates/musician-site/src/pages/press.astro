@@ -1,0 +1,88 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import type { PressQuote } from "../lib/schemas";
+
+// @ts-ignore - markdown import
+import pressContent from "../content/pages/press.md?raw";
+
+const frontmatterMatch = pressContent.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = frontmatterMatch
+  ? Object.fromEntries(
+      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
+        const [key, ...rest] = line.split(": ");
+        return [key.trim(), rest.join(": ").trim()];
+      })
+    )
+  : {};
+
+const body = pressContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+
+const quoteFiles = import.meta.glob("../content/collections/pressQuotes/*.json", { eager: true });
+const quoteSets: PressQuote[][] = Object.values(quoteFiles).map((mod: any) => mod.default);
+const quotes: PressQuote[] = quoteSets.flat();
+---
+
+<BaseLayout title="Press">
+  <PageHeader headline={frontmatter.headline || "Press"} />
+  <section class="section">
+    <div class="container">
+      {body && <div class="prose" style="margin-bottom: 2rem;"><p>{body}</p></div>}
+
+      {frontmatter.epkDownload && (
+        <div style="margin-bottom: 2rem;">
+          <a href={frontmatter.epkDownload} class="btn btn-outline" download>
+            Download EPK
+          </a>
+        </div>
+      )}
+
+      {quotes.length > 0 && (
+        <div class="quotes">
+          <h2>Reviews & Press</h2>
+          <div class="quote-list">
+            {quotes.map((q) => (
+              <blockquote class="quote-card">
+                <p>"{q.quote}"</p>
+                <footer>
+                  {q.url ? (
+                    <a href={q.url} target="_blank" rel="noopener noreferrer">{q.source}</a>
+                  ) : (
+                    <span>{q.source}</span>
+                  )}
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .quote-list {
+    display: grid;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .quote-card {
+    background: var(--color-surface);
+    border-left: 4px solid var(--color-secondary);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+  }
+
+  .quote-card p {
+    font-size: 1.1rem;
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  .quote-card footer {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+  }
+</style>

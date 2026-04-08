@@ -1,0 +1,25 @@
+---
+interface Props {
+  headline: string;
+}
+
+const { headline } = Astro.props;
+---
+
+<section class="page-header section">
+  <div class="container">
+    <h1>{headline}</h1>
+  </div>
+</section>
+
+<style>
+  .page-header {
+    padding-block: 3rem;
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  .page-header h1 {
+    color: #fff;
+  }
+</style>

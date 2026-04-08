@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/Hero.astro";
+
+// @ts-ignore - markdown import
+import homeContent from "../content/pages/home.md?raw";
+
+const frontmatterMatch = homeContent.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = frontmatterMatch
+  ? Object.fromEntries(
+      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
+        const [key, ...rest] = line.split(": ");
+        return [key.trim(), rest.join(": ").trim()];
+      })
+    )
+  : {};
+
+const body = homeContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+---
+
+<BaseLayout>
+  <Hero
+    headline={frontmatter.headline || "Artist Name"}
+    subheadline={frontmatter.subheadline}
+    ctaText={frontmatter.ctaText}
+    ctaLink={frontmatter.ctaLink}
+  />
+  {body && (
+    <section class="section">
+      <div class="container">
+        <div class="prose">
+          <p>{body}</p>
+        </div>
+      </div>
+    </section>
+  )}
+</BaseLayout>

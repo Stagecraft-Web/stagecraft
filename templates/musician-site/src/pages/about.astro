@@ -1,0 +1,31 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+
+// @ts-ignore - markdown import
+import aboutContent from "../content/pages/about.md?raw";
+
+const frontmatterMatch = aboutContent.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = frontmatterMatch
+  ? Object.fromEntries(
+      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
+        const [key, ...rest] = line.split(": ");
+        return [key.trim(), rest.join(": ").trim()];
+      })
+    )
+  : {};
+
+const body = aboutContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+const paragraphs = body.split("\n\n").filter(Boolean);
+---
+
+<BaseLayout title="About">
+  <PageHeader headline={frontmatter.headline || "About"} />
+  <section class="section">
+    <div class="container">
+      <div class="prose">
+        {paragraphs.map((p: string) => <p>{p}</p>)}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-05-15",
+    "venue": "The Blue Note",
+    "city": "New York, NY",
+    "ticketUrl": "",
+    "status": "upcoming"
+  },
+  {
+    "date": "2026-06-01",
+    "venue": "The Fillmore",
+    "city": "San Francisco, CA",
+    "ticketUrl": "",
+    "status": "upcoming"
+  }
+]

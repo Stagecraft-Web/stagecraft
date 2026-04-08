@@ -47,7 +47,7 @@ export default async function SettingsPage({
               Connected as <strong>{(github.metadata as { login?: string })?.login ?? github.providerAccountId}</strong>
             </p>
           ) : (
-            <a href="/api/integrations/github">Connect GitHub</a>
+            <p style={{ color: "#666" }}>Sign in with GitHub to connect.</p>
           )}
         </div>
 

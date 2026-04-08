@@ -4,20 +4,6 @@ export function generateState(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-export function getGitHubOAuthUrl(state: string): string {
-  const clientId = process.env.AUTH_GITHUB_ID;
-  if (!clientId) throw new Error("AUTH_GITHUB_ID not configured");
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: `${process.env.AUTH_URL}/api/integrations/github/callback`,
-    scope: "repo",
-    state,
-  });
-
-  return `https://github.com/login/oauth/authorize?${params}`;
-}
-
 export function getNetlifyOAuthUrl(state: string): string {
   const clientId = process.env.NETLIFY_CLIENT_ID;
   if (!clientId) throw new Error("NETLIFY_CLIENT_ID not configured");
@@ -30,29 +16,6 @@ export function getNetlifyOAuthUrl(state: string): string {
   });
 
   return `https://app.netlify.com/authorize?${params}`;
-}
-
-export async function exchangeGitHubCode(code: string): Promise<string> {
-  const res = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      client_id: process.env.AUTH_GITHUB_ID,
-      client_secret: process.env.AUTH_GITHUB_SECRET,
-      code,
-    }),
-  });
-
-  const data = (await res.json()) as { access_token?: string; error?: string };
-
-  if (!data.access_token) {
-    throw new Error(data.error ?? "Failed to exchange GitHub code");
-  }
-
-  return data.access_token;
 }
 
 export async function exchangeNetlifyCode(code: string): Promise<string> {

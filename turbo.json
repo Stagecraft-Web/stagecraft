@@ -5,7 +5,11 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    "generate": {
+      "cache": false
+    },
     "dev": {
+      "dependsOn": ["generate"],
       "cache": false,
       "persistent": true
     },

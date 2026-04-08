@@ -7,8 +7,70 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static-first. Use `.astro` components for most UI. Use React only for interactive islands.
 - **Content**: Structured files in `src/content/`. Page copy in Markdown, collections in JSON, config in JSON.
-- **Styling**: Global CSS with CSS custom properties. Token values defined in `src/content/config/theme.json`.
+- **Styling**: CSS custom properties (design tokens) defined in `src/styles/global.css` with values from `src/content/config/theme.json`.
 - **Images**: Source images in `src/assets/images/`. Astro handles optimization at build time.
+
+## Design Token System
+
+All visual values (colors, fonts, spacing, etc.) must use CSS custom properties. Never use hardcoded hex colors, font sizes, or font weights in component styles.
+
+### Token categories
+
+| Category | Prefix | Example |
+|----------|--------|---------|
+| Colors | `--color-*` | `var(--color-primary)`, `var(--color-white)` |
+| Font sizes | `--font-size-*` | `var(--font-size-base)`, `var(--font-size-2xl)` |
+| Font weights | `--font-weight-*` | `var(--font-weight-medium)`, `var(--font-weight-bold)` |
+| Font families | `--font-*` | `var(--font-heading)`, `var(--font-body)` |
+| Layout | `--max-content`, `--max-text`, `--radius` | |
+| Breakpoints | `--breakpoint-*` | 768px (use in `@media` directly) |
+
+### Token sources
+
+- Token values: `src/content/config/theme.json`
+- CSS custom properties: `src/styles/global.css`
+
+## Component Library
+
+Use the generic components instead of raw HTML elements:
+
+### `Button.astro`
+Polymorphic button/link component with variants.
+- Renders `<a>` when `href` is provided, `<button>` otherwise
+- Variants: `primary`, `outline`
+- Supports `ariaLabel` for icon-only buttons
+- Supports `external` prop for target="_blank" links
+
+### `FormGroup.astro`
+Form field wrapper with label, input/textarea, and required indicator.
+- Props: `label`, `name`, `type`, `textarea`, `rows`, `required`
+- Handles both `<input>` and `<textarea>` via the `textarea` prop
+
+### `Image.tsx` (React)
+Image component with loading/error state handling.
+- Props: `src`, `alt`, `loading`, `aspectRatio`, `objectFit`
+- Shows placeholder during load, fallback on error
+
+### When to use each
+- Use `Button` for all clickable actions (links, submit buttons, icon buttons)
+- Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
+- Use `Image` in React components (Lightbox, PhotoGallery). In `.astro` components, use native `<img>` with Astro image optimization.
+
+## Utility Classes
+
+- `.screenreader-only` — visually hidden, accessible to screen readers
+- `.container` — centered max-width wrapper
+- `.prose` — text content with comfortable line height
+- `.section` / `.section-alt` — vertical section spacing
+- `.grid`, `.grid-2`, `.grid-3` — responsive grid layouts
+
+## Content Utilities
+
+### `src/lib/markdown.ts`
+- `parseFrontmatter(raw)` — extracts key-value pairs from `---` delimited frontmatter
+- `parseBody(raw)` — strips frontmatter and splits into paragraphs
+
+Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsing logic.
 
 ## Editing Rules
 
@@ -20,14 +82,16 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 5. Navigation: edit `src/content/config/nav.json`.
 
 ### Style/theme changes
-1. Edit `src/content/config/theme.json` for token values.
-2. Edit `src/styles/global.css` for structural CSS changes.
-3. Edit component `<style>` blocks for component-specific changes.
+1. Edit `src/content/config/theme.json` for token values (colors, font sizes, etc.).
+2. Update corresponding CSS custom properties in `src/styles/global.css`.
+3. Edit component `<style>` blocks for component-specific layout changes.
+4. **Never use hardcoded hex colors, px font sizes, or numeric font weights.** Always use `var(--token-name)`.
 
 ### Adding a new page
 1. Create a Markdown content file in `src/content/pages/`.
 2. Create an Astro page file in `src/pages/`.
-3. Add navigation entry in `src/content/config/nav.json`.
+3. Use `parseFrontmatter` and `parseBody` from `src/lib/markdown.ts`.
+4. Add navigation entry in `src/content/config/nav.json`.
 
 ### Adding images
 1. Place source images in `src/assets/images/`.
@@ -36,6 +100,7 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 
 ## Constraints
 - Prefer `.astro` components over React unless stateful interactivity is needed.
+- Use the generic component library (Button, FormGroup, Image) instead of raw HTML.
 - Keep diffs small and focused.
 - Do not introduce new dependencies without justification.
 - Do not refactor code unrelated to the requested change.
@@ -47,5 +112,6 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 npm run validate:content  # Validate JSON content against schemas
 npm run typecheck         # TypeScript check
 npm run build             # Full production build
+npm run test              # Unit tests (vitest)
 npm run test:smoke        # Playwright smoke tests (requires build first)
 ```

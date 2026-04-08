@@ -2,21 +2,14 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import ContactForm from "../components/ContactForm.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
 
 // @ts-ignore - markdown import
 import contactContent from "../content/pages/contact.md?raw";
 
-const frontmatterMatch = contactContent.match(/^---\n([\s\S]*?)\n---/);
-const frontmatter = frontmatterMatch
-  ? Object.fromEntries(
-      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
-        const [key, ...rest] = line.split(": ");
-        return [key.trim(), rest.join(": ").trim()];
-      })
-    )
-  : {};
-
-const body = contactContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+const frontmatter = parseFrontmatter(contactContent);
+const paragraphs = parseBody(contactContent);
+const body = paragraphs.join("\n\n");
 ---
 
 <BaseLayout title="Contact">

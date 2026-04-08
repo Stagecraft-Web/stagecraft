@@ -1,4 +1,6 @@
 ---
+import Button from "./Button.astro";
+
 interface Props {
   headline: string;
   subheadline?: string;
@@ -14,7 +16,7 @@ const { headline, subheadline, ctaText, ctaLink } = Astro.props;
     <h1>{headline}</h1>
     {subheadline && <p class="hero-sub">{subheadline}</p>}
     {ctaText && ctaLink && (
-      <a href={ctaLink} class="btn btn-primary">{ctaText}</a>
+      <Button href={ctaLink} variant="primary">{ctaText}</Button>
     )}
   </div>
 </section>
@@ -24,17 +26,17 @@ const { headline, subheadline, ctaText, ctaLink } = Astro.props;
     text-align: center;
     padding-block: 6rem;
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-white);
   }
 
   .hero h1 {
-    color: #fff;
-    font-size: 3.5rem;
+    color: var(--color-white);
+    font-size: var(--font-size-7xl);
     margin-bottom: 0.75rem;
   }
 
   .hero-sub {
-    font-size: 1.25rem;
+    font-size: var(--font-size-2xl);
     opacity: 0.85;
     margin-bottom: 2rem;
   }
@@ -44,7 +46,7 @@ const { headline, subheadline, ctaText, ctaLink } = Astro.props;
       padding-block: 4rem;
     }
     .hero h1 {
-      font-size: 2.25rem;
+      font-size: var(--font-size-5xl);
     }
   }
 </style>

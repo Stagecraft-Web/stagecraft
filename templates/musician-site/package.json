@@ -14,6 +14,7 @@
     "typecheck": "astro check",
     "test:smoke": "playwright test",
     "validate:content": "tsx scripts/validate-content.ts",
+    "test": "vitest run",
     "validate": "npm run validate:content && npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@playwright/test": "^1.49.0",
     "eslint": "^9.0.0",
     "typescript": "^5.7.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "vitest": "^4.1.3"
   }
 }

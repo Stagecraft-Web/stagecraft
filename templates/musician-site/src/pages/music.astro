@@ -2,22 +2,15 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import ReleaseCard from "../components/ReleaseCard.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
 import type { Release } from "../lib/schemas";
 
 // @ts-ignore - markdown import
 import musicContent from "../content/pages/music.md?raw";
 
-const frontmatterMatch = musicContent.match(/^---\n([\s\S]*?)\n---/);
-const frontmatter = frontmatterMatch
-  ? Object.fromEntries(
-      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
-        const [key, ...rest] = line.split(": ");
-        return [key.trim(), rest.join(": ").trim()];
-      })
-    )
-  : {};
-
-const body = musicContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+const frontmatter = parseFrontmatter(musicContent);
+const paragraphs = parseBody(musicContent);
+const body = paragraphs.join("\n\n");
 
 // Load releases
 const releaseFiles = import.meta.glob("../content/collections/releases/*.json", { eager: true });

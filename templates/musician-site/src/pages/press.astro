@@ -1,22 +1,16 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
+import Button from "../components/Button.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
 import type { PressQuote } from "../lib/schemas";
 
 // @ts-ignore - markdown import
 import pressContent from "../content/pages/press.md?raw";
 
-const frontmatterMatch = pressContent.match(/^---\n([\s\S]*?)\n---/);
-const frontmatter = frontmatterMatch
-  ? Object.fromEntries(
-      frontmatterMatch[1].split("\n").filter(Boolean).map((line: string) => {
-        const [key, ...rest] = line.split(": ");
-        return [key.trim(), rest.join(": ").trim()];
-      })
-    )
-  : {};
-
-const body = pressContent.replace(/^---[\s\S]*?---\n*/, "").trim();
+const frontmatter = parseFrontmatter(pressContent);
+const paragraphs = parseBody(pressContent);
+const body = paragraphs.join("\n\n");
 
 const quoteFiles = import.meta.glob("../content/collections/pressQuotes/*.json", { eager: true });
 const quoteSets: PressQuote[][] = Object.values(quoteFiles).map((mod: any) => mod.default);
@@ -31,9 +25,9 @@ const quotes: PressQuote[] = quoteSets.flat();
 
       {frontmatter.epkDownload && (
         <div style="margin-bottom: 2rem;">
-          <a href={frontmatter.epkDownload} class="btn btn-outline" download>
+          <Button href={frontmatter.epkDownload} variant="outline">
             Download EPK
-          </a>
+          </Button>
         </div>
       )}
 
@@ -75,14 +69,14 @@ const quotes: PressQuote[] = quoteSets.flat();
   }
 
   .quote-card p {
-    font-size: 1.1rem;
+    font-size: var(--font-size-xl);
     font-style: italic;
     line-height: 1.6;
   }
 
   .quote-card footer {
     margin-top: 0.75rem;
-    font-size: 0.9rem;
+    font-size: var(--font-size-lg);
     color: var(--color-text-muted);
   }
 </style>

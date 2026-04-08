@@ -1,5 +1,6 @@
 ---
 import type { Release } from "../lib/schemas";
+import Button from "./Button.astro";
 
 interface Props {
   release: Release;
@@ -20,9 +21,9 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
     {streamLinks.length > 0 && (
       <div class="release-links">
         {streamLinks.map(([platform, url]) => (
-          <a href={url} target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+          <Button href={url} variant="outline" external class="release-link-btn">
             {platform}
-          </a>
+          </Button>
         ))}
       </div>
     )}
@@ -42,13 +43,13 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
     display: flex;
     gap: 1rem;
     margin-top: 0.25rem;
-    font-size: 0.875rem;
+    font-size: var(--font-size-md);
     color: var(--color-text-muted);
   }
 
   .release-type {
     text-transform: uppercase;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--color-secondary);
   }
 
@@ -64,8 +65,8 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
     flex-wrap: wrap;
   }
 
-  .release-links .btn {
-    font-size: 0.8rem;
+  .release-link-btn {
+    font-size: var(--font-size-sm);
     padding: 0.5rem 1rem;
     text-transform: capitalize;
   }

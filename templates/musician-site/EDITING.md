@@ -18,21 +18,21 @@ All site content lives in `src/content/`:
 ```
 src/content/
   config/
-    site.json       ← Artist name, social links, contact email
-    nav.json        ← Navigation menu items
-    theme.json      ← Colors, fonts, spacing
+    site.json       <- Artist name, social links, contact email
+    nav.json        <- Navigation menu items
+    theme.json      <- Colors, fonts, spacing, breakpoints
   pages/
-    home.md         ← Homepage headline, intro text
-    about.md        ← Bio / about page
-    music.md        ← Music page intro
-    press.md        ← Press page intro, EPK link
-    contact.md      ← Contact page intro
+    home.md         <- Homepage headline, intro text
+    about.md        <- Bio / about page
+    music.md        <- Music page intro
+    press.md        <- Press page intro, EPK link
+    contact.md      <- Contact page intro
   collections/
-    releases/       ← Album/single/EP entries (JSON)
-    photos/         ← Photo gallery entries (JSON)
-    videos/         ← Video embed entries (JSON)
-    pressQuotes/    ← Press quotes (JSON)
-    tourDates/      ← Tour date entries (JSON)
+    releases/       <- Album/single/EP entries (JSON)
+    photos/         <- Photo gallery entries (JSON)
+    videos/         <- Video embed entries (JSON)
+    pressQuotes/    <- Press quotes (JSON)
+    tourDates/      <- Tour date entries (JSON)
 ```
 
 ## Common Edits
@@ -83,10 +83,30 @@ Create a new JSON file in `src/content/collections/releases/`, e.g. `new-album.j
 ```
 
 ### Change colors or fonts
-Edit `src/content/config/theme.json`. The `colors` object controls the site palette, and `typography` controls fonts.
+Edit `src/content/config/theme.json`. The `colors` object controls the site palette, `typography.fontSize` controls text sizes, and `typography.fontWeight` controls text weights.
+
+After editing theme.json, update the corresponding CSS custom properties in `src/styles/global.css` to match.
 
 ### Change navigation
 Edit `src/content/config/nav.json`. Each entry has a `label` (display text) and `href` (URL path).
+
+## Component Library
+
+The site includes reusable components in `src/components/`:
+
+| Component | Description |
+|-----------|-------------|
+| `Button.astro` | Links and buttons with `primary` / `outline` variants |
+| `FormGroup.astro` | Labeled form inputs and textareas |
+| `Image.tsx` | Image with loading/error states (React) |
+| `Hero.astro` | Full-width hero section with headline and CTA |
+| `PageHeader.astro` | Page title banner |
+| `Header.astro` | Site navigation header |
+| `Footer.astro` | Site footer with social links |
+| `ContactForm.astro` | Contact form with spam protection |
+| `ReleaseCard.astro` | Music release display card |
+| `PhotoGallery.tsx` | Photo grid with lightbox (React) |
+| `Lightbox.tsx` | Fullscreen image viewer (React) |
 
 ## Images
 - Place source images in `src/assets/images/`

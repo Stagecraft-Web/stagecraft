@@ -25,19 +25,36 @@ export default async function DashboardPage() {
       </header>
 
       <section style={{ marginTop: 32 }}>
-        <h2>Your Sites</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2>Your Sites</h2>
+          <a
+            href="/create"
+            style={{
+              padding: "8px 16px",
+              background: "#0066cc",
+              color: "#fff",
+              borderRadius: 6,
+              textDecoration: "none",
+              fontSize: 14,
+            }}
+          >
+            + Create site
+          </a>
+        </div>
         {sites.length === 0 ? (
-          <p>No sites yet. Create your first musician website to get started.</p>
+          <p>No sites yet. <a href="/create">Create your first musician website</a> to get started.</p>
         ) : (
-          <ul>
+          <ul style={{ listStyle: "none", padding: 0 }}>
             {sites.map((site: { id: string; name: string; status: string; productionUrl: string | null }) => (
-              <li key={site.id}>
-                <strong>{site.name}</strong> — {site.status}
+              <li key={site.id} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}>
+                <a href={`/sites/${site.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  <strong>{site.name}</strong>
+                  <span style={{ marginLeft: 8, color: "#666", fontSize: 14 }}>{site.status}</span>
+                </a>
                 {site.productionUrl && (
-                  <>
-                    {" "}
-                    — <a href={site.productionUrl}>{site.productionUrl}</a>
-                  </>
+                  <div style={{ marginTop: 4 }}>
+                    <a href={site.productionUrl} style={{ fontSize: 14, color: "#0066cc" }}>{site.productionUrl}</a>
+                  </div>
                 )}
               </li>
             ))}

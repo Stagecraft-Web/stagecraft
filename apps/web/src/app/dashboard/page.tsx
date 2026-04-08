@@ -18,7 +18,10 @@ export default async function DashboardPage() {
     <main style={{ maxWidth: 960, margin: "40px auto", fontFamily: "system-ui" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Dashboard</h1>
-        <span>{session.user.name ?? session.user.email}</span>
+        <div>
+          <a href="/settings" style={{ marginRight: 16 }}>Settings</a>
+          <span>{session.user.name ?? session.user.email}</span>
+        </div>
       </header>
 
       <section style={{ marginTop: 32 }}>
@@ -27,7 +30,7 @@ export default async function DashboardPage() {
           <p>No sites yet. Create your first musician website to get started.</p>
         ) : (
           <ul>
-            {sites.map((site) => (
+            {sites.map((site: { id: string; name: string; status: string; productionUrl: string | null }) => (
               <li key={site.id}>
                 <strong>{site.name}</strong> — {site.status}
                 {site.productionUrl && (

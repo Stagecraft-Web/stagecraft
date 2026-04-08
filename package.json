@@ -10,6 +10,7 @@
     "setup": "docker compose up -d && npm install && npm run db:migrate",
     "build": "turbo build",
     "lint": "turbo lint",
+    "test": "turbo test",
     "typecheck": "turbo typecheck",
     "db:migrate": "npm run migrate --workspace=@stagecraft/db",
     "db:generate": "npm run generate --workspace=@stagecraft/db",

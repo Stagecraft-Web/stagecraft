@@ -22,13 +22,38 @@ interface CreateSitePayload {
 }
 
 /**
+ * Parse the template's .gitignore and return directory names to skip.
+ * Falls back to an empty set if .gitignore is missing or unreadable.
+ */
+async function getGitignoreDirs(): Promise<Set<string>> {
+  try {
+    const content = await fs.readFile(path.join(TEMPLATE_DIR, ".gitignore"), "utf-8");
+    const dirs = new Set<string>();
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      // Match simple directory entries like "node_modules/" or "dist/"
+      if (trimmed.endsWith("/")) dirs.add(trimmed.slice(0, -1));
+    }
+    return dirs;
+  } catch {
+    return new Set();
+  }
+}
+
+/**
  * Read all text files from the template directory, skipping binaries and
  * files that shouldn't be committed (node_modules, lock files, etc.).
+ * Directories listed in the template's .gitignore are used as the primary
+ * source of truth for what to skip, supplemented by build-artifact dirs
+ * that may not appear in .gitignore.
  */
 async function readTemplateFiles(siteName: string): Promise<{ path: string; content: string }[]> {
   const files: { path: string; content: string }[] = [];
 
-  const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".turbo", "tests", "scripts"]);
+  const gitignoreDirs = await getGitignoreDirs();
+  // Merge .gitignore dirs with extra build-artifact dirs not covered by .gitignore
+  const SKIP_DIRS = new Set([...gitignoreDirs, ".next", ".turbo", "tests", "scripts"]);
   const SKIP_FILES = new Set(["package-lock.json", "playwright.config.ts", "CLAUDE.md", "EDITING.md"]);
 
   async function walk(dir: string, prefix: string) {

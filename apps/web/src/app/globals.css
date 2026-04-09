@@ -34,6 +34,7 @@
   --color-error: #cc0000;
   --color-muted: #6c757d;
   --color-disabled: #cccccc;
+  --color-neutral-bg: #e2e3e5;
 
   /* Typography */
   --font-body: system-ui, -apple-system, sans-serif;

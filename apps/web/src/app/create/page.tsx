@@ -21,11 +21,11 @@ export default function CreateSitePage() {
   const [blueprintType, setBlueprintType] = useState("");
   const [siteName, setSiteName] = useState("");
   const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   async function handleCreate() {
     setError("");
-    setCreating(true);
+    setIsCreating(true);
     setStep("creating");
 
     try {
@@ -40,7 +40,7 @@ export default function CreateSitePage() {
       if (!res.ok) {
         setError(data.error ?? "Failed to create site");
         setStep("details");
-        setCreating(false);
+        setIsCreating(false);
         return;
       }
 
@@ -49,7 +49,7 @@ export default function CreateSitePage() {
     } catch {
       setError("Something went wrong. Please try again.");
       setStep("details");
-      setCreating(false);
+      setIsCreating(false);
     }
   }
 
@@ -116,7 +116,7 @@ export default function CreateSitePage() {
           </div>
 
           <div style={{ marginTop: "1.25rem" }}>
-            <Button onClick={handleCreate} isDisabled={!siteName.trim() || creating}>
+            <Button onClick={handleCreate} isDisabled={!siteName.trim() || isCreating}>
               Create site
             </Button>
           </div>

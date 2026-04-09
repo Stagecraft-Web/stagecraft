@@ -14,9 +14,9 @@ interface SiteJob {
   id: string;
   type: JobType;
   status: JobStatus;
-  errorMessage: string | null;
+  errorMessage?: string;
   createdAt: string;
-  completedAt: string | null;
+  completedAt?: string;
 }
 
 interface Site {
@@ -25,12 +25,12 @@ interface Site {
   slug: string;
   status: SiteStatus;
   blueprintType: BlueprintType;
-  githubRepoOwner: string | null;
-  githubRepoName: string | null;
-  netlifySiteId: string | null;
-  netlifyAdminUrl: string | null;
-  productionUrl: string | null;
-  archivedAt: string | null;
+  githubRepoOwner?: string;
+  githubRepoName?: string;
+  netlifySiteId?: string;
+  netlifyAdminUrl?: string;
+  productionUrl?: string;
+  archivedAt?: string;
   jobs: SiteJob[];
 }
 
@@ -38,9 +38,9 @@ export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [archiving, setArchiving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
   useEffect(() => {
@@ -51,18 +51,18 @@ export default function SiteDetailPage() {
         const res = await fetch(`/api/sites/${siteId}`);
         if (!res.ok) {
           setError("Site not found");
-          setLoading(false);
+          setIsLoading(false);
           return;
         }
         const data = await res.json();
         if (active) {
           setSite(data.site);
-          setLoading(false);
+          setIsLoading(false);
         }
       } catch {
         if (active) {
           setError("Failed to load site");
-          setLoading(false);
+          setIsLoading(false);
         }
       }
     }
@@ -93,7 +93,7 @@ export default function SiteDetailPage() {
     };
   }, [siteId]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <main style={{ maxWidth: "var(--max-width-narrow)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
         <p>Loading...</p>
@@ -114,7 +114,7 @@ export default function SiteDetailPage() {
   async function handleArchiveToggle() {
     const action = site!.status === "archived" ? "unarchive" : "archive";
     if (action === "archive" && !confirm(`Archive "${site!.name}"? The GitHub repo will become read-only.`)) return;
-    setArchiving(true);
+    setIsArchiving(true);
     try {
       const res = await fetch(`/api/sites/${siteId}`, {
         method: "PATCH",
@@ -123,7 +123,7 @@ export default function SiteDetailPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSite((prev) => prev ? { ...prev, status: data.site.status, archivedAt: action === "archive" ? new Date().toISOString() : null } : prev);
+        setSite((prev) => prev ? { ...prev, status: data.site.status, archivedAt: action === "archive" ? new Date().toISOString() : undefined } : prev);
       } else {
         const data = await res.json();
         setError(data.error || `Failed to ${action} site`);
@@ -131,13 +131,13 @@ export default function SiteDetailPage() {
     } catch {
       setError(`Failed to ${action} site`);
     } finally {
-      setArchiving(false);
+      setIsArchiving(false);
     }
   }
 
   async function handleDelete() {
     if (deleteConfirmName !== site!.name) return;
-    setDeleting(true);
+    setIsDeleting(true);
     try {
       const res = await fetch(`/api/sites/${siteId}`, { method: "DELETE" });
       const data = await res.json();
@@ -148,11 +148,11 @@ export default function SiteDetailPage() {
         window.location.href = "/dashboard";
       } else {
         setError(data.error || "Failed to delete site");
-        setDeleting(false);
+        setIsDeleting(false);
       }
     } catch {
       setError("Failed to delete site");
-      setDeleting(false);
+      setIsDeleting(false);
     }
   }
 
@@ -173,7 +173,7 @@ export default function SiteDetailPage() {
     : isError
     ? "var(--color-error-bg)"
     : isArchived
-    ? "#e2e3e5"
+    ? "var(--color-neutral-bg)"
     : "var(--color-success-bg)";
 
   return (
@@ -270,9 +270,9 @@ export default function SiteDetailPage() {
           <Button
             variant={isArchived ? "primary" : "muted"}
             onClick={handleArchiveToggle}
-            isDisabled={archiving}
+            isDisabled={isArchiving}
           >
-            {archiving
+            {isArchiving
               ? (isArchived ? "Unarchiving..." : "Archiving...")
               : (isArchived ? "Unarchive Site" : "Archive Site")}
           </Button>
@@ -290,13 +290,10 @@ export default function SiteDetailPage() {
         <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
           Permanently delete this site, its GitHub repository, and Netlify deployment. This cannot be undone.
         </p>
-        <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
-          Type <strong>{site.name}</strong> to confirm:
-        </p>
-        <div style={{ maxWidth: "var(--max-width-narrow)" }}>
+        <div style={{ maxWidth: "18.75rem" }}>
           <FormGroup
             id="delete-confirm"
-            label=""
+            label={`Type "${site.name}" to confirm:`}
             value={deleteConfirmName}
             onChange={setDeleteConfirmName}
             placeholder={site.name}
@@ -306,9 +303,9 @@ export default function SiteDetailPage() {
           <Button
             variant="danger"
             onClick={handleDelete}
-            isDisabled={deleting || deleteConfirmName !== site.name}
+            isDisabled={isDeleting || deleteConfirmName !== site.name}
           >
-            {deleting ? "Deleting..." : "Permanently Delete Site"}
+            {isDeleting ? "Deleting..." : "Permanently Delete Site"}
           </Button>
         </div>
       </section>

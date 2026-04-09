@@ -308,6 +308,9 @@ A change to the artist bio should produce a diff that reads like a content chang
 **One content contract across the stack.**
 The same schema drives validation, rendering, AI editing, and any future editor UI. There is no separate “admin schema” vs “code schema.”
 
+**Designed for future human editors — without requiring one now.**
+The schema-first content model is intentionally compatible with filesystem/Git-based structured editors (such as a future Keystatic or similar form-based UI) without requiring content migration. v1 ships with no CMS dependency: no Keystatic, no Contentlayer, no headless CMS. If a form-based editing surface is ever added, it plugs into the existing content files as they are. The schema is the integration point.
+
 ### 11.2 Content categories
 
 Content in each site falls into four categories. The AI should understand this taxonomy and prefer editing in the correct category rather than reaching for component code.
@@ -382,6 +385,8 @@ Every significant image entry in any collection or singleton should carry normal
 | `credit` | no | Optional photographer credit |
 | `focalPoint` | no | Optional `{ x, y }` hint for responsive cropping |
 | `usageSlot` | no | Identifies where the image appears (e.g. `”hero”`, `”gallery”`, `”about”`) |
+| `mobileVariant` | no | Optional path to a mobile-specific image file (different crop or composition) |
+| `aspectPreference` | no | Optional preferred aspect ratio hint for the rendering component (e.g. `”16:9”`, `”square”`, `”portrait”`) |
 
 This metadata should live alongside the image reference in content files, not only in component code.
 

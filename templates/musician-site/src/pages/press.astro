@@ -36,7 +36,7 @@ const quotes: PressQuote[] = quoteSets.flat();
 
       {quotes.length > 0 && (
         <div class="quotes">
-          <h2>Reviews & Press</h2>
+          <h2>{frontmatter.reviewsHeadline || "Reviews & Press"}</h2>
           <div class="quote-list">
             {quotes.map((q) => (
               <blockquote class="quote-card">

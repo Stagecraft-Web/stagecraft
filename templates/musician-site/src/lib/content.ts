@@ -1,16 +1,27 @@
-import siteConfig from "../content/config/site.json";
-import navConfig from "../content/config/nav.json";
-import themeConfig from "../content/config/theme.json";
-import type { SiteConfig, NavItem, Theme } from "./schemas.js";
+import siteConfigRaw from "../content/config/site.json";
+import navConfigRaw from "../content/config/nav.json";
+import themeConfigRaw from "../content/config/theme.json";
+import {
+  siteConfigSchema,
+  navSchema,
+  themeSchema,
+  type SiteConfig,
+  type NavItem,
+  type Theme,
+} from "./schemas.js";
+
+// Runtime-validated accessors for config singletons.
+// These call Zod .parse() at runtime so invalid content throws immediately
+// with a clear field-level error, not a silent type mismatch downstream.
 
 export function getSiteConfig(): SiteConfig {
-  return siteConfig as SiteConfig;
+  return siteConfigSchema.parse(siteConfigRaw);
 }
 
 export function getNav(): NavItem[] {
-  return navConfig as NavItem[];
+  return navSchema.parse(navConfigRaw);
 }
 
 export function getTheme(): Theme {
-  return themeConfig as Theme;
+  return themeSchema.parse(themeConfigRaw);
 }

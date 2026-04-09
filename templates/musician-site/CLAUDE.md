@@ -5,7 +5,7 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 ## Architecture
 
 - **Framework**: Astro + React + TypeScript (strict mode)
-- **Rendering**: Server output via `@astrojs/netlify` adapter. All pages are prerendered (`export const prerender = true`). API routes (`src/pages/api/`) run as Netlify Functions.
+- **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. Server-rendered routes (API endpoints) opt out with `export const prerender = false`.
 - **Content**: Structured files in `src/content/`. Page copy in Markdown, collections in JSON, config in JSON.
 - **Styling**: CSS custom properties (design tokens) defined in `src/styles/global.css` with values from `src/content/config/theme.json`. Supports light/dark color modes.
 - **Images**: Source images in `src/assets/images/`. Astro handles optimization at build time.
@@ -110,8 +110,8 @@ Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsin
 
 ### Adding a new page
 1. Create a Markdown content file in `src/content/pages/`.
-2. Create an Astro page file in `src/pages/`. Add `export const prerender = true` in the frontmatter.
-3. Use `parseFrontmatter` and `parseBody` from `src/lib/markdown.ts`.
+2. Create an Astro page file in `src/pages/`.
+3. Use `parseFrontmatter` and `parseBody` from `src/lib/markdown.ts`. Render paragraphs with `.map((p) => <p>{p}</p>)` — never join with `\n\n`.
 4. Add navigation entry in `src/content/config/nav.json`.
 
 ### Adding images
@@ -137,7 +137,7 @@ Sends a contact form email via Resend. Requires `RESEND_API_KEY` environment var
 - Do not refactor code unrelated to the requested change.
 - Maintain accessibility (semantic HTML, alt text, keyboard navigation, color contrast).
 - Run `npm run validate` before committing to ensure content, types, and build pass.
-- All new pages must include `export const prerender = true` unless they require server-side rendering.
+- Pages are prerendered by default. Only add `export const prerender = false` for server-rendered routes (API endpoints).
 
 ## Validation Commands
 ```bash

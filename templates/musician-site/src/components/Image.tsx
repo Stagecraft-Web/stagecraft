@@ -41,7 +41,7 @@ export default function Image({
             height: "100%",
             minHeight: 120,
             color: "var(--color-text-muted)",
-            fontSize: "var(--font-size-md)",
+            fontSize: "var(--font-size-sm)",
           }}
         >
           Image unavailable

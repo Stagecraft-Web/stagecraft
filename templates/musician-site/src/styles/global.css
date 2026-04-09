@@ -31,19 +31,15 @@
   --font-heading: "Georgia", serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
 
-  /* Typography — Font Sizes */
+  /* Typography — Font Sizes (8-step scale, monotonically increasing) */
   --font-size-xs: 0.75rem;
-  --font-size-sm: 0.8rem;
+  --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
-  --font-size-md: 0.875rem;
-  --font-size-lg: 0.9rem;
-  --font-size-xl: 1.125rem;
-  --font-size-2xl: 1.25rem;
-  --font-size-3xl: 1.5rem;
-  --font-size-4xl: 1.875rem;
-  --font-size-5xl: 2.25rem;
-  --font-size-6xl: 3rem;
-  --font-size-7xl: 3.5rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 2.5rem;
+  --font-size-4xl: 3.5rem;
 
   /* Typography — Font Weights */
   --font-weight-normal: 400;
@@ -130,11 +126,11 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-primary);
 }
 
-h1 { font-size: var(--font-size-6xl); margin-bottom: 0.75rem; }
-h2 { font-size: var(--font-size-5xl); margin-bottom: 0.625rem; }
-h3 { font-size: var(--font-size-3xl); margin-bottom: 0.5rem; }
-h4 { font-size: var(--font-size-2xl); margin-bottom: 0.5rem; }
-h5 { font-size: var(--font-size-xl); margin-bottom: 0.375rem; }
+h1 { font-size: var(--font-size-4xl); margin-bottom: 0.75rem; }
+h2 { font-size: var(--font-size-3xl); margin-bottom: 0.625rem; }
+h3 { font-size: var(--font-size-2xl); margin-bottom: 0.5rem; }
+h4 { font-size: var(--font-size-xl); margin-bottom: 0.5rem; }
+h5 { font-size: var(--font-size-lg); margin-bottom: 0.375rem; }
 h6 { font-size: var(--font-size-base); margin-bottom: 0.375rem; }
 
 p {
@@ -147,9 +143,9 @@ p:last-child {
 
 /* --breakpoint-md (768px) */
 @media (max-width: 768px) {
-  h1 { font-size: var(--font-size-5xl); }
-  h2 { font-size: var(--font-size-4xl); }
-  h3 { font-size: var(--font-size-2xl); }
+  h1 { font-size: var(--font-size-3xl); }
+  h2 { font-size: var(--font-size-2xl); }
+  h3 { font-size: var(--font-size-xl); }
 }
 
 /* ============================================================

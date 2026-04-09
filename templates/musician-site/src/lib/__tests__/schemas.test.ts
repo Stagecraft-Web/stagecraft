@@ -39,7 +39,7 @@ describe("themeSchema", () => {
     typography: {
       headingFont: "'Georgia', serif",
       bodyFont: "'Inter', sans-serif",
-      fontSize: { base: "1rem", lg: "1.125rem" },
+      fontSize: { base: "1rem", lg: "1.25rem" },
       fontWeight: { normal: "400", bold: "700" },
     },
     spacing: { sm: "0.5rem", md: "1rem" },

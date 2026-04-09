@@ -1,4 +1,5 @@
 {
+  "colorMode": "light",
   "colors": {
     "primary": "#1a1a2e",
     "secondary": "#e94560",
@@ -12,6 +13,20 @@
     "border": "#e5e7eb",
     "overlay": "rgba(0, 0, 0, 0.9)",
     "overlayLight": "rgba(255, 255, 255, 0.15)"
+  },
+  "darkColors": {
+    "primary": "#e2e8f0",
+    "secondary": "#f87171",
+    "accent": "#60a5fa",
+    "background": "#0f172a",
+    "surface": "#1e293b",
+    "white": "#ffffff",
+    "text": "#e2e8f0",
+    "textMuted": "#94a3b8",
+    "textLight": "#64748b",
+    "border": "#334155",
+    "overlay": "rgba(0, 0, 0, 0.95)",
+    "overlayLight": "rgba(255, 255, 255, 0.1)"
   },
   "typography": {
     "headingFont": "'Georgia', serif",

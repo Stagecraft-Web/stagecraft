@@ -34,6 +34,7 @@ describe("siteConfigSchema", () => {
 
 describe("themeSchema", () => {
   const valid = {
+    colorMode: "light" as const,
     colors: { primary: "#1a1a2e", secondary: "#e94560" },
     typography: {
       headingFont: "'Georgia', serif",
@@ -51,7 +52,25 @@ describe("themeSchema", () => {
   };
 
   it("accepts a valid theme", () => {
-    expect(themeSchema.parse(valid)).toEqual(valid);
+    expect(themeSchema.parse(valid)).toMatchObject(valid);
+  });
+
+  it("defaults colorMode to light", () => {
+    const { colorMode, ...noMode } = valid;
+    expect(themeSchema.parse(noMode).colorMode).toBe("light");
+  });
+
+  it("accepts dark colorMode", () => {
+    expect(themeSchema.parse({ ...valid, colorMode: "dark" }).colorMode).toBe("dark");
+  });
+
+  it("rejects invalid colorMode", () => {
+    expect(() => themeSchema.parse({ ...valid, colorMode: "auto" })).toThrow();
+  });
+
+  it("accepts optional darkColors", () => {
+    const withDark = { ...valid, darkColors: { primary: "#e2e8f0", background: "#0f172a" } };
+    expect(themeSchema.parse(withDark).darkColors).toBeTruthy();
   });
 
   it("rejects missing typography.fontSize", () => {

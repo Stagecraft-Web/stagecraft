@@ -5,9 +5,9 @@ This file guides Claude Code (or any AI agent) when making changes to this music
 ## Architecture
 
 - **Framework**: Astro + React + TypeScript (strict mode)
-- **Rendering**: Static-first. Use `.astro` components for most UI. Use React only for interactive islands.
+- **Rendering**: Server output via `@astrojs/netlify` adapter. All pages are prerendered (`export const prerender = true`). API routes (`src/pages/api/`) run as Netlify Functions.
 - **Content**: Structured files in `src/content/`. Page copy in Markdown, collections in JSON, config in JSON.
-- **Styling**: CSS custom properties (design tokens) defined in `src/styles/global.css` with values from `src/content/config/theme.json`.
+- **Styling**: CSS custom properties (design tokens) defined in `src/styles/global.css` with values from `src/content/config/theme.json`. Supports light/dark color modes.
 - **Images**: Source images in `src/assets/images/`. Astro handles optimization at build time.
 
 ## Design Token System
@@ -101,9 +101,16 @@ Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsin
 3. Edit component `<style>` blocks for component-specific layout changes.
 4. **Never use hardcoded hex colors, px font sizes, or numeric font weights.** Always use `var(--token-name)`.
 
+### Color mode (light/dark)
+- `theme.json` has `colorMode: "light" | "dark"` and an optional `darkColors` palette.
+- If `"light"`: site renders light by default, automatically switches to dark when the viewer's OS has `prefers-color-scheme: dark`.
+- If `"dark"`: site always renders in dark mode.
+- Dark overrides are in `global.css` under `[data-theme="dark"]`. An inline `<script>` in `BaseLayout.astro` sets the attribute before first paint to avoid a flash of wrong theme.
+- To customize dark colors, edit `darkColors` in `theme.json` and update the corresponding CSS variables in the `[data-theme="dark"]` block.
+
 ### Adding a new page
 1. Create a Markdown content file in `src/content/pages/`.
-2. Create an Astro page file in `src/pages/`.
+2. Create an Astro page file in `src/pages/`. Add `export const prerender = true` in the frontmatter.
 3. Use `parseFrontmatter` and `parseBody` from `src/lib/markdown.ts`.
 4. Add navigation entry in `src/content/config/nav.json`.
 
@@ -111,6 +118,16 @@ Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsin
 1. Place source images in `src/assets/images/`.
 2. Reference them from content files or components.
 3. Use descriptive alt text for every image.
+
+## API Routes
+
+### `POST /api/contact`
+Sends a contact form email via Resend. Requires `RESEND_API_KEY` environment variable.
+- Validates required fields (name, email, message)
+- Honeypot spam prevention
+- IP-based rate limiting (3 requests/minute)
+- Sends to `contactEmail` from `site.json`
+- The `from` address uses Resend's sandbox domain by default (`onboarding@resend.dev`). Update once a custom domain is verified in Resend.
 
 ## Constraints
 - Prefer `.astro` components over React unless stateful interactivity is needed.
@@ -120,6 +137,7 @@ Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsin
 - Do not refactor code unrelated to the requested change.
 - Maintain accessibility (semantic HTML, alt text, keyboard navigation, color contrast).
 - Run `npm run validate` before committing to ensure content, types, and build pass.
+- All new pages must include `export const prerender = true` unless they require server-side rendering.
 
 ## Validation Commands
 ```bash

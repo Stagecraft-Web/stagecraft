@@ -17,7 +17,9 @@ export const navItemSchema = z.object({
 export const navSchema = z.array(navItemSchema);
 
 export const themeSchema = z.object({
+  colorMode: z.enum(["light", "dark"]).default("light"),
   colors: z.record(z.string()),
+  darkColors: z.record(z.string()).optional(),
   typography: z.object({
     headingFont: z.string(),
     bodyFont: z.string(),

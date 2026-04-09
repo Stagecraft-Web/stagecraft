@@ -1,0 +1,22 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 1.5rem;
+}
+
+.item {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  overflow: hidden;
+  text-align: left;
+}
+
+.caption {
+  display: block;
+  padding: 0.5rem 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}

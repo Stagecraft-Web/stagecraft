@@ -1,0 +1,35 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import ReleaseCard from "../components/ReleaseCard.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
+import type { Release } from "../lib/schemas";
+
+// @ts-ignore - markdown import
+import musicContent from "../content/pages/music.md?raw";
+
+const frontmatter = parseFrontmatter(musicContent);
+const paragraphs = parseBody(musicContent);
+
+// Load releases
+const releaseFiles = import.meta.glob("../content/collections/releases/*.json", { eager: true });
+const releases: Release[] = Object.values(releaseFiles).map((mod: any) => mod.default);
+---
+
+<BaseLayout title="Music">
+  <PageHeader headline={frontmatter.headline || "Music"} />
+  <section class="section">
+    <div class="container">
+      {paragraphs.length > 0 && (
+        <div class="prose" style="margin-bottom: 2rem;">
+          {paragraphs.map((p: string) => <p>{p}</p>)}
+        </div>
+      )}
+      <div class="grid grid-2">
+        {releases.map((release) => (
+          <ReleaseCard release={release} />
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

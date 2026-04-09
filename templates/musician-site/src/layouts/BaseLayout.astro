@@ -1,0 +1,59 @@
+---
+import "../styles/global.css";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { getSiteConfig } from "../lib/content";
+import { getTheme } from "../lib/content";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const site = getSiteConfig();
+const theme = getTheme();
+const { title, description } = Astro.props;
+const pageTitle = title ? `${title} — ${site.artistName}` : site.siteTitle;
+const pageDescription = description ?? site.siteDescription;
+
+const colorMode = theme.colorMode ?? "light";
+---
+
+<!doctype html>
+<html lang="en" data-color-mode={colorMode}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={pageDescription} />
+    <title>{pageTitle}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" />
+    {/* Inline script to set data-theme before first paint, preventing flash */}
+    <script is:inline define:vars={{ colorMode }}>
+      (function() {
+        if (colorMode === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+        } else if (colorMode === "light") {
+          // Respect viewer's OS preference
+          if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            document.documentElement.setAttribute("data-theme", "dark");
+          }
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <Header />
+    <main id="main-content">
+      <slot />
+    </main>
+    <Footer />
+    {colorMode === "light" && (
+      <script is:inline>
+        // Listen for OS theme changes (only in light mode — dark mode is always dark)
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(e) {
+          document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+        });
+      </script>
+    )}
+  </body>
+</html>

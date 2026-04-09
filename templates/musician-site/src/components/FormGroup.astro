@@ -1,0 +1,80 @@
+---
+interface Props {
+  /** Input label text */
+  label: string;
+  /** Input name and id attribute */
+  name: string;
+  /** Input type (ignored for textarea) */
+  type?: astroHTML.JSX.HTMLInputTypeAttribute;
+  /** Render as textarea instead of input */
+  isTextarea?: boolean;
+  /** Number of rows for textarea */
+  rows?: number;
+  /** Whether the field is required */
+  isRequired?: boolean;
+  /** Autocomplete attribute */
+  autocomplete?: "name" | "email" | "tel" | "organization" | "street-address" | "address-line1" | "address-line2" | "city" | "state" | "postal-code" | "country" | "off" | "on";
+}
+
+const {
+  label,
+  name,
+  type = "text",
+  isTextarea = false,
+  rows = 5,
+  isRequired = false,
+  autocomplete,
+} = Astro.props;
+---
+
+<div class="form-group">
+  <label for={name}>
+    {label}
+    {isRequired && <span class="form-group-required">*</span>}
+  </label>
+  {isTextarea ? (
+    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} />
+  ) : (
+    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} />
+  )}
+</div>
+
+<style>
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-sm);
+  }
+
+  .form-group-required {
+    color: var(--color-secondary);
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: var(--font-size-base);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+
+  .form-group textarea {
+    resize: vertical;
+  }
+</style>

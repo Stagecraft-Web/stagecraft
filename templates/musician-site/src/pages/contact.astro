@@ -1,0 +1,26 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import ContactForm from "../components/ContactForm.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
+
+// @ts-ignore - markdown import
+import contactContent from "../content/pages/contact.md?raw";
+
+const frontmatter = parseFrontmatter(contactContent);
+const paragraphs = parseBody(contactContent);
+---
+
+<BaseLayout title="Contact">
+  <PageHeader headline={frontmatter.headline || "Contact"} />
+  <section class="section">
+    <div class="container">
+      {paragraphs.length > 0 && (
+        <div class="prose" style="margin-bottom: 2rem;">
+          {paragraphs.map((p: string) => <p>{p}</p>)}
+        </div>
+      )}
+      <ContactForm />
+    </div>
+  </section>
+</BaseLayout>

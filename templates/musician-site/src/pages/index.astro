@@ -1,0 +1,29 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/Hero.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
+
+// @ts-ignore - markdown import
+import homeContent from "../content/pages/home.md?raw";
+
+const frontmatter = parseFrontmatter(homeContent);
+const paragraphs = parseBody(homeContent);
+---
+
+<BaseLayout>
+  <Hero
+    headline={frontmatter.headline || "Artist Name"}
+    subheadline={frontmatter.subheadline}
+    ctaText={frontmatter.ctaText}
+    ctaLink={frontmatter.ctaLink}
+  />
+  {paragraphs.length > 0 && (
+    <section class="section">
+      <div class="container">
+        <div class="prose">
+          {paragraphs.map((p: string) => <p>{p}</p>)}
+        </div>
+      </div>
+    </section>
+  )}
+</BaseLayout>

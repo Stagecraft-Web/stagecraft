@@ -1,0 +1,39 @@
+{
+  "name": "musician-site",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "eslint . --ext .ts,.tsx,.astro",
+    "typecheck": "astro check",
+    "test:smoke": "playwright test",
+    "validate:content": "tsx scripts/validate-content.ts",
+    "test": "vitest run",
+    "validate": "npm run validate:content && npm run lint && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "astro": "^6.1.4",
+    "@astrojs/netlify": "^7.0.3",
+    "@astrojs/react": "^4.2.0",
+    "@astrojs/check": "^0.9.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "resend": "^4.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@playwright/test": "^1.49.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "vitest": "^4.1.3"
+  }
+}

@@ -1,0 +1,72 @@
+---
+interface Props {
+  /** Renders as <a> when provided, <button> otherwise */
+  href?: string;
+  /** Visual variant */
+  variant?: "primary" | "outline";
+  /** For icon-only buttons — required when no visible text */
+  ariaLabel?: string;
+  /** HTML button type (ignored when href is set) */
+  type?: "button" | "submit" | "reset";
+  /** Additional CSS classes */
+  class?: string;
+  /** Open link in new tab */
+  isExternal?: boolean;
+}
+
+const {
+  href,
+  variant = "primary",
+  ariaLabel,
+  type = "button",
+  class: className,
+  isExternal,
+} = Astro.props;
+
+const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
+const externalAttrs = isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {};
+---
+
+{href ? (
+  <a href={href} class={classes} aria-label={ariaLabel} {...externalAttrs}>
+    <slot />
+  </a>
+) : (
+  <button type={type} class={classes} aria-label={ariaLabel}>
+    <slot />
+  </button>
+)}
+
+<style>
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-base);
+    text-decoration: none;
+    transition: opacity 0.15s;
+    cursor: pointer;
+    border: none;
+    line-height: 1;
+  }
+
+  .btn:hover {
+    opacity: 0.9;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--color-secondary);
+    color: var(--color-white);
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 2px solid var(--color-primary);
+    color: var(--color-primary);
+  }
+</style>

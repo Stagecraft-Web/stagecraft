@@ -1,0 +1,18 @@
+{
+  "artistName": "Artist Name",
+  "siteTitle": "Artist Name — Official Website",
+  "siteDescription": "Official website of Artist Name. Music, tour dates, photos, and more.",
+  "socialLinks": {
+    "instagram": "",
+    "twitter": "",
+    "facebook": "",
+    "youtube": "",
+    "spotify": "",
+    "appleMusic": "",
+    "bandcamp": "",
+    "soundcloud": "",
+    "tiktok": ""
+  },
+  "contactEmail": "contact@example.com",
+  "copyright": "© 2026 Artist Name. All rights reserved."
+}

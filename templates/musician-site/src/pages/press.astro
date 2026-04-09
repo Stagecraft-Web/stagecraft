@@ -1,0 +1,85 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import Button from "../components/Button.astro";
+import { parseFrontmatter, parseBody } from "../lib/markdown";
+import type { PressQuote } from "../lib/schemas";
+
+// @ts-ignore - markdown import
+import pressContent from "../content/pages/press.md?raw";
+
+const frontmatter = parseFrontmatter(pressContent);
+const paragraphs = parseBody(pressContent);
+
+const quoteFiles = import.meta.glob("../content/collections/pressQuotes/*.json", { eager: true });
+const quoteSets: PressQuote[][] = Object.values(quoteFiles).map((mod: any) => mod.default);
+const quotes: PressQuote[] = quoteSets.flat();
+---
+
+<BaseLayout title="Press">
+  <PageHeader headline={frontmatter.headline || "Press"} />
+  <section class="section">
+    <div class="container">
+      {paragraphs.length > 0 && (
+        <div class="prose" style="margin-bottom: 2rem;">
+          {paragraphs.map((p: string) => <p>{p}</p>)}
+        </div>
+      )}
+
+      {frontmatter.epkDownload && (
+        <div style="margin-bottom: 2rem;">
+          <Button href={frontmatter.epkDownload} variant="outline">
+            Download EPK
+          </Button>
+        </div>
+      )}
+
+      {quotes.length > 0 && (
+        <div class="quotes">
+          <h2>Reviews & Press</h2>
+          <div class="quote-list">
+            {quotes.map((q) => (
+              <blockquote class="quote-card">
+                <p>"{q.quote}"</p>
+                <footer>
+                  {q.url ? (
+                    <a href={q.url} target="_blank" rel="noopener noreferrer">{q.source}</a>
+                  ) : (
+                    <span>{q.source}</span>
+                  )}
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .quote-list {
+    display: grid;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .quote-card {
+    background: var(--color-surface);
+    border-left: 4px solid var(--color-secondary);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+  }
+
+  .quote-card p {
+    font-size: var(--font-size-lg);
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  .quote-card footer {
+    margin-top: 0.75rem;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+</style>

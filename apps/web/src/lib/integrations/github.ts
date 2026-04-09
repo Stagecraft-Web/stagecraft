@@ -8,6 +8,7 @@ interface CreateRepoOptions {
 }
 
 interface CreateRepoResult {
+  id: number;
   owner: string;
   name: string;
   fullName: string;
@@ -65,11 +66,12 @@ export async function createRepo(options: CreateRepoOptions): Promise<CreateRepo
       name: options.name,
       description: options.description ?? "",
       private: options.isPrivate ?? false,
-      auto_init: false,
+      auto_init: true,
     }),
   });
 
   return {
+    id: data.id,
     owner: data.owner.login,
     name: data.name,
     fullName: data.full_name,
@@ -80,17 +82,32 @@ export async function createRepo(options: CreateRepoOptions): Promise<CreateRepo
 }
 
 /**
- * Push a set of files to a repo as an initial commit using the Git Data API.
- * Works on empty repos (no existing commits required).
+ * Push a set of files to a repo using the Git Data API.
+ * Fetches the current HEAD (from auto_init) and uses it as the parent commit.
  */
 export async function pushFiles(
   userId: string,
   owner: string,
   repo: string,
+  branch: string,
   files: PushFileEntry[],
   message: string
 ): Promise<{ commitSha: string }> {
   const token = await getGitHubToken(userId);
+
+  // Get current HEAD commit SHA — retry because GitHub may still be
+  // processing the auto_init commit right after repo creation.
+  let parentSha: string;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const ref = await githubApi(token, `/repos/${owner}/${repo}/git/ref/heads/${branch}`);
+      parentSha = ref.object.sha;
+      break;
+    } catch {
+      if (attempt === 4) throw new Error(`Timed out waiting for initial commit on ${branch}`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
 
   // Create blobs for each file
   const blobs = await Promise.all(
@@ -112,41 +129,80 @@ export async function pushFiles(
     body: JSON.stringify({ tree: blobs }),
   });
 
-  // Create commit (no parent for initial commit)
+  // Create commit with parent
   const commit = await githubApi(token, `/repos/${owner}/${repo}/git/commits`, {
     method: "POST",
     body: JSON.stringify({
       message,
       tree: tree.sha,
+      parents: [parentSha!],
     }),
   });
 
-  // Point main branch to the commit
-  try {
-    // Try to update existing ref
-    await githubApi(token, `/repos/${owner}/${repo}/git/refs/heads/main`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commit.sha }),
-    });
-  } catch {
-    // Create ref if it doesn't exist (empty repo)
-    await githubApi(token, `/repos/${owner}/${repo}/git/refs`, {
-      method: "POST",
-      body: JSON.stringify({ ref: "refs/heads/main", sha: commit.sha }),
-    });
-  }
+  // Update branch ref
+  await githubApi(token, `/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+    method: "PATCH",
+    body: JSON.stringify({ sha: commit.sha }),
+  });
 
   return { commitSha: commit.sha };
+}
+
+/**
+ * Grant a GitHub App installation (e.g. Netlify) access to a specific repo.
+ * Finds the installation by app slug, then adds the repo to it.
+ */
+export async function grantAppAccess(
+  userId: string,
+  repoId: number,
+  appSlug: string
+): Promise<void> {
+  const token = await getGitHubToken(userId);
+
+  // List all GitHub App installations on the user's account
+  const data = await githubApi(token, "/user/installations");
+  const installation = data.installations?.find(
+    (inst: { app_slug: string }) => inst.app_slug === appSlug
+  );
+
+  if (!installation) {
+    throw new Error(`GitHub App "${appSlug}" is not installed. Install it from the app's GitHub page.`);
+  }
+
+  // Add the repo to the installation's accessible repos
+  await githubApi(token, `/user/installations/${installation.id}/repositories/${repoId}`, {
+    method: "PUT",
+  });
+}
+
+export async function setRepoArchived(
+  userId: string,
+  owner: string,
+  repo: string,
+  archived: boolean
+): Promise<void> {
+  const token = await getGitHubToken(userId);
+
+  await githubApi(token, `/repos/${owner}/${repo}`, {
+    method: "PATCH",
+    body: JSON.stringify({ archived }),
+  });
 }
 
 export async function deleteRepo(userId: string, owner: string, repo: string): Promise<void> {
   const token = await getGitHubToken(userId);
 
-  await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
     },
   });
+
+  // 404 is fine — repo may already be deleted
+  if (!res.ok && res.status !== 404) {
+    const body = await res.text();
+    throw new Error(`Failed to delete GitHub repo (${res.status}): ${body}`);
+  }
 }

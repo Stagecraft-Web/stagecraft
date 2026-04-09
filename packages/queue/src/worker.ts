@@ -1,5 +1,5 @@
 import { prisma } from "@stagecraft/db";
-import type { JobHandler, JobResult } from "./types.js";
+import type { JobHandler, JobResult } from "./types";
 
 interface WorkerOptions {
   handlers: Record<string, JobHandler>;

@@ -96,7 +96,9 @@ model Site {
   githubRepoName      String?
   githubDefaultBranch String   @default("main")
   netlifySiteId       String?
+  netlifyAdminUrl     String?
   productionUrl       String?
+  archivedAt          DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

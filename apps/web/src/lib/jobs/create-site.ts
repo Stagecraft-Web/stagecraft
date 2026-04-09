@@ -28,8 +28,8 @@ interface CreateSitePayload {
 async function readTemplateFiles(siteName: string): Promise<{ path: string; content: string }[]> {
   const files: { path: string; content: string }[] = [];
 
-  const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".turbo"]);
-  const SKIP_FILES = new Set(["package-lock.json"]);
+  const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".turbo", "tests", "scripts"]);
+  const SKIP_FILES = new Set(["package-lock.json", "playwright.config.ts", "CLAUDE.md", "EDITING.md"]);
 
   async function walk(dir: string, prefix: string) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -85,9 +85,10 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
 
   try {
     // 1. Create GitHub repo
+    const repoName = `stagecraft-site-${slug}`;
     const repo = await createRepo({
       userId,
-      name: slug,
+      name: repoName,
       description: `${name} — musician website powered by Stagecraft`,
     });
 
@@ -105,21 +106,22 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     const files = await readTemplateFiles(name);
 
     // 3. Push template files to the repo
-    await pushFiles(userId, repo.owner, repo.name, files, `Initial site: ${name}`);
+    await pushFiles(userId, repo.owner, repo.name, repo.defaultBranch, files, `Initial site: ${name}`);
 
-    // 4. Create Netlify site linked to the repo
+    // 4. Create Netlify site (bare — repo will be connected via Netlify UI)
     const netlifySite = await createNetlifySite({
       userId,
-      name: slug,
+      name: `stagecraft-site-${slug}`,
       repoOwner: repo.owner,
       repoName: repo.name,
     });
 
-    // 5. Update site with Netlify metadata and mark as active
+    // 5. Update site with metadata and mark active
     await prisma.site.update({
       where: { id: siteId },
       data: {
         netlifySiteId: netlifySite.siteId,
+        netlifyAdminUrl: netlifySite.adminUrl,
         productionUrl: netlifySite.sslUrl,
         status: "active",
       },
@@ -129,7 +131,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       success: true,
       data: {
         githubUrl: `https://github.com/${repo.owner}/${repo.name}`,
-        productionUrl: netlifySite.sslUrl,
+        netlifyAdminUrl: netlifySite.adminUrl,
         netlifySiteId: netlifySite.siteId,
       },
     };

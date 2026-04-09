@@ -47,8 +47,12 @@ async function netlifyApi(token: string, path: string, options?: RequestInit) {
 }
 
 /**
- * Create a Netlify site linked to a GitHub repo.
- * Netlify will auto-deploy on push to the configured branch.
+ * Create a Netlify site (without repo linking).
+ *
+ * Netlify's API doesn't reliably set up deploy keys when linking a repo via
+ * POST /sites. Instead we create a bare site and show a link in the dashboard
+ * for the user to connect the repo through Netlify's UI, which handles all
+ * the deploy-key and webhook plumbing correctly.
  */
 export async function createSite(options: CreateSiteOptions): Promise<NetlifySiteResult> {
   const token = await getNetlifyToken(options.userId);
@@ -57,11 +61,8 @@ export async function createSite(options: CreateSiteOptions): Promise<NetlifySit
     method: "POST",
     body: JSON.stringify({
       name: options.name,
-      repo: {
-        provider: "github",
-        repo: `${options.repoOwner}/${options.repoName}`,
-        private: false,
-        branch: options.repoBranch ?? "main",
+      // Build settings without repo link — will be connected via Netlify UI
+      build_settings: {
         cmd: "npm run build",
         dir: "dist",
       },

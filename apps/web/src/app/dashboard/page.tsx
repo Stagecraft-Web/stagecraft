@@ -20,7 +20,8 @@ export default async function DashboardPage() {
         <h1>Dashboard</h1>
         <div>
           <a href="/settings" style={{ marginRight: 16 }}>Settings</a>
-          <span>{session.user.name ?? session.user.email}</span>
+          <span style={{ marginRight: 16 }}>{session.user.name ?? session.user.email}</span>
+          <a href="/api/auth/signout" style={{ fontSize: 14, color: "#666" }}>Sign out</a>
         </div>
       </header>
 
@@ -46,12 +47,18 @@ export default async function DashboardPage() {
         ) : (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sites.map((site: { id: string; name: string; status: string; productionUrl: string | null }) => (
-              <li key={site.id} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}>
+              <li key={site.id} style={{
+                padding: 16,
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                marginBottom: 12,
+                opacity: site.status === "archived" ? 0.6 : 1,
+              }}>
                 <a href={`/sites/${site.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <strong>{site.name}</strong>
                   <span style={{ marginLeft: 8, color: "#666", fontSize: 14 }}>{site.status}</span>
                 </a>
-                {site.productionUrl && (
+                {site.productionUrl && site.status !== "archived" && (
                   <div style={{ marginTop: 4 }}>
                     <a href={site.productionUrl} style={{ fontSize: 14, color: "#0066cc" }}>{site.productionUrl}</a>
                   </div>

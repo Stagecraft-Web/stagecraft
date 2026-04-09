@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/Button";
+import FormGroup from "@/components/FormGroup";
 
 const BLUEPRINTS = [
   { value: "solo-artist", label: "Solo Artist", description: "For solo musicians, singer-songwriters, and solo performers" },
@@ -52,12 +54,12 @@ export default function CreateSitePage() {
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "system-ui" }}>
+    <main style={{ maxWidth: "var(--max-width-narrow)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
       <h1>Create a new site</h1>
       <p><a href="/dashboard">&larr; Dashboard</a></p>
 
       {error && (
-        <div style={{ padding: 12, background: "#f8d7da", borderRadius: 4, marginBottom: 16 }}>
+        <div style={{ padding: "0.75rem", background: "var(--color-error-bg)", borderRadius: "var(--radius-sm)", marginBottom: "1rem" }}>
           {error}
         </div>
       )}
@@ -65,7 +67,7 @@ export default function CreateSitePage() {
       {step === "blueprint" && (
         <section>
           <h2>Choose a blueprint</h2>
-          <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: "0.75rem" }}>
             {BLUEPRINTS.map((bp) => (
               <button
                 key={bp.value}
@@ -74,17 +76,18 @@ export default function CreateSitePage() {
                   setStep("details");
                 }}
                 style={{
-                  padding: 16,
-                  border: "1px solid #ddd",
-                  borderRadius: 8,
-                  background: blueprintType === bp.value ? "#e8f0fe" : "#fff",
+                  padding: "1rem",
+                  border: `1px solid var(--color-border)`,
+                  borderRadius: "var(--radius-lg)",
+                  background: blueprintType === bp.value ? "var(--color-selected-bg)" : "var(--color-surface)",
                   cursor: "pointer",
                   textAlign: "left",
+                  fontFamily: "inherit",
                 }}
               >
                 <strong>{bp.label}</strong>
                 <br />
-                <span style={{ color: "#666", fontSize: 14 }}>{bp.description}</span>
+                <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{bp.description}</span>
               </button>
             ))}
           </div>
@@ -94,61 +97,36 @@ export default function CreateSitePage() {
       {step === "details" && (
         <section>
           <h2>Site details</h2>
-          <p style={{ color: "#666", fontSize: 14 }}>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
             Blueprint: <strong>{BLUEPRINTS.find((b) => b.value === blueprintType)?.label}</strong>
             {" "}
-            <button
-              onClick={() => setStep("blueprint")}
-              style={{ background: "none", border: "none", color: "#0066cc", cursor: "pointer", fontSize: 14 }}
-            >
+            <Button variant="ghost" onClick={() => setStep("blueprint")}>
               Change
-            </button>
+            </Button>
           </p>
 
-          <div style={{ marginTop: 16 }}>
-            <label htmlFor="site-name" style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>
-              Artist / Site name
-            </label>
-            <input
+          <div style={{ marginTop: "1rem" }}>
+            <FormGroup
               id="site-name"
-              type="text"
+              label="Artist / Site name"
               value={siteName}
-              onChange={(e) => setSiteName(e.target.value)}
+              onChange={setSiteName}
               placeholder="e.g. Sarah Chen Music"
-              style={{
-                width: "100%",
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                fontSize: 16,
-                boxSizing: "border-box",
-              }}
             />
           </div>
 
-          <button
-            onClick={handleCreate}
-            disabled={!siteName.trim() || creating}
-            style={{
-              marginTop: 20,
-              padding: "10px 24px",
-              background: siteName.trim() ? "#0066cc" : "#ccc",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 16,
-              cursor: siteName.trim() ? "pointer" : "not-allowed",
-            }}
-          >
-            Create site
-          </button>
+          <div style={{ marginTop: "1.25rem" }}>
+            <Button onClick={handleCreate} isDisabled={!siteName.trim() || creating}>
+              Create site
+            </Button>
+          </div>
         </section>
       )}
 
       {step === "creating" && (
-        <section style={{ textAlign: "center", padding: 40 }}>
-          <p style={{ fontSize: 18 }}>Creating your site...</p>
-          <p style={{ color: "#666" }}>Setting up GitHub repo, pushing template, and configuring Netlify.</p>
+        <section style={{ textAlign: "center", padding: "2.5rem" }}>
+          <p style={{ fontSize: "var(--font-size-lg)" }}>Creating your site...</p>
+          <p style={{ color: "var(--color-text-muted)" }}>Setting up GitHub repo, pushing template, and configuring Netlify.</p>
         </section>
       )}
     </main>

@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
+import Button from "@/components/Button";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -15,32 +16,20 @@ export default async function DashboardPage() {
   });
 
   return (
-    <main style={{ maxWidth: 960, margin: "40px auto", fontFamily: "system-ui" }}>
+    <main style={{ maxWidth: "var(--max-width-wide)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Dashboard</h1>
         <div>
-          <a href="/settings" style={{ marginRight: 16 }}>Settings</a>
-          <span style={{ marginRight: 16 }}>{session.user.name ?? session.user.email}</span>
-          <a href="/api/auth/signout" style={{ fontSize: 14, color: "#666" }}>Sign out</a>
+          <a href="/settings" style={{ marginRight: "1rem" }}>Settings</a>
+          <span style={{ marginRight: "1rem" }}>{session.user.name ?? session.user.email}</span>
+          <a href="/api/auth/signout" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>Sign out</a>
         </div>
       </header>
 
-      <section style={{ marginTop: 32 }}>
+      <section style={{ marginTop: "2rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>Your Sites</h2>
-          <a
-            href="/create"
-            style={{
-              padding: "8px 16px",
-              background: "#0066cc",
-              color: "#fff",
-              borderRadius: 6,
-              textDecoration: "none",
-              fontSize: 14,
-            }}
-          >
-            + Create site
-          </a>
+          <Button href="/create" size="sm">+ Create site</Button>
         </div>
         {sites.length === 0 ? (
           <p>No sites yet. <a href="/create">Create your first musician website</a> to get started.</p>
@@ -48,19 +37,19 @@ export default async function DashboardPage() {
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sites.map((site: { id: string; name: string; status: string; productionUrl: string | null }) => (
               <li key={site.id} style={{
-                padding: 16,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                marginBottom: 12,
+                padding: "1rem",
+                border: `1px solid var(--color-border)`,
+                borderRadius: "var(--radius-lg)",
+                marginBottom: "0.75rem",
                 opacity: site.status === "archived" ? 0.6 : 1,
               }}>
                 <a href={`/sites/${site.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <strong>{site.name}</strong>
-                  <span style={{ marginLeft: 8, color: "#666", fontSize: 14 }}>{site.status}</span>
+                  <span style={{ marginLeft: "0.5rem", color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{site.status}</span>
                 </a>
                 {site.productionUrl && site.status !== "archived" && (
-                  <div style={{ marginTop: 4 }}>
-                    <a href={site.productionUrl} style={{ fontSize: 14, color: "#0066cc" }}>{site.productionUrl}</a>
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <a href={site.productionUrl} style={{ fontSize: "var(--font-size-sm)", color: "var(--color-brand)" }}>{site.productionUrl}</a>
                   </div>
                 )}
               </li>

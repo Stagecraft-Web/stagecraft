@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     name?: string;
-    blueprintType?: string;
+    blueprintType?: BlueprintType;
   };
 
   if (!body.name || !body.blueprintType) {

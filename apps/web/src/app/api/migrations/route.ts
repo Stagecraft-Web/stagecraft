@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     url?: string;
     name?: string;
-    blueprintType?: string;
+    blueprintType?: BlueprintType;
   };
 
   if (!body.url || !body.name || !body.blueprintType) {

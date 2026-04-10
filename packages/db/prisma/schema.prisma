@@ -181,8 +181,12 @@ model AssetUpload {
   mimeType            String
   fileSize            Int
   uploadStatus        String   @default("uploading") // uploading | processing | ready | committed | failed
-  temporaryStorageRef String?
+  temporaryStorageRef String?  @db.Text
   targetRepoPath      String?
+  alt                 String?
+  caption             String?  @db.Text
+  credit              String?
+  usageSlot           String?  // hero | gallery | about | press | logo
   metadata            Json?
   createdAt           DateTime @default(now())
 

@@ -6,6 +6,7 @@ import Button from "@/components/Button";
 import AssetManager from "@/components/AssetManager";
 import Input from "@/components/Input";
 import Textarea from "@/components/Textarea";
+import type { FailureCategory } from "@stagecraft/shared";
 
 type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived";
 type BlueprintType = "solo-artist" | "band" | "composer-educator" | "epk-focused" | "tour-focused";
@@ -43,17 +44,9 @@ interface Site {
   jobs: SiteJob[];
 }
 
-type FailureCategory =
-  | "github_api_error"
-  | "netlify_deploy_error"
-  | "validation_error"
-  | "ai_error"
-  | "timeout"
-  | "unknown";
-
 interface CRJob {
   id: string;
-  status: string;
+  status: JobStatus;
   failureCategory?: FailureCategory | null;
   errorMessage?: string;
   repairAttempts?: number;

@@ -4,14 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
 import Textarea from "@/components/Textarea";
-
-type ChangeRequestStatus =
-  | "pending"
-  | "in_progress"
-  | "ready_for_review"
-  | "approved"
-  | "rejected"
-  | "discarded";
+import { getFailureSummary } from "@stagecraft/shared";
+import type { ChangeRequestStatus, FailureCategory, JobStatus } from "@stagecraft/shared";
 
 interface SiteInfo {
   id: string;
@@ -21,61 +15,9 @@ interface SiteInfo {
   netlifySiteId?: string;
 }
 
-type FailureCategory =
-  | "github_api_error"
-  | "netlify_deploy_error"
-  | "validation_error"
-  | "ai_error"
-  | "timeout"
-  | "unknown";
-
-interface FailureSummary {
-  title: string;
-  description: string;
-  suggestedAction: string;
-}
-
-const FAILURE_SUMMARIES: Record<FailureCategory, FailureSummary> = {
-  github_api_error: {
-    title: "GitHub connection problem",
-    description: "We couldn't communicate with GitHub. This is usually a temporary issue or a permissions problem with your connected account.",
-    suggestedAction: "Check that your GitHub account is still connected in Settings, then retry. If the problem persists, reconnect GitHub.",
-  },
-  netlify_deploy_error: {
-    title: "Deployment failed",
-    description: "Your site built successfully but couldn't be deployed to Netlify. This may be a configuration issue or a temporary Netlify outage.",
-    suggestedAction: "Check that your Netlify account is still connected in Settings, then retry. If the problem continues, review your Netlify project settings.",
-  },
-  validation_error: {
-    title: "Content validation failed",
-    description: "The changes produced content that doesn't match the expected format. This can happen when an edit creates conflicting or incomplete data.",
-    suggestedAction: "Retry to let the system attempt an automatic fix. If it keeps failing, try rephrasing your request with more specific instructions.",
-  },
-  ai_error: {
-    title: "AI generation failed",
-    description: "The AI model couldn't complete your request. This is usually a temporary service issue.",
-    suggestedAction: "Wait a moment and retry. If the problem persists, try simplifying your request.",
-  },
-  timeout: {
-    title: "Request timed out",
-    description: "The operation took too long to complete. This can happen during periods of high demand.",
-    suggestedAction: "Retry your request. If timeouts keep occurring, try again during off-peak hours.",
-  },
-  unknown: {
-    title: "Something went wrong",
-    description: "An unexpected error occurred while processing your request.",
-    suggestedAction: "Retry your request. If the problem continues, please contact support with the job ID.",
-  },
-};
-
-function getFailureSummary(category: FailureCategory | null | undefined): FailureSummary {
-  if (!category) return FAILURE_SUMMARIES.unknown;
-  return FAILURE_SUMMARIES[category] ?? FAILURE_SUMMARIES.unknown;
-}
-
 interface JobInfo {
   id: string;
-  status: string;
+  status: JobStatus;
   failureCategory?: FailureCategory | null;
   errorMessage?: string;
   repairAttempts?: number;

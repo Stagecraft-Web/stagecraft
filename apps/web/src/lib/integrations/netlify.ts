@@ -100,6 +100,34 @@ export async function setEnvVars(
 }
 
 /**
+ * Look up the deploy preview for a specific PR number on a Netlify site.
+ * Netlify creates these automatically when the site has repo auto-deploys configured.
+ */
+export async function getDeployPreviewForPR(
+  userId: string,
+  netlifySiteId: string,
+  prNumber: number
+): Promise<{ previewUrl: string | null; state: string }> {
+  const token = await getNetlifyToken(userId);
+
+  const deploys = await netlifyApi(
+    token,
+    `/sites/${netlifySiteId}/deploys?per_page=20`
+  ) as Array<{ review_id: number | null; deploy_url: string | null; state: string }>;
+
+  const deploy = deploys.find((d) => d.review_id === prNumber);
+
+  if (!deploy) {
+    return { previewUrl: null, state: "building" };
+  }
+
+  return {
+    previewUrl: deploy.deploy_url ?? null,
+    state: deploy.state ?? "building",
+  };
+}
+
+/**
  * Delete a Netlify site.
  */
 export async function deleteSite(userId: string, siteId: string): Promise<void> {

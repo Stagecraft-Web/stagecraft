@@ -20,6 +20,8 @@ interface CreateRepoResult {
 interface PushFileEntry {
   path: string;
   content: string;
+  /** Encoding for the GitHub blob API. Defaults to "utf-8". Use "base64" for binary files. */
+  encoding?: "utf-8" | "base64";
 }
 
 async function getGitHubToken(userId: string): Promise<string> {
@@ -116,7 +118,7 @@ export async function pushFiles(
         method: "POST",
         body: JSON.stringify({
           content: file.content,
-          encoding: "utf-8",
+          encoding: file.encoding ?? "utf-8",
         }),
       });
       return { path: file.path, sha: blob.sha, mode: "100644" as const, type: "blob" as const };

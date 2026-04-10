@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
 import FormGroup from "@/components/FormGroup";
@@ -9,6 +9,13 @@ type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived"
 type BlueprintType = "solo-artist" | "band" | "composer-educator" | "epk-focused" | "tour-focused";
 type JobType = "create_site" | "edit_site" | "migrate_site" | "repair_site" | "deploy_config";
 type JobStatus = "queued" | "running" | "completed" | "failed" | "awaiting_review" | "canceled";
+type ChangeRequestStatus =
+  | "pending"
+  | "in_progress"
+  | "ready_for_review"
+  | "approved"
+  | "rejected"
+  | "discarded";
 
 interface SiteJob {
   id: string;
@@ -34,6 +41,36 @@ interface Site {
   jobs: SiteJob[];
 }
 
+interface ChangeRequest {
+  id: string;
+  requestText: string;
+  classifiedMode?: string;
+  branchName?: string;
+  prNumber?: number;
+  previewUrl?: string;
+  summary?: string;
+  status: ChangeRequestStatus;
+  createdAt: string;
+}
+
+const CR_STATUS_LABEL: Record<ChangeRequestStatus, string> = {
+  pending: "Pending",
+  in_progress: "In Progress",
+  ready_for_review: "Ready for Review",
+  approved: "Approved",
+  rejected: "Rejected",
+  discarded: "Discarded",
+};
+
+const CR_STATUS_COLOR: Record<ChangeRequestStatus, string> = {
+  pending: "var(--color-text-muted)",
+  in_progress: "var(--color-warning)",
+  ready_for_review: "var(--color-info)",
+  approved: "var(--color-success)",
+  rejected: "var(--color-error)",
+  discarded: "var(--color-text-faint)",
+};
+
 export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
@@ -42,6 +79,23 @@ export default function SiteDetailPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [editRequestText, setEditRequestText] = useState("");
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [editRequestError, setEditRequestError] = useState("");
+
+  const fetchChangeRequests = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sites/${siteId}/change-requests`);
+      if (res.ok) {
+        const data = await res.json();
+        setChangeRequests(data.changeRequests ?? []);
+      }
+    } catch {
+      // Non-fatal — CR list will just be empty
+    }
+  }, [siteId]);
 
   useEffect(() => {
     let active = true;
@@ -68,6 +122,7 @@ export default function SiteDetailPage() {
     }
 
     fetchSite();
+    fetchChangeRequests();
 
     // Poll while site is still creating
     const interval = setInterval(async () => {
@@ -91,7 +146,18 @@ export default function SiteDetailPage() {
       active = false;
       clearInterval(interval);
     };
-  }, [siteId]);
+  }, [siteId, fetchChangeRequests]);
+
+  // Poll change requests while any are in_progress or pending
+  useEffect(() => {
+    const hasActiveRequests = changeRequests.some(
+      (cr) => cr.status === "pending" || cr.status === "in_progress"
+    );
+    if (!hasActiveRequests) return;
+
+    const interval = setInterval(fetchChangeRequests, 4000);
+    return () => clearInterval(interval);
+  }, [changeRequests, fetchChangeRequests]);
 
   if (isLoading) {
     return (
@@ -156,10 +222,35 @@ export default function SiteDetailPage() {
     }
   }
 
+  async function handleSubmitEditRequest() {
+    if (!editRequestText.trim()) return;
+    setIsSubmittingRequest(true);
+    setEditRequestError("");
+    try {
+      const res = await fetch(`/api/sites/${siteId}/change-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestText: editRequestText.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditRequestText("");
+        setChangeRequests((prev) => [data.changeRequest, ...prev]);
+      } else {
+        setEditRequestError(data.error || "Failed to submit request");
+      }
+    } catch {
+      setEditRequestError("Failed to submit request");
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  }
+
   const latestJob = site.jobs[0];
   const isCreating = site.status === "creating";
   const isError = site.status === "error" || site.status === "deploy_failed";
   const isArchived = site.status === "archived";
+  const isActive = site.status === "active";
   const githubUrl = site.githubRepoOwner && site.githubRepoName
     ? `https://github.com/${site.githubRepoOwner}/${site.githubRepoName}`
     : null;
@@ -246,6 +337,93 @@ export default function SiteDetailPage() {
           </tbody>
         </table>
       </section>
+
+      {/* Edit request form — only for active sites */}
+      {isActive && (
+        <section style={{ marginTop: "2rem" }}>
+          <h2>Request a Change</h2>
+          <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0, marginBottom: "0.75rem" }}>
+            Describe what you&rsquo;d like to change in plain language. The AI will make the edit, open a PR, and show you a preview to approve.
+          </p>
+          <FormGroup
+            id="edit-request"
+            label="What would you like to change?"
+            value={editRequestText}
+            onChange={setEditRequestText}
+            placeholder="e.g. Update my bio to mention the new album, or Change the nav link order so Tour Dates comes first"
+            isTextarea
+          />
+          {editRequestError && (
+            <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0.5rem" }}>
+              {editRequestError}
+            </p>
+          )}
+          <div style={{ marginTop: "0.5rem" }}>
+            <Button
+              onClick={handleSubmitEditRequest}
+              isDisabled={isSubmittingRequest || !editRequestText.trim()}
+            >
+              {isSubmittingRequest ? "Submitting..." : "Submit Change Request"}
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {/* Change request history */}
+      {changeRequests.length > 0 && (
+        <section style={{ marginTop: "2rem" }}>
+          <h2>Change Requests</h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {changeRequests.map((cr) => (
+              <li
+                key={cr.id}
+                style={{
+                  padding: "0.875rem",
+                  border: `1px solid var(--color-border)`,
+                  borderRadius: "var(--radius-lg)",
+                  marginBottom: "0.625rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                  <p style={{ margin: 0, fontSize: "var(--font-size-sm)", flex: 1 }}>
+                    {cr.requestText.length > 120
+                      ? `${cr.requestText.slice(0, 120)}…`
+                      : cr.requestText}
+                  </p>
+                  <span style={{
+                    fontSize: "var(--font-size-xs)",
+                    fontWeight: "var(--font-weight-semibold)",
+                    color: CR_STATUS_COLOR[cr.status],
+                    whiteSpace: "nowrap",
+                  }}>
+                    {CR_STATUS_LABEL[cr.status]}
+                  </span>
+                </div>
+                {cr.classifiedMode && (
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>
+                    {cr.classifiedMode.replace(/_/g, " ")}
+                  </p>
+                )}
+                {cr.status === "ready_for_review" && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <Button
+                      href={`/sites/${siteId}/change-requests/${cr.id}`}
+                      size="sm"
+                    >
+                      Review &rarr;
+                    </Button>
+                  </div>
+                )}
+                {(cr.status === "pending" || cr.status === "in_progress") && (
+                  <p style={{ margin: "0.375rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                    Working on it…
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {site.jobs.length > 0 && (
         <section style={{ marginTop: "1.5rem" }}>

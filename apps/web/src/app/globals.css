@@ -32,6 +32,9 @@
   --color-info-border: #b8daff;
   --color-selected-bg: #e8f0fe;
   --color-error: #cc0000;
+  --color-success: #1a6e35;
+  --color-warning: #856404;
+  --color-info: #004085;
   --color-muted: #6c757d;
   --color-disabled: #cccccc;
   --color-neutral-bg: #e2e3e5;

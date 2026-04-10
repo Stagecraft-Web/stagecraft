@@ -1,6 +1,7 @@
 ---
 import type { Release } from "../lib/schemas";
 import Button from "./Button.astro";
+import { Image } from "astro:assets";
 
 interface Props {
   release: Release;
@@ -13,7 +14,7 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
 <article class="release-card">
   {release.coverImage && (
     <div class="release-cover">
-      <img src={release.coverImage.src} alt={release.coverImage.alt} loading="lazy" />
+      <Image src={release.coverImage.src} alt={release.coverImage.alt} width={500} height={500} />
     </div>
   )}
   <div class="release-info">

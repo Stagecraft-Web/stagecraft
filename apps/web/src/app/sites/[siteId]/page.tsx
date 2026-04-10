@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
+import AssetManager from "@/components/AssetManager";
 import FormGroup from "@/components/FormGroup";
 
 type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived";
@@ -368,6 +369,9 @@ export default function SiteDetailPage() {
           </div>
         </section>
       )}
+
+      {/* Asset management — only for active sites */}
+      {isActive && <AssetManager siteId={siteId} />}
 
       {/* Change request history */}
       {changeRequests.length > 0 && (

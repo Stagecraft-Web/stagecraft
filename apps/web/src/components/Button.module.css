@@ -57,3 +57,25 @@
   background: var(--color-muted);
   color: var(--color-surface);
 }
+
+.card {
+  display: block;
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: left;
+  font-weight: var(--font-weight-normal);
+  padding: 1rem;
+  color: var(--color-text);
+}
+
+.card:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: var(--color-brand);
+  background: var(--color-brand-light);
+}
+
+.selected {
+  background: var(--color-selected-bg) !important;
+  border-color: var(--color-brand) !important;
+}

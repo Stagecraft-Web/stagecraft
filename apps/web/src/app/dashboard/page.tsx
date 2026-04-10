@@ -16,17 +16,17 @@ export default async function DashboardPage() {
   });
 
   return (
-    <main style={{ maxWidth: "var(--max-width-wide)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
+    <main style={{ maxWidth: "var(--max-width-wide)", margin: "var(--space-10) auto", fontFamily: "var(--font-body)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Dashboard</h1>
         <div>
-          <a href="/settings" style={{ marginRight: "1rem" }}>Settings</a>
-          <span style={{ marginRight: "1rem" }}>{session.user.name ?? session.user.email}</span>
+          <a href="/settings" style={{ marginRight: "var(--space-4)" }}>Settings</a>
+          <span style={{ marginRight: "var(--space-4)" }}>{session.user.name ?? session.user.email}</span>
           <a href="/api/auth/signout" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>Sign out</a>
         </div>
       </header>
 
-      <section style={{ marginTop: "2rem" }}>
+      <section style={{ marginTop: "var(--space-8)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>Your Sites</h2>
           <Button href="/create" size="sm">+ Create site</Button>
@@ -37,18 +37,18 @@ export default async function DashboardPage() {
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sites.map((site: { id: string; name: string; status: string; productionUrl: string | null }) => (
               <li key={site.id} style={{
-                padding: "1rem",
+                padding: "var(--space-4)",
                 border: `1px solid var(--color-border)`,
                 borderRadius: "var(--radius-lg)",
-                marginBottom: "0.75rem",
+                marginBottom: "var(--space-3)",
                 opacity: site.status === "archived" ? 0.6 : 1,
               }}>
                 <a href={`/sites/${site.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <strong>{site.name}</strong>
-                  <span style={{ marginLeft: "0.5rem", color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{site.status}</span>
+                  <span style={{ marginLeft: "var(--space-2)", color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{site.status}</span>
                 </a>
                 {site.productionUrl && site.status !== "archived" && (
-                  <div style={{ marginTop: "0.25rem" }}>
+                  <div style={{ marginTop: "var(--space-1)" }}>
                     <a href={site.productionUrl} style={{ fontSize: "var(--font-size-sm)", color: "var(--color-brand)" }}>{site.productionUrl}</a>
                   </div>
                 )}

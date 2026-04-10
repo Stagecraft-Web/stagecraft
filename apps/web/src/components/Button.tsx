@@ -1,12 +1,13 @@
 import styles from "./Button.module.css";
 
-type ButtonVariant = "primary" | "ghost" | "danger" | "muted";
+type ButtonVariant = "primary" | "ghost" | "danger" | "muted" | "card";
 type ButtonSize = "sm" | "md";
 
 interface BaseProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   isDisabled?: boolean;
+  isSelected?: boolean;
   children: React.ReactNode;
   className?: string;
 }
@@ -26,8 +27,8 @@ interface AnchorElementProps extends BaseProps {
 type ButtonProps = ButtonElementProps | AnchorElementProps;
 
 export default function Button(props: ButtonProps) {
-  const { variant = "primary", size = "md", isDisabled, children, className } = props;
-  const cls = [styles.button, styles[variant], styles[size], className]
+  const { variant = "primary", size = "md", isDisabled, isSelected, children, className } = props;
+  const cls = [styles.button, styles[variant], styles[size], isSelected ? styles.selected : undefined, className]
     .filter(Boolean)
     .join(" ");
 

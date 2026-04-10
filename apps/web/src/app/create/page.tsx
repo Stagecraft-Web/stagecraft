@@ -69,26 +69,19 @@ export default function CreateSitePage() {
           <h2>Choose a blueprint</h2>
           <div style={{ display: "grid", gap: "0.75rem" }}>
             {BLUEPRINTS.map((bp) => (
-              <button
+              <Button
                 key={bp.value}
+                variant="card"
+                isSelected={blueprintType === bp.value}
                 onClick={() => {
                   setBlueprintType(bp.value);
                   setStep("details");
-                }}
-                style={{
-                  padding: "1rem",
-                  border: `1px solid var(--color-border)`,
-                  borderRadius: "var(--radius-lg)",
-                  background: blueprintType === bp.value ? "var(--color-selected-bg)" : "var(--color-surface)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontFamily: "inherit",
                 }}
               >
                 <strong>{bp.label}</strong>
                 <br />
                 <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{bp.description}</span>
-              </button>
+              </Button>
             ))}
           </div>
         </section>

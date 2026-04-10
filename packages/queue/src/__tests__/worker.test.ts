@@ -19,6 +19,7 @@ function makeJob(overrides = {}) {
     id: "job-1",
     type: "create_site",
     status: "queued",
+    repairAttempts: 0,
     createdAt: new Date(),
     ...overrides,
   };
@@ -62,16 +63,21 @@ describe("createWorker", () => {
         status: "completed",
         resultPayload: { url: "https://example.com" },
         errorMessage: null,
+        failureCategory: null,
       }),
     });
   });
 
-  it("marks job as failed when handler returns success: false", async () => {
+  it("marks job as failed with failureCategory when handler returns success: false", async () => {
     const job = makeJob();
     mockFindFirst.mockResolvedValueOnce(job);
     mockUpdate.mockResolvedValue({});
 
-    const handler = vi.fn().mockResolvedValue({ success: false, message: "Repo not found" });
+    const handler = vi.fn().mockResolvedValue({
+      success: false,
+      message: "Repo not found",
+      failureCategory: "github_api_error",
+    });
     const worker = createWorker({ handlers: { create_site: handler } });
 
     worker.start();
@@ -83,11 +89,12 @@ describe("createWorker", () => {
       data: expect.objectContaining({
         status: "failed",
         errorMessage: "Repo not found",
+        failureCategory: "github_api_error",
       }),
     });
   });
 
-  it("marks job as failed when handler throws", async () => {
+  it("marks job as failed with unknown category when handler throws", async () => {
     const job = makeJob();
     mockFindFirst.mockResolvedValueOnce(job);
     mockUpdate.mockResolvedValue({});
@@ -104,11 +111,66 @@ describe("createWorker", () => {
       data: expect.objectContaining({
         status: "failed",
         errorMessage: "Connection timeout",
+        failureCategory: "unknown",
       }),
     });
   });
 
-  it("fails job with no registered handler", async () => {
+  it("re-queues for repair when shouldRepair=true and repairAttempts < limit", async () => {
+    const job = makeJob({ repairAttempts: 0 });
+    mockFindFirst.mockResolvedValueOnce(job);
+    mockUpdate.mockResolvedValue({});
+
+    const handler = vi.fn().mockResolvedValue({
+      success: false,
+      message: "Schema invalid",
+      failureCategory: "validation_error",
+      shouldRepair: true,
+    });
+    const worker = createWorker({ handlers: { create_site: handler } });
+
+    worker.start();
+    await vi.advanceTimersByTimeAsync(0);
+    worker.stop();
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: "job-1" },
+      data: expect.objectContaining({
+        status: "queued",
+        repairAttempts: { increment: 1 },
+        failureCategory: "validation_error",
+      }),
+    });
+  });
+
+  it("fails instead of repairing when repairAttempts has reached the limit", async () => {
+    const job = makeJob({ repairAttempts: 2 });
+    mockFindFirst.mockResolvedValueOnce(job);
+    mockUpdate.mockResolvedValue({});
+
+    const handler = vi.fn().mockResolvedValue({
+      success: false,
+      message: "Schema still invalid",
+      failureCategory: "validation_error",
+      shouldRepair: true,
+    });
+    const worker = createWorker({ handlers: { create_site: handler } });
+
+    worker.start();
+    await vi.advanceTimersByTimeAsync(0);
+    worker.stop();
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: "job-1" },
+      data: expect.objectContaining({
+        status: "failed",
+        errorMessage: "Schema still invalid",
+        failureCategory: "validation_error",
+      }),
+    });
+  });
+
+  it("fails job with unknown category for no registered handler", async () => {
     const job = makeJob({ type: "deploy_config" });
     mockFindFirst.mockResolvedValueOnce(job);
     mockUpdate.mockResolvedValue({});
@@ -124,6 +186,7 @@ describe("createWorker", () => {
       data: expect.objectContaining({
         status: "failed",
         errorMessage: "No handler registered for job type: deploy_config",
+        failureCategory: "unknown",
       }),
     });
   });

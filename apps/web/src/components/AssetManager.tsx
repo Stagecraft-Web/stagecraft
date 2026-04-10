@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "@/components/Button";
-import FormGroup from "@/components/FormGroup";
-import { USAGE_SLOTS, type UsageSlot } from "@/lib/assets";
+import Input from "@/components/Input";
+import Select from "@/components/Select";
+import { USAGE_SLOTS, type ImageMimeType, type UsageSlot } from "@/lib/assets";
 import styles from "./AssetManager.module.css";
 
 type UploadStatus = "uploading" | "processing" | "ready" | "committed" | "failed";
@@ -12,7 +13,7 @@ interface Asset {
   id: string;
   originalFilename: string;
   normalizedFilename: string;
-  mimeType: string;
+  mimeType: ImageMimeType;
   fileSize: number;
   uploadStatus: UploadStatus;
   targetRepoPath: string | null;
@@ -240,7 +241,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
                   )}
                 </p>
 
-                <FormGroup
+                <Select
                   id={`slot-${asset.id}`}
                   label="Slot"
                   value={asset.usageSlot ?? ""}
@@ -248,7 +249,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
                   options={USAGE_SLOTS}
                 />
 
-                <FormGroup
+                <Input
                   id={`alt-${asset.id}`}
                   label="Alt text"
                   value={editingFields[asset.id]?.alt ?? ""}
@@ -258,7 +259,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
                   placeholder="Describe the image for screen readers"
                 />
 
-                <FormGroup
+                <Input
                   id={`caption-${asset.id}`}
                   label="Caption"
                   value={editingFields[asset.id]?.caption ?? ""}
@@ -268,7 +269,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
                   placeholder="Optional caption"
                 />
 
-                <FormGroup
+                <Input
                   id={`credit-${asset.id}`}
                   label="Credit"
                   value={editingFields[asset.id]?.credit ?? ""}

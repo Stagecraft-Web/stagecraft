@@ -3,6 +3,13 @@
  * Used by API routes and the AssetManager component.
  */
 
+export type ImageMimeType =
+  | "image/jpeg"
+  | "image/png"
+  | "image/webp"
+  | "image/gif"
+  | "image/svg+xml";
+
 /** Display options for usage slot selectors */
 export const USAGE_SLOTS = [
   { value: "" as const, label: "Unassigned" },

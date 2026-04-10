@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
 import AssetManager from "@/components/AssetManager";
-import FormGroup from "@/components/FormGroup";
+import Input from "@/components/Input";
+import Textarea from "@/components/Textarea";
 
 type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived";
 type BlueprintType = "solo-artist" | "band" | "composer-educator" | "epk-focused" | "tour-focused";
@@ -346,13 +347,12 @@ export default function SiteDetailPage() {
           <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0, marginBottom: "0.75rem" }}>
             Describe what you&rsquo;d like to change in plain language. The AI will make the edit, open a PR, and show you a preview to approve.
           </p>
-          <FormGroup
+          <Textarea
             id="edit-request"
             label="What would you like to change?"
             value={editRequestText}
             onChange={setEditRequestText}
             placeholder="e.g. Update my bio to mention the new album, or Change the nav link order so Tour Dates comes first"
-            isTextarea
           />
           {editRequestError && (
             <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0.5rem" }}>
@@ -473,7 +473,7 @@ export default function SiteDetailPage() {
           Permanently delete this site, its GitHub repository, and Netlify deployment. This cannot be undone.
         </p>
         <div style={{ maxWidth: "18.75rem" }}>
-          <FormGroup
+          <Input
             id="delete-confirm"
             label={`Type "${site.name}" to confirm:`}
             value={deleteConfirmName}

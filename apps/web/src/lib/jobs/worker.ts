@@ -1,6 +1,7 @@
 import { createWorker } from "@stagecraft/queue";
 import { handleCreateSite } from "./create-site";
 import { handleEditSite } from "./edit-site";
+import { handleMigrateSite } from "./migrate-site";
 
 let workerInstance: ReturnType<typeof createWorker> | null = null;
 
@@ -10,6 +11,7 @@ export function getWorker() {
       handlers: {
         create_site: handleCreateSite,
         edit_site: handleEditSite,
+        migrate_site: handleMigrateSite,
       },
       pollIntervalMs: 3000,
     });

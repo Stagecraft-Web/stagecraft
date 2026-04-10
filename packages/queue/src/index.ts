@@ -1,3 +1,4 @@
-export { enqueue } from "./enqueue";
-export { createWorker } from "./worker";
-export type { JobHandler, JobContext, JobResult } from "./types";
+export { enqueue } from "./enqueue.js";
+export { createWorker } from "./worker.js";
+export { repairResult, MAX_REPAIR_ATTEMPTS } from "./repair.js";
+export type { JobHandler, JobContext, JobResult } from "./types.js";

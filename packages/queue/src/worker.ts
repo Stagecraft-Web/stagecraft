@@ -1,7 +1,6 @@
 import { prisma } from "@stagecraft/db";
+import { MAX_REPAIR_ATTEMPTS } from "./repair.js";
 import type { JobHandler, JobResult } from "./types.js";
-
-const MAX_REPAIR_ATTEMPTS = 2;
 
 interface WorkerOptions {
   handlers: Record<string, JobHandler>;

@@ -7,9 +7,17 @@ interface TextareaProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  rows?: number;
 }
 
-export default function Textarea({ id, label, value, onChange, placeholder }: TextareaProps) {
+export default function Textarea({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+}: TextareaProps) {
   return (
     <FormGroup id={id} label={label}>
       <textarea
@@ -18,6 +26,7 @@ export default function Textarea({ id, label, value, onChange, placeholder }: Te
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={styles.input}
+        rows={rows}
       />
     </FormGroup>
   );

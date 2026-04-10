@@ -1,3 +1,14 @@
+.section {
+  margin-top: 2rem;
+}
+
+.description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
 .dropzone {
   display: flex;
   flex-direction: column;
@@ -42,7 +53,25 @@
   color: var(--color-text-muted);
 }
 
+.uploadError {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: 0.5rem;
+}
+
+.emptyState {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: 1rem;
+}
+
 /* Asset list */
+
+.assetList {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
 
 .assetRow {
   display: flex;
@@ -107,44 +136,8 @@
   border-radius: var(--radius-sm);
 }
 
-.fieldLabel {
+.assetActions {
   display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
-}
-
-.fieldInput {
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  color: var(--color-text);
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.25rem 0.5rem;
-  width: 100%;
-}
-
-.fieldInput:focus {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
-}
-
-.slotSelect {
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  color: var(--color-text);
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.25rem 0.5rem;
-  width: 100%;
-  cursor: pointer;
-}
-
-.slotSelect:focus {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 1px;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }

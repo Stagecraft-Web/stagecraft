@@ -2,16 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "@/components/Button";
+import FormGroup from "@/components/FormGroup";
+import { USAGE_SLOTS, type UsageSlot } from "@/lib/assets";
 import styles from "./AssetManager.module.css";
 
-const USAGE_SLOTS = [
-  { value: "", label: "Unassigned" },
-  { value: "hero", label: "Hero / Banner" },
-  { value: "gallery", label: "Gallery" },
-  { value: "about", label: "About page" },
-  { value: "press", label: "Press" },
-  { value: "logo", label: "Logo" },
-];
+type UploadStatus = "uploading" | "processing" | "ready" | "committed" | "failed";
 
 interface Asset {
   id: string;
@@ -19,18 +14,20 @@ interface Asset {
   normalizedFilename: string;
   mimeType: string;
   fileSize: number;
-  uploadStatus: string;
+  uploadStatus: UploadStatus;
   targetRepoPath: string | null;
   alt: string | null;
   caption: string | null;
   credit: string | null;
-  usageSlot: string | null;
+  usageSlot: UsageSlot | null;
   createdAt: string;
 }
 
 interface AssetManagerProps {
   siteId: string;
 }
+
+type AssetEdit = { alt: string; caption: string; credit: string };
 
 export default function AssetManager({ siteId }: AssetManagerProps) {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -39,14 +36,24 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Per-asset editing state: assetId → field values
-  const [editingAlt, setEditingAlt] = useState<Record<string, string>>({});
-  const [editingCaption, setEditingCaption] = useState<Record<string, string>>({});
-  const [editingCredit, setEditingCredit] = useState<Record<string, string>>({});
+  // Per-asset editing state: assetId → { alt, caption, credit }
+  const [editingFields, setEditingFields] = useState<Record<string, AssetEdit>>({});
   const [savingAsset, setSavingAsset] = useState<Record<string, boolean>>({});
   const [deletingAsset, setDeletingAsset] = useState<Record<string, boolean>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function seedEditFields(list: Asset[]) {
+    setEditingFields((prev) => {
+      const next = { ...prev };
+      for (const a of list) {
+        if (!(a.id in next)) {
+          next[a.id] = { alt: a.alt ?? "", caption: a.caption ?? "", credit: a.credit ?? "" };
+        }
+      }
+      return next;
+    });
+  }
 
   const fetchAssets = useCallback(async () => {
     try {
@@ -55,22 +62,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
         const data = await res.json();
         const list: Asset[] = data.assets ?? [];
         setAssets(list);
-        // Seed editing state for newly-fetched assets
-        setEditingAlt((prev) => {
-          const next = { ...prev };
-          list.forEach((a) => { if (!(a.id in next)) next[a.id] = a.alt ?? ""; });
-          return next;
-        });
-        setEditingCaption((prev) => {
-          const next = { ...prev };
-          list.forEach((a) => { if (!(a.id in next)) next[a.id] = a.caption ?? ""; });
-          return next;
-        });
-        setEditingCredit((prev) => {
-          const next = { ...prev };
-          list.forEach((a) => { if (!(a.id in next)) next[a.id] = a.credit ?? ""; });
-          return next;
-        });
+        seedEditFields(list);
       }
     } catch {
       // Non-fatal
@@ -92,9 +84,10 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
       if (res.ok) {
         const a: Asset = data.asset;
         setAssets((prev) => [a, ...prev]);
-        setEditingAlt((prev) => ({ ...prev, [a.id]: a.alt ?? "" }));
-        setEditingCaption((prev) => ({ ...prev, [a.id]: a.caption ?? "" }));
-        setEditingCredit((prev) => ({ ...prev, [a.id]: a.credit ?? "" }));
+        setEditingFields((prev) => ({
+          ...prev,
+          [a.id]: { alt: a.alt ?? "", caption: a.caption ?? "", credit: a.credit ?? "" },
+        }));
       } else {
         setUploadError(data.error ?? "Upload failed");
       }
@@ -121,13 +114,14 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
   async function handleSaveAsset(assetId: string) {
     setSavingAsset((prev) => ({ ...prev, [assetId]: true }));
     try {
+      const fields = editingFields[assetId];
       const res = await fetch(`/api/sites/${siteId}/assets/${assetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          alt: editingAlt[assetId] ?? "",
-          caption: editingCaption[assetId] ?? "",
-          credit: editingCredit[assetId] ?? "",
+          alt: fields?.alt ?? "",
+          caption: fields?.caption ?? "",
+          credit: fields?.credit ?? "",
         }),
       });
       if (res.ok) {
@@ -141,13 +135,14 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
     }
   }
 
-  async function handleSlotChange(assetId: string, usageSlot: string) {
-    setAssets((prev) => prev.map((a) => (a.id === assetId ? { ...a, usageSlot: usageSlot || null } : a)));
+  async function handleSlotChange(assetId: string, val: string) {
+    const usageSlot: UsageSlot | null = val ? (val as UsageSlot) : null;
+    setAssets((prev) => prev.map((a) => (a.id === assetId ? { ...a, usageSlot } : a)));
     try {
       await fetch(`/api/sites/${siteId}/assets/${assetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usageSlot }),
+        body: JSON.stringify({ usageSlot: val }),
       });
     } catch {
       // Ignore
@@ -176,9 +171,9 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
   }
 
   return (
-    <section style={{ marginTop: "2rem" }}>
+    <section className={styles.section}>
       <h2>Media</h2>
-      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0, marginBottom: "1rem" }}>
+      <p className={styles.description}>
         Upload images to assign to pages and slots. These will be committed to your site repo when you submit an asset update request.
       </p>
 
@@ -194,6 +189,7 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
         aria-label="Upload image — click or drag and drop"
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
       >
+        {/* Hidden file input — not a labeled form field, triggered programmatically */}
         <input
           ref={fileInputRef}
           type="file"
@@ -209,20 +205,16 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
       </div>
 
       {uploadError && (
-        <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", marginTop: "0.5rem" }}>
-          {uploadError}
-        </p>
+        <p className={styles.uploadError}>{uploadError}</p>
       )}
 
-      {/* Asset grid */}
+      {/* Asset list */}
       {isLoading ? (
-        <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: "1rem" }}>Loading…</p>
+        <p className={styles.emptyState}>Loading…</p>
       ) : assets.length === 0 ? (
-        <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: "1rem" }}>
-          No images uploaded yet.
-        </p>
+        <p className={styles.emptyState}>No images uploaded yet.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: "1rem 0 0" }}>
+        <ul className={styles.assetList}>
           {assets.map((asset) => (
             <li key={asset.id} className={styles.assetRow}>
               {/* Thumbnail */}
@@ -248,57 +240,45 @@ export default function AssetManager({ siteId }: AssetManagerProps) {
                   )}
                 </p>
 
-                {/* Usage slot selector */}
-                <label className={styles.fieldLabel}>
-                  Slot
-                  <select
-                    value={asset.usageSlot ?? ""}
-                    onChange={(e) => handleSlotChange(asset.id, e.target.value)}
-                    className={styles.slotSelect}
-                  >
-                    {USAGE_SLOTS.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </label>
+                <FormGroup
+                  id={`slot-${asset.id}`}
+                  label="Slot"
+                  value={asset.usageSlot ?? ""}
+                  onChange={(val) => handleSlotChange(asset.id, val)}
+                  options={USAGE_SLOTS}
+                />
 
-                {/* Alt text */}
-                <label className={styles.fieldLabel}>
-                  Alt text
-                  <input
-                    type="text"
-                    value={editingAlt[asset.id] ?? ""}
-                    onChange={(e) => setEditingAlt((prev) => ({ ...prev, [asset.id]: e.target.value }))}
-                    placeholder="Describe the image for screen readers"
-                    className={styles.fieldInput}
-                  />
-                </label>
+                <FormGroup
+                  id={`alt-${asset.id}`}
+                  label="Alt text"
+                  value={editingFields[asset.id]?.alt ?? ""}
+                  onChange={(val) =>
+                    setEditingFields((prev) => ({ ...prev, [asset.id]: { ...prev[asset.id], alt: val } }))
+                  }
+                  placeholder="Describe the image for screen readers"
+                />
 
-                {/* Caption */}
-                <label className={styles.fieldLabel}>
-                  Caption
-                  <input
-                    type="text"
-                    value={editingCaption[asset.id] ?? ""}
-                    onChange={(e) => setEditingCaption((prev) => ({ ...prev, [asset.id]: e.target.value }))}
-                    placeholder="Optional caption"
-                    className={styles.fieldInput}
-                  />
-                </label>
+                <FormGroup
+                  id={`caption-${asset.id}`}
+                  label="Caption"
+                  value={editingFields[asset.id]?.caption ?? ""}
+                  onChange={(val) =>
+                    setEditingFields((prev) => ({ ...prev, [asset.id]: { ...prev[asset.id], caption: val } }))
+                  }
+                  placeholder="Optional caption"
+                />
 
-                {/* Credit */}
-                <label className={styles.fieldLabel}>
-                  Credit
-                  <input
-                    type="text"
-                    value={editingCredit[asset.id] ?? ""}
-                    onChange={(e) => setEditingCredit((prev) => ({ ...prev, [asset.id]: e.target.value }))}
-                    placeholder="Photo credit"
-                    className={styles.fieldInput}
-                  />
-                </label>
+                <FormGroup
+                  id={`credit-${asset.id}`}
+                  label="Credit"
+                  value={editingFields[asset.id]?.credit ?? ""}
+                  onChange={(val) =>
+                    setEditingFields((prev) => ({ ...prev, [asset.id]: { ...prev[asset.id], credit: val } }))
+                  }
+                  placeholder="Photo credit"
+                />
 
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                <div className={styles.assetActions}>
                   <Button
                     size="sm"
                     onClick={() => handleSaveAsset(asset.id)}

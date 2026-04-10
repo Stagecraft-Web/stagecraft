@@ -146,7 +146,7 @@ async function buildAssetFiles(
 }
 
 /** Insert or replace a frontmatter field in a Markdown file. */
-function injectFrontmatterField(content: string, key: string, value: string): string {
+export function injectFrontmatterField(content: string, key: string, value: string): string {
   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
   if (!fmMatch) {
     // No frontmatter — prepend it

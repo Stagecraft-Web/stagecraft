@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@stagecraft/db";
+import { ASSET_SELECT, VALID_USAGE_SLOTS, normalizeFilename } from "@/lib/assets";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -11,19 +12,6 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-
-function normalizeFilename(original: string): string {
-  const parts = original.split(".");
-  const ext = parts.length > 1 ? parts.pop()!.toLowerCase() : "";
-  const base = parts
-    .join("-")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
-  const suffix = Date.now();
-  return ext ? `${base}-${suffix}.${ext}` : `${base}-${suffix}`;
-}
 
 export async function POST(
   req: NextRequest,
@@ -74,6 +62,14 @@ export async function POST(
     return NextResponse.json({ error: "File is empty" }, { status: 422 });
   }
 
+  const usageSlot = (formData.get("usageSlot") as string | null)?.trim() ?? null;
+  if (usageSlot !== null && !VALID_USAGE_SLOTS.has(usageSlot)) {
+    return NextResponse.json(
+      { error: "usageSlot must be one of: hero, gallery, about, press, logo" },
+      { status: 422 }
+    );
+  }
+
   const arrayBuffer = await file.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
   const dataUrl = `data:${file.type};base64,${base64}`;
@@ -82,7 +78,6 @@ export async function POST(
   const alt = (formData.get("alt") as string | null)?.trim() ?? null;
   const caption = (formData.get("caption") as string | null)?.trim() ?? null;
   const credit = (formData.get("credit") as string | null)?.trim() ?? null;
-  const usageSlot = (formData.get("usageSlot") as string | null)?.trim() ?? null;
 
   const asset = await prisma.assetUpload.create({
     data: {
@@ -97,23 +92,9 @@ export async function POST(
       alt,
       caption,
       credit,
-      usageSlot,
+      usageSlot: usageSlot || null,
     },
-    select: {
-      id: true,
-      siteId: true,
-      originalFilename: true,
-      normalizedFilename: true,
-      mimeType: true,
-      fileSize: true,
-      uploadStatus: true,
-      targetRepoPath: true,
-      alt: true,
-      caption: true,
-      credit: true,
-      usageSlot: true,
-      createdAt: true,
-    },
+    select: ASSET_SELECT,
   });
 
   return NextResponse.json({ asset }, { status: 201 });
@@ -141,21 +122,7 @@ export async function GET(
   const assets = await prisma.assetUpload.findMany({
     where: { siteId },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      siteId: true,
-      originalFilename: true,
-      normalizedFilename: true,
-      mimeType: true,
-      fileSize: true,
-      uploadStatus: true,
-      targetRepoPath: true,
-      alt: true,
-      caption: true,
-      credit: true,
-      usageSlot: true,
-      createdAt: true,
-    },
+    select: ASSET_SELECT,
   });
 
   return NextResponse.json({ assets });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@stagecraft/db";
+import { ASSET_SELECT, VALID_USAGE_SLOTS } from "@/lib/assets";
 
 type Params = { params: Promise<{ siteId: string; assetId: string }> };
 
@@ -64,8 +65,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     usageSlot?: string | null;
   };
 
-  const VALID_SLOTS = new Set(["hero", "gallery", "about", "press", "logo", ""]);
-  if (body.usageSlot !== undefined && !VALID_SLOTS.has(body.usageSlot ?? "")) {
+  if (body.usageSlot !== undefined && !VALID_USAGE_SLOTS.has(body.usageSlot ?? "")) {
     return NextResponse.json(
       { error: "usageSlot must be one of: hero, gallery, about, press, logo" },
       { status: 422 }
@@ -80,20 +80,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(body.credit !== undefined && { credit: body.credit.trim() || null }),
       ...(body.usageSlot !== undefined && { usageSlot: body.usageSlot || null }),
     },
-    select: {
-      id: true,
-      originalFilename: true,
-      normalizedFilename: true,
-      mimeType: true,
-      fileSize: true,
-      uploadStatus: true,
-      targetRepoPath: true,
-      alt: true,
-      caption: true,
-      credit: true,
-      usageSlot: true,
-      createdAt: true,
-    },
+    select: ASSET_SELECT,
   });
 
   return NextResponse.json({ asset: updated });

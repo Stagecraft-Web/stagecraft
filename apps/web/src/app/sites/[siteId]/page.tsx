@@ -43,6 +43,22 @@ interface Site {
   jobs: SiteJob[];
 }
 
+type FailureCategory =
+  | "github_api_error"
+  | "netlify_deploy_error"
+  | "validation_error"
+  | "ai_error"
+  | "timeout"
+  | "unknown";
+
+interface CRJob {
+  id: string;
+  status: string;
+  failureCategory?: FailureCategory | null;
+  errorMessage?: string;
+  repairAttempts?: number;
+}
+
 interface ChangeRequest {
   id: string;
   requestText: string;
@@ -52,7 +68,9 @@ interface ChangeRequest {
   previewUrl?: string;
   summary?: string;
   status: ChangeRequestStatus;
+  failureCategory?: FailureCategory | null;
   createdAt: string;
+  job?: CRJob | null;
 }
 
 const CR_STATUS_LABEL: Record<ChangeRequestStatus, string> = {
@@ -248,6 +266,39 @@ export default function SiteDetailPage() {
     }
   }
 
+  async function handleRetryCR(crId: string) {
+    try {
+      const res = await fetch(`/api/sites/${siteId}/change-requests/${crId}/retry`, { method: "POST" });
+      if (res.ok) {
+        setChangeRequests((prev) =>
+          prev.map((cr) =>
+            cr.id === crId
+              ? { ...cr, status: "in_progress" as ChangeRequestStatus, job: cr.job ? { ...cr.job, status: "queued", failureCategory: null } : cr.job }
+              : cr
+          )
+        );
+      }
+    } catch {
+      // Non-fatal — user can retry again
+    }
+  }
+
+  async function handleDiscardCR(crId: string) {
+    if (!confirm("Discard this change request?")) return;
+    try {
+      const res = await fetch(`/api/sites/${siteId}/change-requests/${crId}/discard`, { method: "POST" });
+      if (res.ok) {
+        setChangeRequests((prev) =>
+          prev.map((cr) =>
+            cr.id === crId ? { ...cr, status: "discarded" as ChangeRequestStatus } : cr
+          )
+        );
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   const latestJob = site.jobs[0];
   const isCreating = site.status === "creating";
   const isError = site.status === "error" || site.status === "deploy_failed";
@@ -422,6 +473,22 @@ export default function SiteDetailPage() {
                   <p style={{ margin: "0.375rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
                     Working on it…
                   </p>
+                )}
+                {cr.job?.status === "failed" && cr.status !== "discarded" && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <p style={{ margin: "0 0 0.375rem", fontSize: "var(--font-size-xs)", color: "var(--color-error)" }}>
+                      Failed
+                      {cr.job.errorMessage ? `: ${cr.job.errorMessage}` : ""}
+                    </p>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <Button size="sm" onClick={() => handleRetryCR(cr.id)}>
+                        Retry
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDiscardCR(cr.id)}>
+                        Discard
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </li>
             ))}

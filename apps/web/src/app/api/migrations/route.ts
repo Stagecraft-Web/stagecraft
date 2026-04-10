@@ -2,24 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
+import { BLUEPRINT_VALUES, isBlueprintType, isValidHttpUrl } from "@stagecraft/shared";
 import type { BlueprintType } from "@stagecraft/shared";
-
-const VALID_BLUEPRINTS: BlueprintType[] = [
-  "solo-artist",
-  "band",
-  "composer-educator",
-  "epk-focused",
-  "tour-focused",
-];
-
-function isValidUrl(raw: string): boolean {
-  try {
-    const parsed = new URL(raw);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -40,19 +24,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isValidUrl(body.url)) {
+  if (!isValidHttpUrl(body.url)) {
     return NextResponse.json(
       { error: "url must be a valid http or https URL" },
       { status: 400 }
     );
   }
 
-  if (!VALID_BLUEPRINTS.includes(body.blueprintType as BlueprintType)) {
+  if (!isBlueprintType(body.blueprintType)) {
     return NextResponse.json(
-      { error: `Invalid blueprint type. Must be one of: ${VALID_BLUEPRINTS.join(", ")}` },
+      { error: `Invalid blueprint type. Must be one of: ${BLUEPRINT_VALUES.join(", ")}` },
       { status: 400 }
     );
   }
+
+  const blueprintType: BlueprintType = body.blueprintType;
 
   // Check integrations are connected
   const integrations = await prisma.integrationAccount.findMany({
@@ -85,7 +71,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       name: body.name,
       slug,
-      blueprintType: body.blueprintType,
+      blueprintType,
       status: "creating",
     },
   });
@@ -101,7 +87,7 @@ export async function POST(req: NextRequest) {
         url: body.url,
         name: body.name,
         slug,
-        blueprintType: body.blueprintType,
+        blueprintType,
       },
     },
   });

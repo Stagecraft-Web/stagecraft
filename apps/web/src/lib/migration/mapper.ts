@@ -14,6 +14,9 @@
  */
 
 import type { ExtractedSite, ExtractedPage } from "./crawler";
+import { buildMarkdownBody, buildFrontmatter, buildMarkdownPage } from "../content-utils";
+
+export { buildMarkdownBody, buildFrontmatter, buildMarkdownPage };
 
 export interface MappedFile {
   path: string;
@@ -81,48 +84,6 @@ function scorePageForRole(page: ExtractedPage, role: PageRole): number {
     if (combined.includes(kw)) score++;
   }
   return score;
-}
-
-// ─── Content formatters ───────────────────────────────────────────────────────
-
-/** Convert a list of paragraphs/headings into a basic markdown body. */
-export function buildMarkdownBody(headings: string[], paragraphs: string[]): string {
-  const lines: string[] = [];
-
-  // Lead with first heading if it doesn't duplicate the frontmatter title
-  if (headings.length > 1) {
-    for (const h of headings.slice(1, 4)) {
-      lines.push(`## ${h}`, "");
-    }
-  }
-
-  for (const p of paragraphs.slice(0, 10)) {
-    lines.push(p, "");
-  }
-
-  return lines.join("\n").trimEnd();
-}
-
-/** Build a YAML frontmatter string. */
-export function buildFrontmatter(fields: Record<string, string>): string {
-  const lines = ["---"];
-  for (const [key, val] of Object.entries(fields)) {
-    if (val) lines.push(`${key}: "${val.replace(/"/g, '\\"')}"`);
-  }
-  lines.push("---");
-  return lines.join("\n");
-}
-
-/** Build a complete Markdown page with frontmatter. */
-export function buildMarkdownPage(
-  title: string,
-  description: string,
-  headings: string[],
-  paragraphs: string[]
-): string {
-  const fm = buildFrontmatter({ title, description });
-  const body = buildMarkdownBody(headings, paragraphs);
-  return body ? `${fm}\n\n${body}\n` : `${fm}\n`;
 }
 
 // ─── site.json builder ────────────────────────────────────────────────────────

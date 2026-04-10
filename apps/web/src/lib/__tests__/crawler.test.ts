@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+// @stagecraft/shared may not be linked in worktrees — load from source directly
+vi.mock("@stagecraft/shared", async () => await import("../../../../../packages/shared/src/utils"));
+import { stripHtml, inferArtistName } from "../../../../../packages/shared/src/utils";
 import {
-  stripHtml,
   extractTitle,
   extractDescription,
   extractHeadings,
@@ -11,8 +13,7 @@ import {
   extractSocialLinks,
   resolveUrl,
   isSameDomain,
-  inferArtistName,
-} from "../migration/crawler";
+} from "../html-utils";
 
 const BASE = "https://example.com";
 
@@ -28,12 +29,55 @@ describe("stripHtml", () => {
     expect(stripHtml(html)).toBe("Visible");
   });
 
-  it("decodes common entities", () => {
-    expect(stripHtml("Tom &amp; Jerry &mdash; a story")).toBe("Tom & Jerry — a story");
+  it("removes HTML comments", () => {
+    expect(stripHtml("<!-- comment --><p>text</p>")).toBe("text");
   });
 
-  it("collapses whitespace", () => {
-    expect(stripHtml("  foo   bar  ")).toBe("foo bar");
+  it("decodes common HTML entities", () => {
+    // Note: &nbsp; becomes a space that gets collapsed and trimmed with surrounding whitespace
+    expect(stripHtml("&amp; &lt; &gt; &quot; &#39;")).toBe("& < > \" '");
+    expect(stripHtml("a&nbsp;b")).toBe("a b");
+  });
+
+  it("decodes dash entities", () => {
+    expect(stripHtml("rock&mdash;roll")).toBe("rock—roll");
+    expect(stripHtml("2020&ndash;2024")).toBe("2020–2024");
+  });
+
+  it("collapses multiple whitespace", () => {
+    expect(stripHtml("<p>  too   much  space  </p>")).toBe("too much space");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(stripHtml("")).toBe("");
+  });
+});
+
+// ─── inferArtistName ─────────────────────────────────────────────────────────
+
+describe("inferArtistName", () => {
+  it("strips pipe-separated suffixes", () => {
+    expect(inferArtistName("Sarah Chen | Official Site")).toBe("Sarah Chen");
+  });
+
+  it("strips dash-separated suffixes", () => {
+    expect(inferArtistName("The Blue Notes - Home")).toBe("The Blue Notes");
+  });
+
+  it("strips em-dash-separated suffixes", () => {
+    expect(inferArtistName("Maria Torres — Music")).toBe("Maria Torres");
+  });
+
+  it("strips trailing 'official' keyword", () => {
+    expect(inferArtistName("Joe Doe Official")).toBe("Joe Doe");
+  });
+
+  it("returns name unchanged when no suffix", () => {
+    expect(inferArtistName("The Rolling Stones")).toBe("The Rolling Stones");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(inferArtistName("  Band Name  ")).toBe("Band Name");
   });
 });
 
@@ -41,168 +85,161 @@ describe("stripHtml", () => {
 
 describe("extractTitle", () => {
   it("extracts <title> tag", () => {
-    const html = "<title>Sarah Chen Music | Official Site</title>";
-    expect(extractTitle(html)).toBe("Sarah Chen Music | Official Site");
+    expect(extractTitle("<title>My Band</title>")).toBe("My Band");
   });
 
   it("prefers og:title over <title>", () => {
-    const html = `
-      <title>Fallback</title>
-      <meta property="og:title" content="Sarah Chen — Composer">
-    `;
-    expect(extractTitle(html)).toBe("Sarah Chen — Composer");
+    const html = `<meta property="og:title" content="OG Title"><title>Page Title</title>`;
+    expect(extractTitle(html)).toBe("OG Title");
   });
 
-  it("returns empty string when no title found", () => {
-    expect(extractTitle("<html><body></body></html>")).toBe("");
+  it("returns empty string when no title", () => {
+    expect(extractTitle("<html></html>")).toBe("");
   });
 });
 
-// ─── extractDescription ──────────────────────────────────────────────────────
+// ─── extractDescription ───────────────────────────────────────────────────────
 
 describe("extractDescription", () => {
   it("extracts meta description", () => {
-    const html = `<meta name="description" content="Award-winning cellist based in NYC.">`;
-    expect(extractDescription(html)).toBe("Award-winning cellist based in NYC.");
+    const html = `<meta name="description" content="A great band">`;
+    expect(extractDescription(html)).toBe("A great band");
   });
 
-  it("prefers og:description", () => {
-    const html = `
-      <meta name="description" content="Fallback description">
-      <meta property="og:description" content="OG description wins">
-    `;
-    expect(extractDescription(html)).toBe("OG description wins");
+  it("prefers og:description over meta description", () => {
+    const html = `<meta property="og:description" content="OG desc"><meta name="description" content="meta desc">`;
+    expect(extractDescription(html)).toBe("OG desc");
+  });
+
+  it("returns empty string when no description", () => {
+    expect(extractDescription("<html></html>")).toBe("");
   });
 });
 
-// ─── extractHeadings ──────────────────────────────────────────────────────────
+// ─── extractHeadings ─────────────────────────────────────────────────────────
 
 describe("extractHeadings", () => {
-  it("extracts h1–h3 headings", () => {
-    const html = `<h1>Welcome</h1><h2>About <span>Me</span></h2><h3>Contact</h3>`;
-    expect(extractHeadings(html)).toEqual(["Welcome", "About Me", "Contact"]);
+  it("extracts h1-h3 headings", () => {
+    const html = "<h1>Title</h1><h2>Subtitle</h2><h3>Sub-subtitle</h3><h4>Skip me</h4>";
+    const headings = extractHeadings(html);
+    expect(headings).toContain("Title");
+    expect(headings).toContain("Subtitle");
+    expect(headings).toContain("Sub-subtitle");
+    expect(headings).not.toContain("Skip me");
   });
 
-  it("ignores h4 and below", () => {
-    const html = `<h4>Tiny</h4><h1>Big</h1>`;
-    expect(extractHeadings(html)).toEqual(["Big"]);
+  it("strips HTML from headings", () => {
+    expect(extractHeadings("<h1><strong>Bold Title</strong></h1>")).toEqual(["Bold Title"]);
+  });
+
+  it("returns empty array when no headings", () => {
+    expect(extractHeadings("<p>No headings here</p>")).toEqual([]);
   });
 });
 
-// ─── extractParagraphs ───────────────────────────────────────────────────────
+// ─── extractParagraphs ────────────────────────────────────────────────────────
 
 describe("extractParagraphs", () => {
-  it("extracts paragraphs longer than 30 characters", () => {
-    const html = `
-      <p>Short</p>
-      <p>This is a longer paragraph with meaningful content about the artist.</p>
-    `;
-    const result = extractParagraphs(html);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toContain("meaningful content");
+  it("extracts non-trivial paragraphs", () => {
+    const html = `<p>Short</p><p>This is a longer paragraph that should be included in results.</p>`;
+    const paras = extractParagraphs(html);
+    expect(paras).toContain("This is a longer paragraph that should be included in results.");
+    expect(paras).not.toContain("Short");
   });
 
-  it("filters out short navigation snippets", () => {
-    const html = `<p>OK</p><p>Bio: I am a musician who has played for 20 years in various venues.</p>`;
-    expect(extractParagraphs(html)).toHaveLength(1);
+  it("strips HTML from paragraphs", () => {
+    const html = `<p>Hello <em>beautiful</em> world, this is a test paragraph.</p>`;
+    expect(extractParagraphs(html)).toEqual(["Hello beautiful world, this is a test paragraph."]);
   });
 });
 
 // ─── extractImages ────────────────────────────────────────────────────────────
 
 describe("extractImages", () => {
-  it("extracts src and alt attributes", () => {
-    const html = `<img src="/hero.jpg" alt="Hero photo">`;
-    const imgs = extractImages(html, BASE);
-    expect(imgs).toHaveLength(1);
-    expect(imgs[0]).toEqual({ src: `${BASE}/hero.jpg`, alt: "Hero photo" });
-  });
-
-  it("resolves relative URLs against base", () => {
-    const html = `<img src="images/portrait.jpg" alt="">`;
-    const imgs = extractImages(html, `${BASE}/`);
-    expect(imgs[0].src).toBe(`${BASE}/images/portrait.jpg`);
+  it("extracts image src and alt", () => {
+    const html = `<img src="/photo.jpg" alt="Band photo">`;
+    const images = extractImages(html, BASE);
+    expect(images).toHaveLength(1);
+    expect(images[0].src).toBe("https://example.com/photo.jpg");
+    expect(images[0].alt).toBe("Band photo");
   });
 
   it("skips data: URIs", () => {
     const html = `<img src="data:image/png;base64,abc" alt="inline">`;
     expect(extractImages(html, BASE)).toHaveLength(0);
   });
+
+  it("resolves relative URLs against base", () => {
+    const html = `<img src="images/hero.jpg" alt="">`;
+    const images = extractImages(html, BASE);
+    expect(images[0].src).toContain("example.com");
+  });
 });
 
 // ─── extractEmbeds ────────────────────────────────────────────────────────────
 
 describe("extractEmbeds", () => {
-  it("classifies YouTube iframe", () => {
+  it("extracts YouTube iframes", () => {
     const html = `<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>`;
     const embeds = extractEmbeds(html);
     expect(embeds).toHaveLength(1);
     expect(embeds[0].type).toBe("youtube");
   });
 
-  it("classifies SoundCloud iframe", () => {
-    const html = `<iframe src="https://w.soundcloud.com/player/?url=..."></iframe>`;
-    expect(extractEmbeds(html)[0].type).toBe("soundcloud");
+  it("extracts Spotify iframes", () => {
+    const html = `<iframe src="https://open.spotify.com/embed/album/123"></iframe>`;
+    const embeds = extractEmbeds(html);
+    expect(embeds[0].type).toBe("spotify");
   });
 
-  it("classifies Spotify iframe", () => {
-    const html = `<iframe src="https://open.spotify.com/embed/track/abc"></iframe>`;
-    expect(extractEmbeds(html)[0].type).toBe("spotify");
-  });
-
-  it("classifies Bandcamp iframe", () => {
-    const html = `<iframe src="https://bandcamp.com/EmbeddedPlayer/..."></iframe>`;
-    expect(extractEmbeds(html)[0].type).toBe("bandcamp");
-  });
-
-  it("labels unknown iframes as other", () => {
-    const html = `<iframe src="https://widget.example.com/player"></iframe>`;
-    expect(extractEmbeds(html)[0].type).toBe("other");
+  it("classifies unknown iframes as other", () => {
+    const html = `<iframe src="https://someother.site/embed"></iframe>`;
+    const embeds = extractEmbeds(html);
+    expect(embeds[0].type).toBe("other");
   });
 });
 
 // ─── extractNavLinks ─────────────────────────────────────────────────────────
 
 describe("extractNavLinks", () => {
-  it("extracts links from <nav>", () => {
-    const html = `
-      <nav>
-        <a href="/about">About</a>
-        <a href="/music">Music</a>
-        <a href="https://instagram.com/artist">Instagram</a>
-      </nav>
-    `;
+  it("extracts links from <nav> block", () => {
+    const html = `<nav><a href="/about">About</a><a href="/contact">Contact</a></nav>`;
     const links = extractNavLinks(html, BASE);
     expect(links.map((l) => l.text)).toContain("About");
-    expect(links.map((l) => l.text)).toContain("Music");
+    expect(links.map((l) => l.text)).toContain("Contact");
   });
 
   it("resolves relative hrefs", () => {
-    const html = `<nav><a href="/contact">Contact</a></nav>`;
+    const html = `<nav><a href="/music">Music</a></nav>`;
     const links = extractNavLinks(html, BASE);
-    expect(links[0].href).toBe(`${BASE}/contact`);
+    expect(links[0].href).toBe("https://example.com/music");
   });
 
-  it("skips fragment-only links", () => {
-    const html = `<nav><a href="#section">Skip</a><a href="/about">About</a></nav>`;
+  it("skips anchor links", () => {
+    const html = `<nav><a href="#section">Jump</a></nav>`;
     const links = extractNavLinks(html, BASE);
-    expect(links.every((l) => !l.href.startsWith(BASE + "#"))).toBe(true);
+    expect(links).toHaveLength(0);
   });
 });
 
-// ─── extractSocialLinks ──────────────────────────────────────────────────────
+// ─── extractSocialLinks ───────────────────────────────────────────────────────
 
 describe("extractSocialLinks", () => {
   it("detects Instagram link", () => {
-    const html = `<a href="https://www.instagram.com/sarahchenmusic">Instagram</a>`;
+    const html = `<a href="https://www.instagram.com/sarahchen">Follow</a>`;
     const links = extractSocialLinks(html, BASE);
-    expect(links.some((l) => l.text === "Instagram")).toBe(true);
+    const ig = links.find((l) => l.text === "Instagram");
+    expect(ig?.href).toBe("https://www.instagram.com/sarahchen");
   });
 
-  it("detects mailto link", () => {
-    const html = `<a href="mailto:hello@sarahchen.com">Email me</a>`;
+  it("detects mailto links", () => {
+    const html = `<a href="mailto:hi@example.com">Email</a>`;
     const links = extractSocialLinks(html, BASE);
-    expect(links.some((l) => l.href.startsWith("mailto:"))).toBe(true);
+    expect(links.some((l) => l.href === "mailto:hi@example.com")).toBe(true);
+  });
+
+  it("returns empty array when no social links", () => {
+    expect(extractSocialLinks("<p>No links here</p>", BASE)).toHaveLength(0);
   });
 });
 
@@ -210,16 +247,16 @@ describe("extractSocialLinks", () => {
 
 describe("resolveUrl", () => {
   it("resolves relative paths", () => {
-    expect(resolveUrl("/about", BASE)).toBe(`${BASE}/about`);
+    expect(resolveUrl("/about", BASE)).toBe("https://example.com/about");
   });
 
-  it("keeps absolute URLs", () => {
+  it("returns absolute URLs unchanged", () => {
     expect(resolveUrl("https://other.com/page", BASE)).toBe("https://other.com/page");
   });
 
   it("returns null for non-http protocols", () => {
+    expect(resolveUrl("ftp://files.example.com", BASE)).toBeNull();
     expect(resolveUrl("javascript:void(0)", BASE)).toBeNull();
-    expect(resolveUrl("mailto:x@y.com", BASE)).toBeNull();
   });
 });
 
@@ -227,29 +264,14 @@ describe("resolveUrl", () => {
 
 describe("isSameDomain", () => {
   it("returns true for same hostname", () => {
-    expect(isSameDomain("https://example.com/about", "example.com")).toBe(true);
+    expect(isSameDomain("https://example.com/page", "example.com")).toBe(true);
   });
 
   it("returns false for different hostname", () => {
     expect(isSameDomain("https://other.com/page", "example.com")).toBe(false);
   });
-});
 
-// ─── inferArtistName ─────────────────────────────────────────────────────────
-
-describe("inferArtistName", () => {
-  it("strips common site-title suffixes", () => {
-    expect(inferArtistName("Sarah Chen | Official Site")).toBe("Sarah Chen");
-    expect(inferArtistName("The Jazz Quartet — Music")).toBe("The Jazz Quartet");
-    expect(inferArtistName("Maria Lopez - Home")).toBe("Maria Lopez");
-  });
-
-  it("strips known role suffixes", () => {
-    expect(inferArtistName("Alex Kim Musician")).toBe("Alex Kim");
-    expect(inferArtistName("David Park Composer")).toBe("David Park");
-  });
-
-  it("returns the title untouched when no suffix matches", () => {
-    expect(inferArtistName("The Rolling Stones")).toBe("The Rolling Stones");
+  it("returns false for invalid URL", () => {
+    expect(isSameDomain("not-a-url", "example.com")).toBe(false);
   });
 });

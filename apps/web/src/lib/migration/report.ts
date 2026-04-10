@@ -5,6 +5,7 @@
  * results. The report is stored in SiteJob.resultPayload and surfaced in the UI.
  */
 
+import { capitalise } from "@stagecraft/shared";
 import type { ExtractedSite } from "./crawler";
 import type { MappedContent, MappedFile } from "./mapper";
 
@@ -218,10 +219,4 @@ export function buildMigrationReport(
     embedsFound: extracted.pages.reduce((sum, p) => sum + p.embeds.length, 0),
     socialLinksFound: extracted.socialLinks.filter((l) => !l.href.startsWith("mailto:")).length,
   };
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

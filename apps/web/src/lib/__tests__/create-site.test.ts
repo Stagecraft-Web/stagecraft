@@ -23,11 +23,12 @@ vi.mock("@/lib/integrations/netlify", () => ({
   createSite: mockCreateNetlifySite,
 }));
 
-// Mock fs to avoid reading actual template files
-vi.mock("fs/promises", () => ({
-  default: {
-    readdir: vi.fn().mockResolvedValue([]),
-  },
+const mockReadTemplateFiles = vi.fn().mockResolvedValue([]);
+vi.mock("@/lib/template-reader", () => ({
+  readTemplateFiles: mockReadTemplateFiles,
+  BINARY_EXTENSIONS: new Set(),
+  TEMPLATE_SKIP_DIRS: new Set(),
+  TEMPLATE_SKIP_FILES: new Set(),
 }));
 
 const { handleCreateSite } = await import("../jobs/create-site");

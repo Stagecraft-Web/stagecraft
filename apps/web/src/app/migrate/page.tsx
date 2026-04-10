@@ -4,14 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import FormGroup from "@/components/FormGroup";
-
-const BLUEPRINTS = [
-  { value: "solo-artist", label: "Solo Artist", description: "For solo musicians, singer-songwriters, and solo performers" },
-  { value: "band", label: "Band / Ensemble", description: "For bands, ensembles, and musical groups" },
-  { value: "composer-educator", label: "Composer / Educator", description: "For composers, music teachers, and academics" },
-  { value: "epk-focused", label: "EPK / Press Kit", description: "Emphasis on press materials, bio, and booking info" },
-  { value: "tour-focused", label: "Tour Focused", description: "Emphasis on tour dates, venues, and live performance" },
-];
+import { BLUEPRINT_OPTIONS, isValidHttpUrl } from "@stagecraft/shared";
 
 type Step = "url" | "blueprint" | "name" | "migrating";
 
@@ -26,14 +19,8 @@ export default function MigrateSitePage() {
 
   function handleUrlNext() {
     setError("");
-    try {
-      const parsed = new URL(sourceUrl.trim());
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        setError("URL must start with http:// or https://");
-        return;
-      }
-    } catch {
-      setError("Please enter a valid URL, e.g. https://www.sarahchenmusic.com");
+    if (!isValidHttpUrl(sourceUrl.trim())) {
+      setError("Please enter a valid URL starting with http:// or https://");
       return;
     }
     setStep("blueprint");
@@ -117,7 +104,7 @@ export default function MigrateSitePage() {
             <Button variant="ghost" size="sm" onClick={() => setStep("url")}>Change</Button>
           </p>
           <div style={{ display: "grid", gap: "0.75rem" }}>
-            {BLUEPRINTS.map((bp) => (
+            {BLUEPRINT_OPTIONS.map((bp) => (
               <Button
                 key={bp.value}
                 variant="card"
@@ -141,7 +128,7 @@ export default function MigrateSitePage() {
         <section>
           <h2>Step 3 of 3 — Artist name</h2>
           <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0 }}>
-            Blueprint: <strong>{BLUEPRINTS.find((b) => b.value === blueprintType)?.label}</strong>{" "}
+            Blueprint: <strong>{BLUEPRINT_OPTIONS.find((b) => b.value === blueprintType)?.label}</strong>{" "}
             <Button variant="ghost" size="sm" onClick={() => setStep("blueprint")}>Change</Button>
           </p>
           <div style={{ marginTop: "0.75rem" }}>

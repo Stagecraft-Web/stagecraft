@@ -1,81 +1,21 @@
 import { prisma } from "@stagecraft/db";
 import type { JobContext, JobResult } from "@stagecraft/queue";
+import type { BlueprintType } from "@stagecraft/shared";
 import { createRepo, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite } from "@/lib/integrations/netlify";
 import { crawlSite } from "@/lib/migration/crawler";
 import { mapExtractedContent } from "@/lib/migration/mapper";
 import { buildMigrationReport } from "@/lib/migration/report";
-import fs from "fs/promises";
+import { readTemplateFiles } from "@/lib/template-reader";
 import path from "path";
 
 const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site");
-
-// Binary extensions to skip when pushing via Git Data API
-const BINARY_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".ico", ".svg",
-  ".woff", ".woff2", ".ttf", ".eot",
-  ".mp3", ".mp4", ".wav", ".ogg",
-  ".pdf", ".zip",
-]);
 
 interface MigrateSitePayload {
   url: string;
   name: string;
   slug: string;
-  blueprintType: string;
-}
-
-/** Same .gitignore-aware template reader as create-site. */
-async function getGitignoreDirs(): Promise<Set<string>> {
-  try {
-    const content = await fs.readFile(path.join(TEMPLATE_DIR, ".gitignore"), "utf-8");
-    const dirs = new Set<string>();
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      if (trimmed.endsWith("/")) dirs.add(trimmed.slice(0, -1));
-    }
-    return dirs;
-  } catch {
-    return new Set();
-  }
-}
-
-async function readTemplateFiles(siteName: string): Promise<{ path: string; content: string }[]> {
-  const files: { path: string; content: string }[] = [];
-  const gitignoreDirs = await getGitignoreDirs();
-  const SKIP_DIRS = new Set([...gitignoreDirs, ".next", ".turbo", "tests", "scripts"]);
-  const SKIP_FILES = new Set(["package-lock.json", "playwright.config.ts", "CLAUDE.md", "EDITING.md"]);
-
-  async function walk(dir: string, prefix: string) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      const fullPath = path.join(dir, entry.name);
-      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-
-      if (entry.isDirectory()) {
-        await walk(fullPath, relativePath);
-      } else if (entry.isFile()) {
-        if (SKIP_FILES.has(entry.name)) continue;
-        const ext = path.extname(entry.name).toLowerCase();
-        if (BINARY_EXTENSIONS.has(ext)) continue;
-
-        let content = await fs.readFile(fullPath, "utf-8");
-        if (relativePath === "src/content/config/site.json") {
-          // Template baseline — will be overwritten by mapped content
-          const cfg = JSON.parse(content);
-          cfg.artistName = siteName;
-          cfg.siteTitle = `${siteName} — Official Website`;
-          content = JSON.stringify(cfg, null, 2) + "\n";
-        }
-        files.push({ path: relativePath, content });
-      }
-    }
-  }
-
-  await walk(TEMPLATE_DIR, "");
-  return files;
+  blueprintType: BlueprintType;
 }
 
 export async function handleMigrateSite(ctx: JobContext): Promise<JobResult> {
@@ -125,7 +65,15 @@ export async function handleMigrateSite(ctx: JobContext): Promise<JobResult> {
     });
 
     // ── Step 5: Push template base ───────────────────────────────────────────
-    const templateFiles = await readTemplateFiles(name);
+    const templateFiles = await readTemplateFiles(TEMPLATE_DIR, (relativePath, content) => {
+      if (relativePath === "src/content/config/site.json") {
+        const cfg = JSON.parse(content) as Record<string, unknown>;
+        cfg.artistName = name;
+        cfg.siteTitle = `${name} — Official Website`;
+        return JSON.stringify(cfg, null, 2) + "\n";
+      }
+      return content;
+    });
 
     // Build final file list: template base, then overlay with mapped content
     const mappedPaths = new Set(mapped.files.map((f) => f.path));

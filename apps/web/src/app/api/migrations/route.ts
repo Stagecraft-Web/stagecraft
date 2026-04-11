@@ -2,15 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
+import { BLUEPRINT_VALUES, isBlueprintType, isValidHttpUrl } from "@stagecraft/shared";
 import type { BlueprintType } from "@stagecraft/shared";
-
-const VALID_BLUEPRINTS: BlueprintType[] = [
-  "solo-artist",
-  "band",
-  "composer-educator",
-  "epk-focused",
-  "tour-focused",
-];
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -19,23 +12,33 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as {
+    url?: string;
     name?: string;
     blueprintType?: BlueprintType;
   };
 
-  if (!body.name || !body.blueprintType) {
+  if (!body.url || !body.name || !body.blueprintType) {
     return NextResponse.json(
-      { error: "name and blueprintType are required" },
+      { error: "url, name, and blueprintType are required" },
       { status: 400 }
     );
   }
 
-  if (!VALID_BLUEPRINTS.includes(body.blueprintType as BlueprintType)) {
+  if (!isValidHttpUrl(body.url)) {
     return NextResponse.json(
-      { error: `Invalid blueprint type. Must be one of: ${VALID_BLUEPRINTS.join(", ")}` },
+      { error: "url must be a valid http or https URL" },
       { status: 400 }
     );
   }
+
+  if (!isBlueprintType(body.blueprintType)) {
+    return NextResponse.json(
+      { error: `Invalid blueprint type. Must be one of: ${BLUEPRINT_VALUES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const blueprintType: BlueprintType = body.blueprintType;
 
   // Check integrations are connected
   const integrations = await prisma.integrationAccount.findMany({
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   if (!hasGithub || !hasNetlify) {
     return NextResponse.json(
-      { error: "GitHub and Netlify must be connected before creating a site" },
+      { error: "GitHub and Netlify must be connected before migrating a site" },
       { status: 400 }
     );
   }
@@ -68,45 +71,26 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       name: body.name,
       slug,
-      blueprintType: body.blueprintType,
+      blueprintType,
       status: "creating",
     },
   });
 
-  // Enqueue create_site job
+  // Enqueue migrate_site job
   const job = await prisma.siteJob.create({
     data: {
       siteId: site.id,
       userId: session.user.id,
-      type: "create_site",
+      type: "migrate_site",
       status: "queued",
       requestPayload: {
+        url: body.url,
         name: body.name,
         slug,
-        blueprintType: body.blueprintType,
+        blueprintType,
       },
     },
   });
 
   return NextResponse.json({ site, jobId: job.id }, { status: 201 });
-}
-
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const sites = await prisma.site.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      jobs: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
-  });
-
-  return NextResponse.json({ sites });
 }

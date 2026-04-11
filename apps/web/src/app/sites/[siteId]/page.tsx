@@ -20,11 +20,39 @@ type ChangeRequestStatus =
   | "rejected"
   | "discarded";
 
+interface MigrationReportItem {
+  label: string;
+  status: "imported" | "partial" | "skipped" | "manual_review";
+  detail: string;
+}
+
+interface MigrationReport {
+  summary: string[];
+  overallConfidence: number;
+  importedItems: MigrationReportItem[];
+  manualReviewItems: MigrationReportItem[];
+  skippedItems: MigrationReportItem[];
+  pagesCrawled: number;
+  pagesMapped: number;
+  imagesFound: number;
+  embedsFound: number;
+  socialLinksFound: number;
+}
+
+interface MigrateJobResult {
+  sourceUrl?: string;
+  pagesCrawled?: number;
+  pagesMapped?: number;
+  overallConfidence?: number;
+  report?: MigrationReport;
+}
+
 interface SiteJob {
   id: string;
   type: JobType;
   status: JobStatus;
   errorMessage?: string;
+  resultPayload?: MigrateJobResult;
   createdAt: string;
   completedAt?: string;
 }
@@ -297,6 +325,10 @@ export default function SiteDetailPage() {
   const isError = site.status === "error" || site.status === "deploy_failed";
   const isArchived = site.status === "archived";
   const isActive = site.status === "active";
+
+  // Migration report — shown when a completed migrate_site job has a report in resultPayload
+  const migrationJob = site.jobs.find((j) => j.type === "migrate_site" && j.status === "completed");
+  const migrationReport = migrationJob?.resultPayload?.report ?? null;
   const githubUrl = site.githubRepoOwner && site.githubRepoName
     ? `https://github.com/${site.githubRepoOwner}/${site.githubRepoName}`
     : null;
@@ -320,7 +352,8 @@ export default function SiteDetailPage() {
       <h1>{site.name}</h1>
 
       <div style={{ padding: "0.75rem", background: statusBg, borderRadius: "var(--radius-sm)", marginBottom: "1rem" }}>
-        {isCreating && "Setting up your site... This may take a few minutes."}
+        {isCreating && latestJob?.type === "migrate_site" && "Migrating your site\u2026 Crawling pages and building your repo. This may take a minute."}
+        {isCreating && latestJob?.type !== "migrate_site" && "Setting up your site\u2026 This may take a few minutes."}
         {site.status === "error" && `Something went wrong: ${latestJob?.errorMessage ?? "Unknown error"}`}
         {site.status === "active" && !needsRepoLink && "Your site is live!"}
         {isArchived && "This site is archived. The GitHub repo is read-only."}
@@ -383,6 +416,77 @@ export default function SiteDetailPage() {
           </tbody>
         </table>
       </section>
+
+      {/* Migration report — shown after a successful migrate_site job */}
+      {migrationReport && (
+        <section style={{ marginTop: "2rem" }}>
+          <h2>Migration Report</h2>
+
+          {/* Summary */}
+          <ul style={{ paddingLeft: "1.25rem", margin: "0 0 1rem" }}>
+            {migrationReport.summary.map((line, i) => (
+              <li key={i} style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.25rem" }}>{line}</li>
+            ))}
+          </ul>
+
+          {/* Confidence */}
+          <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginBottom: "1rem" }}>
+            Overall import confidence: <strong>{Math.round(migrationReport.overallConfidence * 100)}%</strong>
+            {" "}— higher means more content was accurately mapped.
+          </p>
+
+          {/* Imported */}
+          {migrationReport.importedItems.length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-success)" }}>
+                Imported
+              </h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {migrationReport.importedItems.map((item, i) => (
+                  <li key={i} style={{ padding: "0.5rem", border: `1px solid var(--color-border)`, borderRadius: "var(--radius-sm)", marginBottom: "0.375rem" }}>
+                    <strong style={{ fontSize: "var(--font-size-sm)" }}>{item.label}</strong>
+                    <p style={{ margin: "0.125rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Manual review */}
+          {migrationReport.manualReviewItems.length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-warning)" }}>
+                Needs your attention
+              </h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {migrationReport.manualReviewItems.map((item, i) => (
+                  <li key={i} style={{ padding: "0.5rem", border: `1px solid var(--color-border)`, borderRadius: "var(--radius-sm)", marginBottom: "0.375rem" }}>
+                    <strong style={{ fontSize: "var(--font-size-sm)" }}>{item.label}</strong>
+                    <p style={{ margin: "0.125rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Skipped */}
+          {migrationReport.skippedItems.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-text-muted)" }}>
+                Not imported
+              </h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {migrationReport.skippedItems.map((item, i) => (
+                  <li key={i} style={{ padding: "0.5rem", border: `1px solid var(--color-border)`, borderRadius: "var(--radius-sm)", marginBottom: "0.375rem" }}>
+                    <strong style={{ fontSize: "var(--font-size-sm)" }}>{item.label}</strong>
+                    <p style={{ margin: "0.125rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Edit request form — only for active sites */}
       {isActive && (

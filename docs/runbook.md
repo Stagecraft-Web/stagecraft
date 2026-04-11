@@ -13,7 +13,6 @@ This document is for engineers and support staff operating the Stagecraft platfo
 5. [Manually Retrying Failed Jobs](#5-manually-retrying-failed-jobs)
 6. [Verifying GitHub Integration](#6-verifying-github-integration)
 7. [Verifying Netlify Integration](#7-verifying-netlify-integration)
-8. [Webhook Setup & Verification](#8-webhook-setup--verification)
 
 ---
 
@@ -26,8 +25,6 @@ This document is for engineers and support staff operating the Stagecraft platfo
                              │  /api/auth/...           │  NextAuth + GitHub OAuth
                              │  /api/integrations/...   │  Netlify OAuth
                              │  /api/sites/...          │  Site CRUD
-                             │  /api/webhooks/github    │  ← GitHub events
-                             │  /api/webhooks/netlify   │  ← Netlify deploy events
                              │  /api/health             │  Health check
                              └────────────┬─────────────┘
                                           │
@@ -62,7 +59,7 @@ queued  ──►  running  ──►  completed
                      └──►  awaiting_review
 ```
 
-The worker polls the `SiteJob` table every 5 seconds for the oldest `queued` job and processes it. All state transitions are reflected in the database immediately. Webhook events from GitHub and Netlify can also advance job state without polling.
+The worker polls the `SiteJob` table every 5 seconds for the oldest `queued` job and processes it. All state transitions are reflected in the database immediately.
 
 ---
 
@@ -93,13 +90,6 @@ npm run dev  # uses op run --env-file=apps/web/.op.env
 | `NETLIFY_CLIENT_ID` | Netlify OAuth App client ID |
 | `NETLIFY_CLIENT_SECRET` | Netlify OAuth App client secret |
 
-### Additional env vars for webhook ingestion
-
-| Variable | Description |
-|---|---|
-| `GITHUB_WEBHOOK_SECRET` | HMAC secret configured on GitHub repo webhook |
-| `NETLIFY_WEBHOOK_SECRET` | Shared token appended to Netlify webhook URL |
-
 ---
 
 ## 3. Health Check
@@ -115,7 +105,6 @@ curl https://<your-domain>/api/health
   "uptime": 184200,
   "checks": { "database": "ok" },
   "metrics": {
-    "webhook.received": 14,
     "job.started": 9,
     "job.completed": 8,
     "job.failed": 1
@@ -227,27 +216,6 @@ Common causes:
 
 ---
 
-### 4.6 Webhook signature rejected
-
-**Symptom:** `POST /api/webhooks/github` or `/api/webhooks/netlify` returns `401 Unauthorized`. Events are not being processed.
-
-**Cause:** The webhook secret in the hosting environment does not match the secret configured on GitHub/Netlify.
-
-**Recovery:**
-1. Rotate the secret (generate a new random value: `openssl rand -hex 32`).
-2. Update `GITHUB_WEBHOOK_SECRET` / `NETLIFY_WEBHOOK_SECRET` in the hosting environment and redeploy.
-3. Update the secret in GitHub repository settings / Netlify webhook URL.
-
----
-
-### 4.7 Webhook endpoint returns 500 "Server misconfiguration"
-
-**Cause:** `GITHUB_WEBHOOK_SECRET` or `NETLIFY_WEBHOOK_SECRET` is not set in the environment.
-
-**Recovery:** Set the missing env var and redeploy.
-
----
-
 ## 5. Manually Retrying Failed Jobs
 
 ### Re-enqueue a single failed job
@@ -332,46 +300,5 @@ FROM "Site"
 WHERE id = '<site-id>';
 ```
 
-`netlifySiteId` should be set after a successful `create_site` job. `productionUrl` is populated once the first deploy succeeds (either via webhook or job completion).
+`netlifySiteId` should be set after a successful `create_site` job. `productionUrl` is populated once the first deploy succeeds.
 
----
-
-## 8. Webhook Setup & Verification
-
-### GitHub Webhook
-
-1. Go to your GitHub repository → Settings → Webhooks → Add webhook.
-2. **Payload URL:** `https://<your-domain>/api/webhooks/github`
-3. **Content type:** `application/json`
-4. **Secret:** value of `GITHUB_WEBHOOK_SECRET`
-5. **Events:** Select individual events: `Pull requests`, `Deployment statuses`
-6. Click **Add webhook**. GitHub will send a ping event; confirm the green checkmark.
-
-**Test the signature locally:**
-```bash
-SECRET="your-secret"
-BODY='{"zen":"test"}'
-SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print "sha256="$2}')
-curl -s -X POST http://localhost:3000/api/webhooks/github \
-  -H "Content-Type: application/json" \
-  -H "X-GitHub-Event: ping" \
-  -H "X-Hub-Signature-256: $SIG" \
-  -d "$BODY"
-# Expected: {"ok":true}
-```
-
-### Netlify Webhook
-
-1. Go to your Netlify site → Site settings → Build & deploy → Deploy notifications.
-2. Add notifications for: **Deploy succeeded**, **Deploy failed**, **Deploy started**.
-3. **URL:** `https://<your-domain>/api/webhooks/netlify?token=<NETLIFY_WEBHOOK_SECRET>`
-4. Save. Trigger a test deploy to confirm events arrive.
-
-**Test the token locally:**
-```bash
-TOKEN="your-netlify-webhook-secret"
-curl -s -X POST "http://localhost:3000/api/webhooks/netlify?token=$TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"test","site_id":"<netlify-site-id>","state":"ready","ssl_url":"https://example.netlify.app"}'
-# Expected: {"ok":true}
-```

@@ -81,7 +81,7 @@ describe("handleCreateSite", () => {
     expect(result.success).toBe(true);
     expect(result.data).toEqual({
       githubUrl: "https://github.com/jclaw/sarah-chen-music",
-      productionUrl: "https://sarah-chen-music.netlify.app",
+      netlifyAdminUrl: "https://app.netlify.com/sites/sarah-chen-music",
       netlifySiteId: "netlify-123",
     });
 

@@ -63,20 +63,36 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     // 3. Push template files to the repo
     await pushFiles(userId, repo.owner, repo.name, repo.defaultBranch, files, `Initial site: ${name}`);
 
-    // 4. Create Netlify site (bare — repo will be connected via Netlify UI)
-    const netlifySite = await createNetlifySite({
-      userId,
-      name: `stagecraft-site-${slug}`,
-      repoOwner: repo.owner,
-      repoName: repo.name,
-    });
+    // 4. Create Netlify site, linked to the GitHub repo.
+    // If repo linking fails (e.g. Netlify's GitHub App isn't installed),
+    // fall back to a plain site and surface a link so the user can connect manually.
+    let netlifySite;
+    let netlifyLinkUrl: string | undefined;
+    try {
+      netlifySite = await createNetlifySite({
+        userId,
+        name: `stagecraft-site-${slug}`,
+        repo: {
+          provider: "github",
+          repo_path: `${repo.owner}/${repo.name}`,
+          repo_branch: repo.defaultBranch,
+          cmd: "npm run build",
+          dir: "dist",
+        },
+      });
+    } catch {
+      netlifySite = await createNetlifySite({
+        userId,
+        name: `stagecraft-site-${slug}`,
+      });
+      netlifyLinkUrl = `https://app.netlify.com/projects/${netlifySite.siteName}/link`;
+    }
 
     // 5. Update site with metadata and mark active
     await prisma.site.update({
       where: { id: siteId },
       data: {
         netlifySiteId: netlifySite.siteId,
-        netlifyAdminUrl: netlifySite.adminUrl,
         productionUrl: netlifySite.sslUrl,
         status: "active",
       },
@@ -88,6 +104,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
         githubUrl: `https://github.com/${repo.owner}/${repo.name}`,
         netlifyAdminUrl: netlifySite.adminUrl,
         netlifySiteId: netlifySite.siteId,
+        ...(netlifyLinkUrl ? { netlifyLinkUrl } : {}),
       },
     };
   } catch (error) {

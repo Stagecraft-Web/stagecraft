@@ -20,7 +20,7 @@ describe("Netlify integration", () => {
   });
 
   describe("createSite", () => {
-    it("creates a bare site with build settings (no repo link)", async () => {
+    it("creates a bare site with build settings when no repo is provided", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -32,12 +32,7 @@ describe("Netlify integration", () => {
         }),
       });
 
-      const result = await createSite({
-        userId: "user-1",
-        name: "my-site",
-        repoOwner: "jclaw",
-        repoName: "my-site",
-      });
+      const result = await createSite({ userId: "user-1", name: "my-site" });
 
       expect(result).toEqual({
         siteId: "netlify-site-id",
@@ -53,11 +48,46 @@ describe("Netlify integration", () => {
       expect(body.build_settings.dir).toBe("dist");
     });
 
+    it("creates a site with repo linking when repo is provided", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "netlify-site-id",
+          name: "my-site",
+          url: "https://my-site.netlify.app",
+          admin_url: "https://app.netlify.com/sites/my-site",
+          ssl_url: "https://my-site.netlify.app",
+        }),
+      });
+
+      await createSite({
+        userId: "user-1",
+        name: "my-site",
+        repo: {
+          provider: "github",
+          repo_path: "jclaw/my-site",
+          repo_branch: "main",
+          cmd: "npm run build",
+          dir: "dist",
+        },
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.repo).toEqual({
+        provider: "github",
+        repo_path: "jclaw/my-site",
+        repo_branch: "main",
+        cmd: "npm run build",
+        dir: "dist",
+      });
+      expect(body.build_settings).toBeUndefined();
+    });
+
     it("throws when Netlify account is not connected", async () => {
       mockFindUnique.mockResolvedValueOnce(null);
 
       await expect(
-        createSite({ userId: "user-1", name: "test", repoOwner: "x", repoName: "y" })
+        createSite({ userId: "user-1", name: "test" })
       ).rejects.toThrow("Netlify account not connected");
     });
   });

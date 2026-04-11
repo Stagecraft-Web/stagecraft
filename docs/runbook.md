@@ -78,7 +78,7 @@ The project uses 1Password for secret management in development. Run:
 npm run dev  # uses op run --env-file=apps/web/.op.env
 ```
 
-### Required env vars (minimum set to run)
+### Required env vars
 
 | Variable | Description |
 |---|---|
@@ -301,4 +301,3 @@ WHERE id = '<site-id>';
 ```
 
 `netlifySiteId` should be set after a successful `create_site` job. `productionUrl` is populated once the first deploy succeeds.
-

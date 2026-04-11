@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
-import FormGroup from "@/components/FormGroup";
+import Input from "@/components/Input";
 
 const BLUEPRINTS = [
   { value: "solo-artist", label: "Solo Artist", description: "For solo musicians, singer-songwriters, and solo performers" },
@@ -99,7 +99,7 @@ export default function CreateSitePage() {
           </p>
 
           <div style={{ marginTop: "1rem" }}>
-            <FormGroup
+            <Input
               id="site-name"
               label="Artist / Site name"
               value={siteName}

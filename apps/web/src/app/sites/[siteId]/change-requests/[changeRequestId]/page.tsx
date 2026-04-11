@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
-import FormGroup from "@/components/FormGroup";
+import Textarea from "@/components/Textarea";
 
 type ChangeRequestStatus =
   | "pending"
@@ -359,13 +359,12 @@ export default function ChangeRequestReviewPage() {
             </div>
           ) : (
             <div>
-              <FormGroup
+              <Textarea
                 id="revise-text"
                 label="Describe the revision:"
                 value={reviseText}
                 onChange={setReviseText}
                 placeholder="e.g. The bio is good but please also update the contact page email address"
-                isTextarea
               />
               {actionError && (
                 <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0.5rem" }}>
@@ -398,13 +397,12 @@ export default function ChangeRequestReviewPage() {
             </Button>
           ) : (
             <div>
-              <FormGroup
+              <Textarea
                 id="revise-text"
                 label="New request:"
                 value={reviseText}
                 onChange={setReviseText}
                 placeholder="Describe what you'd like to change"
-                isTextarea
               />
               {actionError && (
                 <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0.5rem" }}>

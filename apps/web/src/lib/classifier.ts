@@ -38,8 +38,18 @@ const RULES: Array<{ mode: EditMode; patterns: RegExp[] }> = [
   {
     mode: "asset_update",
     patterns: [
-      /\b(photo|image|picture|artwork|cover art|banner|logo|headshot|press photo)\b/i,
-      /\b(gallery|photos|images|upload|artwork)\b/i,
+      // Explicit upload/replace actions on images
+      /\b(upload|add|replace|swap|change|update|remove|delete)\b.{0,30}\b(photo|image|picture|photos|images|artwork|banner|hero|gallery)\b/i,
+      /\b(photo|image|picture|artwork|banner|hero|gallery)\b.{0,30}\b(upload|add|replace|swap|change|update)\b/i,
+      // Image-specific nouns that imply an asset action
+      /\b(headshot|press photo|cover art|hero image|hero photo|banner image|gallery photo|profile photo|profile picture)\b/i,
+      // Standalone upload / gallery context
+      /\b(upload|drag.{0,5}drop)\b.{0,20}\b(image|photo|picture|file)\b/i,
+      /\b(logo|artwork)\b.{0,20}\b(upload|add|replace|change|update|new|swap)\b/i,
+      /\b(add|upload|replace|change)\b.{0,20}\b(logo|artwork)\b/i,
+      // Plural photo/image nouns in context ("new photos", "press photos from …")
+      /\bnew\s+(photos?|images?|artwork|headshots?)\b/i,
+      /\bphotos?\b.{0,15}\b(from|for|of)\b/i,
     ],
   },
   {

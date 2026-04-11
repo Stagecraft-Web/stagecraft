@@ -88,39 +88,85 @@ describe("GitHub integration", () => {
   });
 
   describe("pushFiles", () => {
-    it("creates blobs, tree, commit, and ref", async () => {
-      // Blob creation
+    function mockPushSequence() {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ object: { sha: "parent-sha" } }),
+      });
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ sha: "blob-sha-1" }),
       });
-      // Tree creation
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ sha: "tree-sha-1" }),
       });
-      // Commit creation
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ sha: "commit-sha-1" }),
       });
-      // Update ref (PATCH)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
       });
+    }
+
+    it("creates blobs, tree, commit, and ref", async () => {
+      mockPushSequence();
 
       const result = await pushFiles(
         "user-1",
         "jclaw",
         "my-site",
+        "main",
         [{ path: "README.md", content: "# Hello" }],
         "Initial commit"
       );
 
       expect(result).toEqual({ commitSha: "commit-sha-1" });
-      // blob + tree + commit + ref update + getToken fetch
-      expect(mockFetch).toHaveBeenCalledTimes(4);
+      // ref lookup + blob + tree + commit + ref update
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+    });
+
+    it("sends base64 encoding when specified", async () => {
+      mockPushSequence();
+
+      await pushFiles(
+        "user-1",
+        "jclaw",
+        "my-site",
+        "main",
+        [{ path: "src/assets/images/photo.jpg", content: "abc123", encoding: "base64" }],
+        "Add image"
+      );
+
+      // The blob creation call should include encoding: "base64"
+      const blobCall = mockFetch.mock.calls.find((call: unknown[]) =>
+        (call[0] as string).includes("/git/blobs")
+      );
+      expect(blobCall).toBeDefined();
+      const blobBody = JSON.parse(blobCall![1].body as string);
+      expect(blobBody.encoding).toBe("base64");
+      expect(blobBody.content).toBe("abc123");
+    });
+
+    it("defaults to utf-8 encoding when not specified", async () => {
+      mockPushSequence();
+
+      await pushFiles(
+        "user-1",
+        "jclaw",
+        "my-site",
+        "main",
+        [{ path: "README.md", content: "# Hello" }],
+        "Add readme"
+      );
+
+      const blobCall = mockFetch.mock.calls.find((call: unknown[]) =>
+        (call[0] as string).includes("/git/blobs")
+      );
+      const blobBody = JSON.parse(blobCall![1].body as string);
+      expect(blobBody.encoding).toBe("utf-8");
     });
   });
 });

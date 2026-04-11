@@ -19,9 +19,8 @@ npm install
 # Generate Prisma client
 npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-# Copy env config
-cp apps/web/.env.example apps/web/.env.local
-# Edit .env.local with your credentials (see comments in the file)
+# Set up credentials — see docs/runbook.md §2 for required env vars
+# (uses 1Password: npm run dev resolves op:// refs automatically)
 
 # Run database migrations (requires Postgres)
 npm run db:migrate

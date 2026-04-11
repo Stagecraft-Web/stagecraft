@@ -2,7 +2,7 @@
 title: Home
 headline: Artist Name
 subheadline: Musician · Performer · Creator
-heroImage: /src/assets/images/hero.svg
+heroImage: /images/hero.svg
 ctaText: Listen Now
 ctaLink: /music
 ---

@@ -3,7 +3,7 @@
   "type": "album",
   "releaseDate": "2024-03-15",
   "coverImage": {
-    "src": "/src/assets/images/release-cover.svg",
+    "src": "/images/release-cover.svg",
     "alt": "Debut Album cover art",
     "usageSlot": "release-cover"
   },

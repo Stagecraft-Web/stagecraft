@@ -13,10 +13,36 @@ const paragraphs = parseBody(aboutContent);
 <BaseLayout title="About">
   <PageHeader headline={frontmatter.headline || "About"} />
   <section class="section">
-    <div class="container">
+    <div class="container about-layout">
+      {frontmatter.image && (
+        <div class="about-image">
+          <img src={frontmatter.image} alt={frontmatter.headline || "About the artist"} />
+        </div>
+      )}
       <div class="prose">
         {paragraphs.map((p: string) => <p>{p}</p>)}
       </div>
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  .about-layout {
+    display: grid;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .about-image img {
+    width: 100%;
+    border-radius: var(--radius);
+    display: block;
+  }
+
+  /* --breakpoint-md (768px) */
+  @media (min-width: 768px) {
+    .about-layout {
+      grid-template-columns: 1fr 2fr;
+    }
+  }
+</style>

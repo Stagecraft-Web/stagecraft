@@ -20,7 +20,7 @@ describe("Netlify integration", () => {
   });
 
   describe("createSite", () => {
-    it("creates a site linked to a GitHub repo", async () => {
+    it("creates a bare site with build settings (no repo link)", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -48,8 +48,9 @@ describe("Netlify integration", () => {
       });
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.repo.repo).toBe("jclaw/my-site");
-      expect(body.repo.cmd).toBe("npm run build");
+      expect(body.repo).toBeUndefined();
+      expect(body.build_settings.cmd).toBe("npm run build");
+      expect(body.build_settings.dir).toBe("dist");
     });
 
     it("throws when Netlify account is not connected", async () => {

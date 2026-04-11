@@ -1,3 +1,12 @@
+/** Failure categories for structured error taxonomy */
+export type FailureCategory =
+  | "github_api_error"
+  | "netlify_deploy_error"
+  | "validation_error"
+  | "ai_error"
+  | "timeout"
+  | "unknown";
+
 /** Site blueprint types available for new site creation */
 export type BlueprintType =
   | "solo-artist"

@@ -102,6 +102,7 @@ export async function GET(
 
   const changeRequests = await prisma.changeRequest.findMany({
     where: { siteId },
+    include: { job: { select: { id: true, status: true, failureCategory: true, errorMessage: true, repairAttempts: true } } },
     orderBy: { createdAt: "desc" },
     take: 20,
   });

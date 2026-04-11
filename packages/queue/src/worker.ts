@@ -1,5 +1,6 @@
 import { prisma } from "@stagecraft/db";
-import type { JobHandler, JobResult } from "./types";
+import { MAX_REPAIR_ATTEMPTS } from "./repair.js";
+import type { JobHandler, JobResult } from "./types.js";
 
 interface WorkerOptions {
   handlers: Record<string, JobHandler>;
@@ -34,6 +35,7 @@ export function createWorker(options: WorkerOptions) {
           data: {
             status: "failed",
             errorMessage: `No handler registered for job type: ${job.type}`,
+            failureCategory: "unknown",
             completedAt: new Date(),
           },
         });
@@ -57,6 +59,7 @@ export function createWorker(options: WorkerOptions) {
           data: {
             status: "failed",
             errorMessage: message,
+            failureCategory: "unknown",
             completedAt: new Date(),
           },
         });
@@ -64,15 +67,40 @@ export function createWorker(options: WorkerOptions) {
         return;
       }
 
-      await prisma.siteJob.update({
-        where: { id: job.id },
-        data: {
-          status: result.success ? "completed" : "failed",
-          resultPayload: result.data ?? undefined,
-          errorMessage: result.success ? null : result.message,
-          completedAt: new Date(),
-        },
-      });
+      if (result.success) {
+        await prisma.siteJob.update({
+          where: { id: job.id },
+          data: {
+            status: "completed",
+            resultPayload: result.data ?? undefined,
+            errorMessage: null,
+            failureCategory: null,
+            completedAt: new Date(),
+          },
+        });
+      } else if (result.shouldRepair && job.repairAttempts < MAX_REPAIR_ATTEMPTS) {
+        // Bounded repair: re-queue with incremented repair counter
+        await prisma.siteJob.update({
+          where: { id: job.id },
+          data: {
+            status: "queued",
+            repairAttempts: { increment: 1 },
+            errorMessage: result.message ?? null,
+            failureCategory: result.failureCategory ?? null,
+          },
+        });
+      } else {
+        await prisma.siteJob.update({
+          where: { id: job.id },
+          data: {
+            status: "failed",
+            resultPayload: result.data ?? undefined,
+            errorMessage: result.message ?? null,
+            failureCategory: result.failureCategory ?? null,
+            completedAt: new Date(),
+          },
+        });
+      }
     } catch (error) {
       console.error("[worker] Poll error:", error);
     } finally {

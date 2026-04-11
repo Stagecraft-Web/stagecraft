@@ -4,14 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
 import Textarea from "@/components/Textarea";
-
-type ChangeRequestStatus =
-  | "pending"
-  | "in_progress"
-  | "ready_for_review"
-  | "approved"
-  | "rejected"
-  | "discarded";
+import { getFailureSummary } from "@stagecraft/shared";
+import type { ChangeRequestStatus, FailureCategory, JobStatus } from "@stagecraft/shared";
 
 interface SiteInfo {
   id: string;
@@ -23,8 +17,10 @@ interface SiteInfo {
 
 interface JobInfo {
   id: string;
-  status: string;
+  status: JobStatus;
+  failureCategory?: FailureCategory | null;
   errorMessage?: string;
+  repairAttempts?: number;
 }
 
 interface ChangeRequest {
@@ -72,6 +68,8 @@ export default function ChangeRequestReviewPage() {
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isRevising, setIsRevising] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
   const [showReviseForm, setShowReviseForm] = useState(false);
   const [reviseText, setReviseText] = useState("");
   const [actionError, setActionError] = useState("");
@@ -187,6 +185,51 @@ export default function ChangeRequestReviewPage() {
     }
   }
 
+  async function handleRetry() {
+    setIsRetrying(true);
+    setActionError("");
+    try {
+      const res = await fetch(
+        `/api/sites/${siteId}/change-requests/${changeRequestId}/retry`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setChangeRequest((prev) =>
+          prev ? { ...prev, status: "in_progress", job: prev.job ? { ...prev.job, status: "queued", failureCategory: null, errorMessage: undefined } : prev.job } : prev
+        );
+      } else {
+        setActionError(data.error || "Failed to retry");
+      }
+    } catch {
+      setActionError("Failed to retry");
+    } finally {
+      setIsRetrying(false);
+    }
+  }
+
+  async function handleDiscard() {
+    if (!confirm("Discard this change request?")) return;
+    setIsDiscarding(true);
+    setActionError("");
+    try {
+      const res = await fetch(
+        `/api/sites/${siteId}/change-requests/${changeRequestId}/discard`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setChangeRequest((prev) => prev ? { ...prev, status: "discarded" } : prev);
+      } else {
+        setActionError(data.error || "Failed to discard");
+      }
+    } catch {
+      setActionError("Failed to discard");
+    } finally {
+      setIsDiscarding(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <main style={{ maxWidth: "var(--max-width-narrow)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
@@ -214,7 +257,9 @@ export default function ChangeRequestReviewPage() {
       : null;
 
   const isActionable = status === "ready_for_review";
+  const isFailed = changeRequest.job?.status === "failed";
   const isTerminal = status === "approved" || status === "rejected" || status === "discarded";
+  const failureSummary = isFailed ? getFailureSummary(changeRequest.job?.failureCategory) : null;
 
   return (
     <main style={{ maxWidth: "var(--max-width-narrow)", margin: "2.5rem auto", fontFamily: "var(--font-body)" }}>
@@ -237,6 +282,52 @@ export default function ChangeRequestReviewPage() {
           </span>
         )}
       </div>
+
+      {/* Failure panel — shown when job failed */}
+      {isFailed && failureSummary && (
+        <section style={{
+          padding: "1rem",
+          background: "var(--color-error-bg)",
+          border: `1px solid var(--color-error-border, var(--color-error))`,
+          borderRadius: "var(--radius-sm)",
+          marginBottom: "1.5rem",
+        }}>
+          <h2 style={{ margin: "0 0 0.375rem", fontSize: "var(--font-size-base)", color: "var(--color-error)" }}>
+            {failureSummary.title}
+          </h2>
+          <p style={{ margin: "0 0 0.5rem", fontSize: "var(--font-size-sm)" }}>
+            {failureSummary.description}
+          </p>
+          <p style={{ margin: "0 0 0.75rem", fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+            <strong>What to do:</strong> {failureSummary.suggestedAction}
+          </p>
+          {actionError && (
+            <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0 0 0.5rem" }}>
+              {actionError}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Button
+              onClick={handleRetry}
+              isDisabled={isRetrying || isDiscarding}
+            >
+              {isRetrying ? "Retrying…" : "Retry"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleDiscard}
+              isDisabled={isRetrying || isDiscarding}
+            >
+              {isDiscarding ? "Discarding…" : "Discard"}
+            </Button>
+          </div>
+          {changeRequest.job?.repairAttempts != null && changeRequest.job.repairAttempts > 0 && (
+            <p style={{ margin: "0.5rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>
+              Auto-repair attempted {changeRequest.job.repairAttempts} time{changeRequest.job.repairAttempts !== 1 ? "s" : ""} before failing.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Request details */}
       <section>

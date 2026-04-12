@@ -3,9 +3,13 @@ import { prisma } from "@stagecraft/db";
 interface CreateSiteOptions {
   userId: string;
   name: string;
-  repoOwner: string;
-  repoName: string;
-  repoBranch?: string;
+  repo?: {
+    provider: "github";
+    repo_path: string;
+    repo_branch: string;
+    cmd: string;
+    dir: string;
+  };
 }
 
 interface NetlifySiteResult {
@@ -47,26 +51,26 @@ async function netlifyApi(token: string, path: string, options?: RequestInit) {
 }
 
 /**
- * Create a Netlify site (without repo linking).
+ * Create a Netlify site, optionally linked to a GitHub repo.
  *
- * Netlify's API doesn't reliably set up deploy keys when linking a repo via
- * POST /sites. Instead we create a bare site and show a link in the dashboard
- * for the user to connect the repo through Netlify's UI, which handles all
- * the deploy-key and webhook plumbing correctly.
+ * When `repo` is provided the site is created with repo auto-deploy enabled.
+ * If linking fails (e.g. Netlify's GitHub App isn't installed), callers should
+ * catch the error and retry without the `repo` field, then surface a manual
+ * linking URL from the Netlify dashboard.
  */
 export async function createSite(options: CreateSiteOptions): Promise<NetlifySiteResult> {
   const token = await getNetlifyToken(options.userId);
 
+  const body = options.repo
+    ? { name: options.name, repo: options.repo }
+    : {
+        name: options.name,
+        build_settings: { cmd: "npm run build", dir: "dist" },
+      };
+
   const data = await netlifyApi(token, "/sites", {
     method: "POST",
-    body: JSON.stringify({
-      name: options.name,
-      // Build settings without repo link — will be connected via Netlify UI
-      build_settings: {
-        cmd: "npm run build",
-        dir: "dist",
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   return {

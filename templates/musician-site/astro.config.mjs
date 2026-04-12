@@ -9,4 +9,9 @@ export default defineConfig({
   image: {
     domains: [],
   },
+  vite: {
+    optimizeDeps: {
+      include: ["react-dom/client"],
+    },
+  },
 });

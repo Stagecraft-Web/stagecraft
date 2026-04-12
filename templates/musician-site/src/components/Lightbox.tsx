@@ -4,38 +4,49 @@ import styles from "./Lightbox.module.css";
 
 interface LightboxProps {
   images: { src: string; alt: string; caption?: string }[];
-  initialIndex?: number;
-  onClose: () => void;
 }
 
-export default function Lightbox({ images, initialIndex = 0, onClose }: LightboxProps) {
-  const [index, setIndex] = useState(initialIndex);
-  const current = images[index];
+export default function Lightbox({ images }: LightboxProps) {
+  const [index, setIndex] = useState<number | null>(null);
+
+  const close = useCallback(() => setIndex(null), []);
 
   const next = useCallback(() => {
-    setIndex((i) => (i + 1) % images.length);
+    setIndex((i) => (i !== null ? (i + 1) % images.length : null));
   }, [images.length]);
 
   const prev = useCallback(() => {
-    setIndex((i) => (i - 1 + images.length) % images.length);
+    setIndex((i) => (i !== null ? (i - 1 + images.length) % images.length : null));
   }, [images.length]);
 
   useEffect(() => {
+    function handleOpen(e: Event) {
+      const detail = (e as CustomEvent<{ index: number }>).detail;
+      setIndex(detail.index);
+    }
+    window.addEventListener("open-lightbox", handleOpen);
+    return () => window.removeEventListener("open-lightbox", handleOpen);
+  }, []);
+
+  useEffect(() => {
+    if (index === null) return;
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") close();
       if (e.key === "ArrowRight") next();
       if (e.key === "ArrowLeft") prev();
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose, next, prev]);
+  }, [index, close, next, prev]);
 
+  if (index === null) return null;
+  const current = images[index];
   if (!current) return null;
 
   return (
-    <div className={styles.overlay} onClick={onClose} role="dialog" aria-label="Image lightbox">
+    <div className={styles.overlay} onClick={close} role="dialog" aria-label="Image lightbox">
       <div className={styles.content} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.closeBtn} onClick={onClose} aria-label="Close lightbox">
+        <button className={styles.closeBtn} onClick={close} aria-label="Close lightbox">
           &times;
         </button>
 

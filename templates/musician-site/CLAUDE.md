@@ -46,15 +46,29 @@ Form field wrapper with label, input/textarea, and required indicator.
 - Props: `label`, `name`, `type`, `isTextarea`, `rows`, `isRequired`, `autocomplete`
 - Handles both `<input>` and `<textarea>` via the `isTextarea` prop
 
+### `Image.astro`
+Zero-JS image component with consistent styling.
+- Props: `src`, `alt` (required), `class`, `loading`, `aspectRatio`, `objectFit`
+- Lazy loading by default, no client-side hydration needed
+
 ### `Image.tsx` (React)
-Image component with loading/error state handling.
-- Props: `src`, `alt`, `loading`, `aspectRatio`, `objectFit`
+Image component with loading/error state handling and fade-in effect.
+- Props: `src`, `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
 - Shows placeholder during load, fallback on error
+- Used only inside `Lightbox.tsx` where dynamic image loading state is needed
+
+### `PhotoGallery.astro`
+Photo grid with lightbox support.
+- Props: `photos` (array of `{ src, alt, caption? }`)
+- Renders a static thumbnail grid using `Image.astro` (zero hydration cost)
+- Includes `Lightbox` as a React island (`client:only="react"`) for full-size viewing
+- Communicates with Lightbox via `open-lightbox` custom event
 
 ### When to use each
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
-- Use `Image` in React components (Lightbox, PhotoGallery). In `.astro` components, use native `<img>` with Astro image optimization.
+- Use `Image.astro` in `.astro` components for all images
+- Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components
 - Use CSS modules (`.module.css`) for React component styles — no CSS-in-JS.

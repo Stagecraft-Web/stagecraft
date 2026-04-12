@@ -65,20 +65,15 @@ The worker polls the `SiteJob` table every 5 seconds for the oldest `queued` job
 
 ## 2. Environment Setup
 
-Copy `apps/web/.env.example` to `apps/web/.env.local` (for local development) or populate the equivalent production secrets in your hosting environment.
-
-```bash
-cp apps/web/.env.example apps/web/.env.local
-# Then fill in each value
-```
-
-The project uses 1Password for secret management in development. Run:
+The project uses 1Password for secret management in development. The `.op.env` file stores `op://` references that are resolved at runtime by the 1Password CLI. Run:
 
 ```bash
 npm run dev  # uses op run --env-file=apps/web/.op.env
 ```
 
-### Required env vars (minimum set to run)
+For production or CI, set the variables below directly in your hosting environment.
+
+### Required env vars
 
 | Variable | Description |
 |---|---|
@@ -301,4 +296,3 @@ WHERE id = '<site-id>';
 ```
 
 `netlifySiteId` should be set after a successful `create_site` job. `productionUrl` is populated once the first deploy succeeds.
-

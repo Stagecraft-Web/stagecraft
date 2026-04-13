@@ -20,12 +20,20 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     name?: string;
-    blueprintType?: string;
+    blueprintType?: BlueprintType;
   };
 
   if (!body.name || !body.blueprintType) {
     return NextResponse.json(
       { error: "name and blueprintType are required" },
+      { status: 400 }
+    );
+  }
+
+  const name = body.name.trim();
+  if (name.length < 2 || name.length > 60) {
+    return NextResponse.json(
+      { error: "Site name must be between 2 and 60 characters" },
       { status: 400 }
     );
   }
@@ -52,7 +60,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const slug = slugify(body.name);
+  const slug = slugify(name);
 
   // Check slug uniqueness
   const existing = await prisma.site.findUnique({ where: { slug } });
@@ -66,7 +74,7 @@ export async function POST(req: NextRequest) {
   const site = await prisma.site.create({
     data: {
       userId: session.user.id,
-      name: body.name,
+      name,
       slug,
       blueprintType: body.blueprintType,
       status: "creating",
@@ -81,7 +89,7 @@ export async function POST(req: NextRequest) {
       type: "create_site",
       status: "queued",
       requestPayload: {
-        name: body.name,
+        name,
         slug,
         blueprintType: body.blueprintType,
       },

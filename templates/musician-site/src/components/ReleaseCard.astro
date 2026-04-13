@@ -1,6 +1,7 @@
 ---
 import type { Release } from "../lib/schemas";
 import Button from "./Button.astro";
+import { Image } from "astro:assets";
 
 interface Props {
   release: Release;
@@ -11,6 +12,11 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
 ---
 
 <article class="release-card">
+  {release.coverImage && (
+    <div class="release-cover">
+      <Image src={release.coverImage.src} alt={release.coverImage.alt} width={500} height={500} />
+    </div>
+  )}
   <div class="release-info">
     <h3>{release.title}</h3>
     <p class="release-meta">
@@ -36,6 +42,20 @@ const streamLinks = Object.entries(release.links).filter(([, url]) => url);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     overflow: hidden;
+  }
+
+  .release-cover {
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+
+  .release-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .release-info {
     padding: 1.5rem;
   }
 

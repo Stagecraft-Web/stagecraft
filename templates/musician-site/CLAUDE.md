@@ -2,49 +2,181 @@
 
 This file guides Claude Code (or any AI agent) when making changes to this musician website.
 
+---
+
+## Schema-First Editing Rules
+
+**These are the most important rules. Read them before making any change.**
+
+### 1. Identify the schema field before touching any file
+
+Before editing anything, answer: **"Which named field in which content file holds this value?"**
+
+- Every editable piece of content has a named field in a Zod schema in `src/lib/schemas.ts`.
+- Every schema field maps to a specific file in `src/content/`.
+- If you cannot identify the field and file, look it up in the Content Map below before proceeding.
+
+### 2. Content files are the editing surface — not component code
+
+For any content change (bio, headline, CTA text, tour date, release info, photo, quote):
+
+1. Edit the file in `src/content/`. That is the editing surface.
+2. Do **not** edit `.astro` or `.tsx` files for content changes. Components render content; they do not define it.
+3. After editing a content file, run `npm run validate:content` to confirm the schema is satisfied.
+
+### 3. Preserve schema conventions
+
+- Do not add ad hoc keys to JSON files outside the defined schema.
+- Do not remove required fields.
+- Do not restructure a collection entry from an object to a string (or vice versa).
+- If a new field is needed, add it to the Zod schema in `src/lib/schemas.ts` first, then to the content file.
+
+### 4. Image references must carry metadata
+
+Every image reference in a JSON content file must be an object with at minimum `src` and `alt`:
+
+```json
+{
+  "src": "/src/assets/images/your-image.jpg",
+  "alt": "Descriptive alt text — never leave blank",
+  "caption": "Optional display caption",
+  "credit": "Optional photographer credit",
+  "usageSlot": "gallery"
+}
+```
+
+Do not use bare strings for image fields in JSON content files. Markdown frontmatter image fields are strings (see limitation note below).
+
+### 5. Run validate:content after any content change
+
+```bash
+npm run validate:content
+```
+
+This validates all singletons, all page frontmatter, and all collections against their Zod schemas. Fix any errors before committing.
+
+---
+
+## Content Map
+
+Use this to find where any piece of content lives.
+
+### Singletons
+
+| What | File | Schema |
+|------|------|--------|
+| Artist name, site title, description | `src/content/config/site.json` | `siteConfigSchema` |
+| Social links (Instagram, Spotify, etc.) | `src/content/config/site.json` → `socialLinks` | `siteConfigSchema` |
+| Contact email | `src/content/config/site.json` → `contactEmail` | `siteConfigSchema` |
+| Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
+| Navigation menu | `src/content/config/nav.json` | `navSchema` |
+| Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
+| Homepage headline, subheadline, CTA | `src/content/pages/home.md` | `homeFrontmatterSchema` |
+| Homepage intro text (below hero) | `src/content/pages/home.md` (body) | — |
+| About page headline | `src/content/pages/about.md` | `aboutFrontmatterSchema` |
+| Artist bio | `src/content/pages/about.md` (body) | — |
+| Music page headline | `src/content/pages/music.md` | `musicFrontmatterSchema` |
+| Music page intro text | `src/content/pages/music.md` (body) | — |
+| Photos page headline | `src/content/pages/photos.md` | `photosFrontmatterSchema` |
+| Press page headline, EPK download link | `src/content/pages/press.md` | `pressFrontmatterSchema` |
+| Press reviews section heading | `src/content/pages/press.md` → `reviewsHeadline` | `pressFrontmatterSchema` |
+| Press intro text | `src/content/pages/press.md` (body) | — |
+| Contact page headline | `src/content/pages/contact.md` | `contactFrontmatterSchema` |
+| Contact intro text | `src/content/pages/contact.md` (body) | — |
+
+### Collections
+
+| What | Path | Schema | Format |
+|------|------|--------|--------|
+| Music releases (albums, singles, EPs) | `src/content/collections/releases/*.json` | `releaseSchema` | One JSON file per release |
+| Photo gallery | `src/content/collections/photos/gallery.json` | `photoSchema` (array) | Array of image metadata objects |
+| Videos | `src/content/collections/videos/videos.json` | `videoSchema` (array) | Array |
+| Press quotes | `src/content/collections/pressQuotes/quotes.json` | `pressQuoteSchema` (array) | Array |
+| Tour dates | `src/content/collections/tourDates/dates.json` | `tourDateSchema` (array) | Array |
+
+### Images
+
+Source images live in `src/assets/images/`. Astro handles optimization at build time.
+
+Image references in **JSON content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
+
+Image references in **Markdown frontmatter** are plain path strings — the frontmatter parser does not handle nested YAML objects. Alt text for frontmatter images is specified separately when rendering.
+
+---
+
+## File Path Conventions
+
+```
+src/content/
+  config/
+    site.json         ← singleton: site identity and social links
+    nav.json          ← singleton: navigation menu
+    theme.json        ← singleton: design tokens
+  pages/
+    home.md           ← singleton: homepage content
+    about.md          ← singleton: about/bio page
+    music.md          ← singleton: music page intro
+    photos.md         ← singleton: photos page headline
+    press.md          ← singleton: press page content
+    contact.md        ← singleton: contact page intro
+  collections/
+    releases/         ← one .json file per release
+    photos/           ← gallery.json (array)
+    videos/           ← videos.json (array)
+    pressQuotes/      ← quotes.json (array)
+    tourDates/        ← dates.json (array)
+
+src/assets/images/    ← source images (optimized at build)
+src/lib/
+  schemas.ts          ← all Zod schemas (source of schema truth)
+  content.ts          ← validated config loaders (getSiteConfig, getNav, getTheme)
+  markdown.ts         ← parseFrontmatter, parseBody utilities
+```
+
+Do not place content files outside these locations. The validation script flags path violations.
+
+---
+
 ## Architecture
 
 - **Framework**: Astro + React + TypeScript (strict mode)
-- **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. Server-rendered routes (API endpoints) opt out with `export const prerender = false`.
+- **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
 - **Content**: Structured files in `src/content/`. Page copy in Markdown, collections in JSON, config in JSON.
-- **Styling**: CSS custom properties (design tokens) defined in `src/styles/global.css` with values from `src/content/config/theme.json`. Supports light/dark color modes.
-- **Images**: Source images in `src/assets/images/`. Astro handles optimization at build time.
+- **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
+- **Images**: Source images in `src/assets/images/`. Astro optimizes at build time.
+
+---
 
 ## Design Token System
 
-All visual values (colors, fonts, spacing, etc.) must use CSS custom properties. Never use hardcoded hex colors, font sizes, or font weights in component styles.
-
-### Token categories
+All visual values (colors, fonts, spacing) must use CSS custom properties. Never use hardcoded hex colors, font sizes, or font weights in component styles.
 
 | Category | Prefix | Example |
 |----------|--------|---------|
-| Colors | `--color-*` | `var(--color-primary)`, `var(--color-white)` |
+| Colors | `--color-*` | `var(--color-primary)`, `var(--color-secondary)` |
 | Font sizes | `--font-size-*` | `var(--font-size-base)`, `var(--font-size-2xl)` |
 | Font weights | `--font-weight-*` | `var(--font-weight-medium)`, `var(--font-weight-bold)` |
 | Font families | `--font-*` | `var(--font-heading)`, `var(--font-body)` |
 | Layout | `--max-content`, `--max-text`, `--radius` | |
 | Breakpoints | `--breakpoint-*` | Reference only — use literal values in `@media` with a comment |
 
-### Token sources
+Token values: `src/content/config/theme.json` → `src/styles/global.css`
 
-- Token values: `src/content/config/theme.json`
-- CSS custom properties: `src/styles/global.css`
+---
 
 ## Component Library
 
-Use the generic components instead of raw HTML elements:
+Use these components instead of raw HTML:
 
 ### `Button.astro`
-Polymorphic button/link component with variants.
+Polymorphic button/link with variants.
 - Renders `<a>` when `href` is provided, `<button>` otherwise
 - Variants: `primary`, `outline`
-- Supports `ariaLabel` for icon-only buttons
-- Supports `isExternal` prop for target="_blank" links
+- Supports `ariaLabel` for icon-only buttons, `isExternal` for `target="_blank"` links
 
 ### `FormGroup.astro`
 Form field wrapper with label, input/textarea, and required indicator.
 - Props: `label`, `name`, `type`, `isTextarea`, `rows`, `isRequired`, `autocomplete`
-- Handles both `<input>` and `<textarea>` via the `isTextarea` prop
 
 ### `Image.astro`
 Zero-JS image component with consistent styling.
@@ -71,18 +203,19 @@ Photo grid with lightbox support.
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components
-- Use CSS modules (`.module.css`) for React component styles — no CSS-in-JS.
-- See `Lightbox.module.css` and `PhotoGallery.module.css` for examples.
+Use CSS modules (`.module.css`). No CSS-in-JS.
 
 ### Boolean prop naming
 All boolean props must start with `is` or `has` (e.g. `isExternal`, `isRequired`, `isTextarea`).
 
-### Breakpoints in `@media` queries
-CSS custom properties cannot be used in `@media` queries (spec limitation). When writing media queries, use the literal pixel value and add a comment linking back to the token name:
+### Breakpoints in @media queries
+CSS custom properties cannot be used in `@media` queries. Use literal pixel values with a comment:
 ```css
 /* --breakpoint-md (768px) */
 @media (max-width: 768px) { ... }
 ```
+
+---
 
 ## Utility Classes
 
@@ -92,72 +225,56 @@ CSS custom properties cannot be used in `@media` queries (spec limitation). When
 - `.section` / `.section-alt` — vertical section spacing
 - `.grid`, `.grid-2`, `.grid-3` — responsive grid layouts
 
-## Content Utilities
+---
 
-### `src/lib/markdown.ts`
-- `parseFrontmatter(raw)` — extracts key-value pairs from `---` delimited frontmatter
-- `parseBody(raw)` — strips frontmatter and splits into paragraphs
+## Adding a New Page
 
-Use these when loading `.md?raw` content in pages. Do NOT inline markdown parsing logic.
+1. Create a Markdown file in `src/content/pages/` with required frontmatter (`title`, `headline`).
+2. Add a frontmatter schema for the new page to `src/lib/schemas.ts`.
+3. Add validation for the new page to `scripts/validate-content.ts`.
+4. Create an Astro page file in `src/pages/`. Use `parseFrontmatter` and `parseBody`.
+5. Add a navigation entry in `src/content/config/nav.json`.
 
-## Editing Rules
+---
 
-### Content changes (bio updates, new tour dates, etc.)
-1. Edit the relevant file in `src/content/`. Do NOT edit component code for content changes.
-2. Page copy: edit Markdown files in `src/content/pages/`.
-3. Collection data: edit JSON files in `src/content/collections/`.
-4. Site config: edit `src/content/config/site.json`.
-5. Navigation: edit `src/content/config/nav.json`.
+## Adding a New Collection Type
 
-### Style/theme changes
-1. Edit `src/content/config/theme.json` for token values (colors, font sizes, etc.).
-2. Update corresponding CSS custom properties in `src/styles/global.css`.
-3. Edit component `<style>` blocks for component-specific layout changes.
-4. **Never use hardcoded hex colors, px font sizes, or numeric font weights.** Always use `var(--token-name)`.
+1. Define the item schema in `src/lib/schemas.ts`.
+2. Create the collection directory under `src/content/collections/{name}/`.
+3. Add validation for the collection to `scripts/validate-content.ts`.
+4. Add sample data files.
 
-### Color mode (light/dark)
-- `theme.json` has `colorMode: "light" | "dark"` and an optional `darkColors` palette.
-- If `"light"`: site renders light by default, automatically switches to dark when the viewer's OS has `prefers-color-scheme: dark`.
-- If `"dark"`: site always renders in dark mode.
-- Dark overrides are in `global.css` under `[data-theme="dark"]`. An inline `<script>` in `BaseLayout.astro` sets the attribute before first paint to avoid a flash of wrong theme.
-- To customize dark colors, edit `darkColors` in `theme.json` and update the corresponding CSS variables in the `[data-theme="dark"]` block.
-
-### Adding a new page
-1. Create a Markdown content file in `src/content/pages/`.
-2. Create an Astro page file in `src/pages/`.
-3. Use `parseFrontmatter` and `parseBody` from `src/lib/markdown.ts`. Render paragraphs with `.map((p) => <p>{p}</p>)` — never join with `\n\n`.
-4. Add navigation entry in `src/content/config/nav.json`.
-
-### Adding images
-1. Place source images in `src/assets/images/`.
-2. Reference them from content files or components.
-3. Use descriptive alt text for every image.
+---
 
 ## API Routes
 
 ### `POST /api/contact`
-Sends a contact form email via Resend. Requires `RESEND_API_KEY` environment variable.
-- Validates required fields (name, email, message)
-- Honeypot spam prevention
-- IP-based rate limiting (3 requests/minute)
+Sends contact form email via Resend. Requires `RESEND_API_KEY` env var.
+- Validates required fields, applies honeypot spam prevention, IP rate limiting (3 req/min)
 - Sends to `contactEmail` from `site.json`
-- The `from` address uses Resend's sandbox domain by default (`onboarding@resend.dev`). Update once a custom domain is verified in Resend.
+- `from` uses Resend's sandbox domain by default. Update once a custom domain is verified.
+
+---
 
 ## Constraints
+
 - Prefer `.astro` components over React unless stateful interactivity is needed.
 - Use the generic component library (Button, FormGroup, Image) instead of raw HTML.
 - Keep diffs small and focused.
 - Do not introduce new dependencies without justification.
 - Do not refactor code unrelated to the requested change.
 - Maintain accessibility (semantic HTML, alt text, keyboard navigation, color contrast).
-- Run `npm run validate` before committing to ensure content, types, and build pass.
-- Pages are prerendered by default. Only add `export const prerender = false` for server-rendered routes (API endpoints).
+- Pages are prerendered by default. Only add `export const prerender = false` for API endpoints.
+
+---
 
 ## Validation Commands
+
 ```bash
-npm run validate:content  # Validate JSON content against schemas
+npm run validate:content  # Validate all content files against Zod schemas
 npm run typecheck         # TypeScript check
 npm run build             # Full production build
 npm run test              # Unit tests (vitest)
 npm run test:smoke        # Playwright smoke tests (requires build first)
+npm run validate          # Run all checks: content + lint + typecheck + build
 ```

@@ -7,7 +7,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
     GitHub({
-      authorization: { params: { scope: "read:user user:email repo" } },
+      authorization: { params: { scope: "read:user user:email repo delete_repo" } },
     }),
   ],
   pages: {

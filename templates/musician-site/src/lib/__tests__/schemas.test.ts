@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  imageMetadataSchema,
   siteConfigSchema,
   themeSchema,
   releaseSchema,
@@ -8,6 +9,38 @@ import {
   tourDateSchema,
   navSchema,
 } from "../schemas";
+
+describe("imageMetadataSchema", () => {
+  it("accepts minimal valid image (src + alt)", () => {
+    expect(imageMetadataSchema.parse({ src: "/img.jpg", alt: "A photo" })).toBeTruthy();
+  });
+
+  it("rejects empty src", () => {
+    expect(() => imageMetadataSchema.parse({ src: "", alt: "A photo" })).toThrow();
+  });
+
+  it("rejects empty alt", () => {
+    expect(() => imageMetadataSchema.parse({ src: "/img.jpg", alt: "" })).toThrow();
+  });
+
+  it("accepts full metadata", () => {
+    const full = {
+      src: "/img.jpg",
+      alt: "A photo",
+      caption: "Caption text",
+      credit: "Photo by Jane",
+      focalPoint: { x: 0.5, y: 0.3 },
+      usageSlot: "gallery" as const,
+    };
+    expect(imageMetadataSchema.parse(full)).toMatchObject(full);
+  });
+
+  it("rejects focalPoint values outside 0-1 range", () => {
+    expect(() =>
+      imageMetadataSchema.parse({ src: "/img.jpg", alt: "A", focalPoint: { x: 1.5, y: 0 } })
+    ).toThrow();
+  });
+});
 
 describe("siteConfigSchema", () => {
   const valid = {
@@ -91,13 +124,17 @@ describe("releaseSchema", () => {
     title: "Debut Album",
     type: "album" as const,
     releaseDate: "2024-03-15",
-    coverImage: "/images/cover.jpg",
+    coverImage: {
+      src: "/src/assets/images/cover.jpg",
+      alt: "Debut Album cover art",
+      usageSlot: "release-cover" as const,
+    },
     description: "First album",
     links: { spotify: "https://open.spotify.com/..." },
   };
 
   it("accepts a valid release", () => {
-    expect(releaseSchema.parse(valid)).toEqual(valid);
+    expect(releaseSchema.parse(valid)).toMatchObject(valid);
   });
 
   it("accepts optional tracks", () => {
@@ -107,6 +144,18 @@ describe("releaseSchema", () => {
 
   it("rejects invalid type", () => {
     expect(() => releaseSchema.parse({ ...valid, type: "mixtape" })).toThrow();
+  });
+
+  it("rejects coverImage as a bare string", () => {
+    expect(() =>
+      releaseSchema.parse({ ...valid, coverImage: "/images/cover.jpg" })
+    ).toThrow();
+  });
+
+  it("rejects coverImage with empty alt", () => {
+    expect(() =>
+      releaseSchema.parse({ ...valid, coverImage: { src: "/img.jpg", alt: "" } })
+    ).toThrow();
   });
 });
 

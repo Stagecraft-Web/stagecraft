@@ -52,9 +52,10 @@ AI changes should be guided by:
 
 - repo conventions
 - site blueprints/templates
-- structured content files
-- validation steps
+- schema-validated structured content files — the primary editing surface
+- validation steps (content schema validation must pass before commit)
 - limited task scopes
+- a strict preference hierarchy: content files first, theme/config second, component code only for structural changes
 
 ### 3.5 Static-first delivery
 Generated websites should be static-first, with minimal client-side JS and selective interactive islands.
@@ -378,18 +379,54 @@ Each site should initialize with:
 
 ### 8.4 Content model within generated sites
 
-Structured content should live in files, not in opaque code.
+Structured content must live in schema-validated files, not in component code. The content model is **schema-first**: every piece of editable content has a declared shape before any component renders it.
 
-Suggested categories:
+#### Content categories
 
-- site configuration
-- navigation
-- page copy
-- image metadata
-- releases
-- videos
-- press quotes
-- tour entries
+Content falls into four categories with a strict preference ordering for AI edits:
+
+1. **Structured content** — bio, headlines, releases, photos, press quotes, tour dates, contact copy, SEO metadata. This is the primary AI editing surface.
+2. **Theme and config** — site settings, nav, color palette, font choices. Secondary editing surface.
+3. **Layout and component code** — `.astro` and React files. Rarely edited; only for structural changes.
+4. **AI-only structural changes** — page additions, new section types. Explicitly classified; always reviewed.
+
+#### Singletons (one per site, stable paths)
+
+| Singleton | Path |
+|-----------|------|
+| Site settings | `src/content/config/site.json` |
+| Navigation | `src/content/config/nav.json` |
+| Theme tokens | `src/content/config/theme.json` |
+| Homepage content | `src/content/pages/home.md` |
+| About / bio | `src/content/pages/about.md` |
+| Contact page | `src/content/pages/contact.md` |
+
+#### Collections (zero or more items, stable shapes)
+
+| Collection | Path pattern |
+|-----------|-------------|
+| Releases | `src/content/collections/releases/*.json` |
+| Photos | `src/content/collections/photos/gallery.json` |
+| Videos | `src/content/collections/videos/videos.json` |
+| Press quotes | `src/content/collections/pressQuotes/quotes.json` |
+| Tour dates | `src/content/collections/tourDates/dates.json` |
+
+#### Normalized image metadata
+
+Every image reference in any content file must carry:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `src` | yes | Path under `src/assets/images/` |
+| `alt` | yes | Descriptive alt text |
+| `caption` | no | Optional display caption |
+| `credit` | no | Photographer credit |
+| `focalPoint` | no | `{ x, y }` crop hint |
+| `usageSlot` | no | `"hero"`, `"gallery"`, `"about"`, etc. |
+
+#### Schema validation
+
+All content files must be validated against Zod schemas at build time via `npm run validate:content`. Invalid content must fail the build with a clear, field-level error message. The validation script is the single source of schema truth — components, AI edits, and any future editor UI all conform to the same schemas.
 
 ### 8.5 Styling model
 
@@ -985,6 +1022,72 @@ Create the reusable Astro + React + TypeScript musician-site starter that all cu
 
 ---
 
+## Milestone 2.5 — Schema-First Content Architecture Refinement
+
+### Goal
+Harden the M2 template with a fully schema-first content model. M2 delivered a working first template; M2.5 makes the content architecture the durable, extensible foundation that all future AI editing and platform features will depend on.
+
+This milestone does not add user-visible features. It refines the internal architecture of the generated site template so that:
+- every editable piece of content has a declared, validated schema field
+- file naming and path conventions are strict and documented
+- components consume structured data rather than mixing content into rendering code
+- the AI editing rules in `CLAUDE.md` reflect the schema-first model precisely
+
+### Why between M2 and M3
+M3 will generate real customer sites from the template. If the template's content architecture is not solid before M3 ships, every generated site inherits the gaps and the AI editing rules are unclear. It is cheaper to harden the architecture on the template than to retrofit it across live customer repos.
+
+### Deliverables
+- audited and refactored content model (singletons + collections with stable, named field shapes)
+- normalized image metadata on all image references
+- strict file path and naming conventions enforced by the validation script
+- components refactored to consume structured content (no content embedded in `.astro`/`.tsx` files)
+- updated `CLAUDE.md` with schema-first editing rules
+- updated `EDITING.md` with accurate content structure documentation
+- all existing tests passing after refactor
+
+### Exit criteria
+- `npm run validate:content` catches missing required fields with field-level error messages
+- every editable content item maps to a named field in a Zod schema
+- no user-facing content strings are hardcoded in component files
+- `CLAUDE.md` instructs the AI to edit schema fields first, component code last
+- `EDITING.md` accurately describes where to find every piece of content
+
+### Tickets
+
+#### M2.5-T1: Audit template content model
+**Description:** Walk through every content item currently in the template and categorize it: does it live in a content file with a named schema field, or is it embedded in component code? Produce a gap list.
+**Acceptance criteria:** A documented list of gaps — content that should be in schema files but is currently hardcoded in components.
+
+#### M2.5-T2: Refactor singletons into stable, named schemas
+**Description:** Ensure all singleton content files (`site.json`, `nav.json`, `theme.json`, page markdown files) have explicit Zod schemas with named fields for every editable value. No generic blobs. Add missing fields (e.g. SEO metadata, hero headline, CTA button text) if not already present.
+**Acceptance criteria:** Each singleton schema documents every field with name, type, and required/optional status. Validation catches missing required fields.
+
+#### M2.5-T3: Refactor collections into stable, named schemas
+**Description:** Ensure all collection schemas (releases, photos, videos, press quotes, tour dates) have explicit Zod schemas. Each collection item must have named fields — no freeform blobs or string arrays where structured fields belong.
+**Acceptance criteria:** Each collection item validates against its schema. Invalid items fail `validate:content` with a clear field-level error.
+
+#### M2.5-T4: Normalize image metadata across all content files
+**Description:** Audit every image reference in the template content files. Add normalized metadata fields (`src`, `alt`, `caption`, `credit`, `focalPoint`, `usageSlot`) per the spec. Update Zod schemas to validate these fields.
+**Acceptance criteria:** All image references in content files carry at minimum `src` and `alt`. Missing `alt` fails validation.
+
+#### M2.5-T5: Refactor components to consume structured content only
+**Description:** Remove any user-facing content strings that are currently hardcoded in `.astro` or `.tsx` files. Move them to the appropriate content file with a named schema field. Components should receive content via props or by reading content files — not by defining content inline.
+**Acceptance criteria:** No user-facing strings (bio text, headings, CTAs, labels specific to the artist) remain hardcoded in component or layout files.
+
+#### M2.5-T6: Enforce file path and naming conventions
+**Description:** Ensure the validation script enforces the canonical path conventions: singletons at `src/content/config/*.json` or `src/content/pages/*.md`, collections at `src/content/collections/{name}/*.json`, images at `src/assets/images/{context}/`. Update the validation script to flag files that violate these conventions.
+**Acceptance criteria:** Moving a content file to a non-canonical path causes `validate:content` to fail or warn.
+
+#### M2.5-T7: Update CLAUDE.md with schema-first editing rules
+**Description:** Rewrite the AI editing instructions in `CLAUDE.md` to reflect the schema-first model. The instructions must: (1) direct the AI to identify the correct schema field before editing anything; (2) state that component code is not the editing surface for content requests; (3) describe the singleton/collection taxonomy; (4) require running `validate:content` after any content-file change.
+**Acceptance criteria:** A developer reading only `CLAUDE.md` understands where to find every piece of editable content and knows not to edit component code for routine content changes.
+
+#### M2.5-T8: Update EDITING.md with accurate content structure
+**Description:** Rewrite `EDITING.md` to document the final content structure — all singletons, all collections, image conventions, and the path conventions — so that a non-technical user who clones the repo understands where to find and edit their content.
+**Acceptance criteria:** `EDITING.md` accurately reflects the post-refactor file structure with at least one example per content category.
+
+---
+
 ## Milestone 3 — Create-Site End-to-End Flow
 
 ### Goal
@@ -1233,8 +1336,9 @@ If implementation begins immediately, the first execution sequence should be:
 1. M0-T1 through M0-T5
 2. M1-T1 through M1-T5
 3. M2-T1 through M2-T7
-4. M3-T1 through M3-T5
-5. M4-T1 through M4-T6
+4. M2.5-T1 through M2.5-T8
+5. M3-T1 through M3-T5
+6. M4-T1 through M4-T6
 
 That sequence delivers the first meaningful end-to-end happy path.
 

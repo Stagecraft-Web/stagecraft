@@ -2,7 +2,13 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import PhotoGallery from "../components/PhotoGallery.astro";
+import { parseFrontmatter } from "../lib/markdown";
 import type { Photo } from "../lib/schemas";
+
+// @ts-ignore - markdown import
+import photosContent from "../content/pages/photos.md?raw";
+
+const frontmatter = parseFrontmatter(photosContent);
 
 const photoFiles = import.meta.glob("../content/collections/photos/*.json", { eager: true });
 const photoSets: Photo[][] = Object.values(photoFiles).map((mod: any) => mod.default);
@@ -10,7 +16,7 @@ const photos: Photo[] = photoSets.flat();
 ---
 
 <BaseLayout title="Photos">
-  <PageHeader headline="Photos" />
+  <PageHeader headline={frontmatter.headline || "Photos"} />
   <section class="section">
     <div class="container">
       <PhotoGallery photos={photos} />

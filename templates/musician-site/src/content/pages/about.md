@@ -1,7 +1,7 @@
 ---
 title: About
 headline: About the Artist
-image: /src/assets/images/about.svg
+image: /images/about.svg
 ---
 
 Artist Name is a musician and performer based in [City, State]. With a passion for [genre/style], they have been creating and performing music for over [X] years.

@@ -1,5 +1,5 @@
 import type { FailureCategory } from "@stagecraft/shared";
-import type { JobResult } from "./types.js";
+import type { JobResult } from "./types";
 
 /**
  * Maximum number of automatic repair attempts before a job is permanently failed.

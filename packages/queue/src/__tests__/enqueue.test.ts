@@ -8,7 +8,7 @@ vi.mock("@stagecraft/db", () => ({
   },
 }));
 
-const { enqueue } = await import("../enqueue.js");
+const { enqueue } = await import("../enqueue");
 
 describe("enqueue", () => {
   beforeEach(() => {

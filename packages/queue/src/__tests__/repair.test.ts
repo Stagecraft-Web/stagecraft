@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { repairResult, MAX_REPAIR_ATTEMPTS } from "../repair.js";
+import { repairResult, MAX_REPAIR_ATTEMPTS } from "../repair";
 
 describe("MAX_REPAIR_ATTEMPTS", () => {
   it("is a positive integer", () => {

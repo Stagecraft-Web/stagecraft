@@ -8,11 +8,8 @@
     "generate": {
       "cache": false
     },
-    "db:push": {
-      "cache": false
-    },
     "dev": {
-      "dependsOn": ["generate", "db:push"],
+      "dependsOn": ["generate"],
       "cache": false,
       "persistent": true
     },

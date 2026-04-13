@@ -1,6 +1,6 @@
 import { prisma } from "@stagecraft/db";
-import { MAX_REPAIR_ATTEMPTS } from "./repair.js";
-import type { JobHandler, JobResult } from "./types.js";
+import { MAX_REPAIR_ATTEMPTS } from "./repair";
+import type { JobHandler, JobResult } from "./types";
 
 export type WorkerEventType =
   | "job.started"

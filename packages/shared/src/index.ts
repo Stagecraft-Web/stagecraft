@@ -1,3 +1,3 @@
-export * from "./types.js";
-export * from "./failures.js";
-export * from "./utils.js";
+export * from "./types";
+export * from "./failures";
+export * from "./utils";

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "generate": "prisma generate",
+    "db:push": "prisma db push --skip-generate --accept-data-loss",
     "migrate": "prisma migrate dev",
     "studio": "prisma studio",
     "migrate:deploy": "prisma migrate deploy",

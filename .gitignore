@@ -5,6 +5,8 @@ dist/
 .env
 .env.local
 .env.*.local
+# Allow the db package's local-dev .env (only contains Docker Compose defaults)
+!packages/db/.env
 *.tsbuildinfo
 .vercel
 .netlify

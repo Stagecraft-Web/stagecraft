@@ -12,7 +12,7 @@ vi.mock("@stagecraft/db", () => ({
   },
 }));
 
-const { createWorker } = await import("../worker.js");
+const { createWorker } = await import("../worker");
 
 function makeJob(overrides = {}) {
   return {

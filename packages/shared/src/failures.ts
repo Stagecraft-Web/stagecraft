@@ -1,4 +1,4 @@
-import type { FailureCategory } from "./types.js";
+import type { FailureCategory } from "./types";
 
 export interface FailureSummary {
   title: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getFailureSummary } from "../failures.js";
+import { getFailureSummary } from "../failures";
 
 describe("getFailureSummary", () => {
   it("returns the correct summary for github_api_error", () => {

@@ -1,6 +1,12 @@
 # Editing Guide
 
-This document explains how to manually edit your musician website.
+This document explains how to edit your musician website. You can either use the **Keystatic CMS** (visual editor) or edit files directly.
+
+---
+
+## Keystatic CMS
+
+The site includes a visual content editor at `/keystatic`. Run the dev server and visit `http://localhost:4321/keystatic` to manage pages, releases, photos, press quotes, tour dates, and site settings through a web UI.
 
 ---
 
@@ -34,11 +40,11 @@ src/content/
     press.mdoc      ← Press page headline, reviews heading, EPK link
     contact.mdoc    ← Contact page headline and intro text
   collections/
-    releases/       ← One JSON file per album/single/EP
-    photos/         ← Photo gallery entries (gallery.json)
-    videos/         ← Video embed entries (videos.json)
-    pressQuotes/    ← Press quotes (quotes.json)
-    tourDates/      ← Tour date entries (dates.json)
+    releases/       ← One YAML file per album/single/EP
+    photos/         ← One YAML file per photo
+    videos/         ← One YAML file per video
+    pressQuotes/    ← One YAML file per press quote
+    tourDates/      ← One YAML file per tour date
 ```
 
 ---
@@ -137,108 +143,85 @@ Introductory text for the press page.
 
 ## Collections
 
-### Add a tour date — `src/content/collections/tourDates/dates.json`
+Each collection entry is a separate YAML file. You can add entries via the Keystatic CMS at `/keystatic` or by creating files directly.
 
-```json
-[
-  {
-    "id": "2026-09-15-venue-name",
-    "date": "2026-09-15",
-    "venue": "The Venue Name",
-    "city": "City, State",
-    "ticketUrl": "https://tickets.example.com",
-    "status": "upcoming"
-  }
-]
+### Add a tour date — `src/content/collections/tourDates/`
+
+Create a new YAML file, e.g. `2026-09-15-venue-name.yaml`:
+
+```yaml
+date: "2026-09-15"
+venue: The Venue Name
+city: City, State
+ticketUrl: https://tickets.example.com
+status: upcoming
 ```
-
-Each entry needs a unique `id` field (e.g. combine the date and venue name).
 
 Valid status values: `upcoming`, `sold_out`, `canceled`, `past`.
 
 ### Add a release — `src/content/collections/releases/`
 
-Create a new JSON file, e.g. `new-album.json`:
+Create a new YAML file, e.g. `new-album.yaml`:
 
-```json
-{
-  "title": "Album Title",
-  "type": "album",
-  "releaseDate": "2026-01-15",
-  "coverImage": {
-    "src": "/images/cover.jpg",
-    "alt": "Album Title cover art",
-    "usageSlot": "release-cover"
-  },
-  "description": "A short description of the release.",
-  "links": {
-    "spotify": "https://open.spotify.com/album/...",
-    "appleMusic": "https://music.apple.com/...",
-    "bandcamp": ""
-  },
-  "tracks": [
-    { "title": "Track One", "duration": "3:45" },
-    { "title": "Track Two", "duration": "4:12" }
-  ]
-}
+```yaml
+title: Album Title
+type: album
+releaseDate: "2026-01-15"
+coverImage:
+  src: /images/cover.jpg
+  alt: Album Title cover art
+  usageSlot: release-cover
+description: A short description of the release.
+links:
+  spotify: https://open.spotify.com/album/...
+  appleMusic: https://music.apple.com/...
+  bandcamp: ""
+tracks:
+  - title: Track One
+    duration: "3:45"
+  - title: Track Two
+    duration: "4:12"
 ```
 
 Valid type values: `album`, `single`, `ep`.
 
-### Add photos — `src/content/collections/photos/gallery.json`
+### Add a photo — `src/content/collections/photos/`
 
-Place the image in `public/images/`, then add an entry:
+Place the image in `public/images/`, then create a YAML file, e.g. `your-photo.yaml`:
 
-```json
-[
-  {
-    "id": "your-photo",
-    "src": "/images/your-photo.jpg",
-    "alt": "Describe what is in the photo",
-    "caption": "Optional display caption",
-    "credit": "Photo by Jane Smith",
-    "usageSlot": "gallery"
-  }
-]
+```yaml
+src: /images/your-photo.jpg
+alt: Describe what is in the photo
+caption: Optional display caption
+credit: Photo by Jane Smith
+usageSlot: gallery
 ```
-
-Each entry needs a unique `id` field.
 
 **`alt` is required** and must describe the image for accessibility and SEO. Never leave it blank.
 
-### Add a video — `src/content/collections/videos/videos.json`
+### Add a video — `src/content/collections/videos/`
 
-```json
-[
-  {
-    "id": "music-video-title",
-    "title": "Music Video Title",
-    "url": "https://www.youtube.com/embed/VIDEO_ID",
-    "type": "youtube",
-    "description": "Optional description."
-  }
-]
+Create a YAML file, e.g. `music-video-title.yaml`:
+
+```yaml
+title: Music Video Title
+url: https://www.youtube.com/embed/VIDEO_ID
+type: youtube
+description: Optional description.
 ```
-
-Each entry needs a unique `id` field.
 
 Valid type values: `youtube`, `vimeo`, `other`.
 
-### Add a press quote — `src/content/collections/pressQuotes/quotes.json`
+### Add a press quote — `src/content/collections/pressQuotes/`
 
-```json
-[
-  {
-    "id": "publication-name",
-    "quote": "A remarkable debut that showcases genuine artistry.",
-    "source": "Publication Name",
-    "url": "https://publication.com/review",
-    "date": "2024-04-01"
-  }
-]
+Create a YAML file, e.g. `publication-name.yaml`:
+
+```yaml
+quote: A remarkable debut that showcases genuine artistry.
+source: Publication Name
+url: https://publication.com/review
+date: "2024-04-01"
 ```
-
-Each entry needs a unique `id` field.
 
 `url` and `date` are optional.
 
@@ -248,9 +231,9 @@ Each entry needs a unique `id` field.
 
 All images go in `public/images/`. They are served as-is at `/images/filename.ext`.
 
-### Image metadata (for JSON content files)
+### Image metadata (for YAML content files)
 
-Whenever you add an image reference to a JSON content file (releases, photos, etc.), use the full metadata shape:
+Whenever you add an image reference to a YAML content file (releases, photos, etc.), use the full metadata shape:
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -273,7 +256,7 @@ After editing any content file, run:
 npm run validate:content
 ```
 
-This checks all JSON and Markdoc files against their schemas and reports field-level errors. Fix any errors before committing.
+This checks all JSON, YAML, and Markdoc files against their schemas and reports field-level errors. Fix any errors before committing.
 
 ---
 

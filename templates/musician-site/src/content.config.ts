@@ -1,5 +1,5 @@
 import { defineCollection } from "astro:content";
-import { glob, file } from "astro/loaders";
+import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 
 // ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ const contactPage = defineCollection({
 // ---------------------------------------------------------------------------
 
 const releases = defineCollection({
-  loader: glob({ pattern: "*.json", base: "./src/content/collections/releases" }),
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/releases" }),
   schema: z.object({
     title: z.string().min(1),
     type: z.enum(["album", "single", "ep"]),
@@ -99,12 +99,12 @@ const releases = defineCollection({
 });
 
 const photos = defineCollection({
-  loader: file("src/content/collections/photos/gallery.json"),
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/photos" }),
   schema: imageMetadataSchema,
 });
 
 const videos = defineCollection({
-  loader: file("src/content/collections/videos/videos.json"),
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/videos" }),
   schema: z.object({
     title: z.string().min(1),
     url: z.url(),
@@ -114,7 +114,7 @@ const videos = defineCollection({
 });
 
 const pressQuotes = defineCollection({
-  loader: file("src/content/collections/pressQuotes/quotes.json"),
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/pressQuotes" }),
   schema: z.object({
     quote: z.string().min(1),
     source: z.string().min(1),
@@ -124,7 +124,7 @@ const pressQuotes = defineCollection({
 });
 
 const tourDates = defineCollection({
-  loader: file("src/content/collections/tourDates/dates.json"),
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/tourDates" }),
   schema: z.object({
     date: z.string().min(1),
     venue: z.string().min(1),

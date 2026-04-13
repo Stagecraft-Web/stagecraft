@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import yaml from "yaml";
 import {
   siteConfigSchema,
   navSchema,
@@ -16,35 +17,35 @@ let errors: string[] = [];
 let warnings: string[] = [];
 
 // ============================================================
-// JSON validation helpers
+// Validation helpers
 // ============================================================
 
-function validateJson(filePath: string, schema: any, isArray = false) {
+function validateJson(filePath: string, schema: any) {
   const rel = path.relative(ROOT, filePath);
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
     const data = JSON.parse(raw);
-
-    if (isArray) {
-      if (!Array.isArray(data)) {
-        errors.push(`${rel}: expected an array`);
-        return;
-      }
-      data.forEach((item: any, i: number) => {
-        const result = schema.safeParse(item);
-        if (!result.success) {
-          result.error.issues.forEach((issue: any) => {
-            errors.push(`${rel}[${i}]: ${issue.path.join(".")}: ${issue.message}`);
-          });
-        }
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      result.error.issues.forEach((issue: any) => {
+        errors.push(`${rel}: ${issue.path.join(".")}: ${issue.message}`);
       });
-    } else {
-      const result = schema.safeParse(data);
-      if (!result.success) {
-        result.error.issues.forEach((issue: any) => {
-          errors.push(`${rel}: ${issue.path.join(".")}: ${issue.message}`);
-        });
-      }
+    }
+  } catch (e: any) {
+    errors.push(`${rel}: ${e.message}`);
+  }
+}
+
+function validateYaml(filePath: string, schema: any) {
+  const rel = path.relative(ROOT, filePath);
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const data = yaml.parse(raw);
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      result.error.issues.forEach((issue: any) => {
+        errors.push(`${rel}: ${issue.path.join(".")}: ${issue.message}`);
+      });
     }
   } catch (e: any) {
     errors.push(`${rel}: ${e.message}`);
@@ -84,52 +85,24 @@ validateJson(path.join(ROOT, "src/content/config/nav.json"), navSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
 
 // ============================================================
-// Validate collections
-// (Also validated by Astro content collections at build time,
-// but this script gives faster feedback without a full build.)
+// Validate collections (YAML, one file per entry)
 // ============================================================
 
 const collectionsDir = path.join(ROOT, "src/content/collections");
 
-// Releases — one JSON file per release
-const releasesDir = path.join(collectionsDir, "releases");
-if (fs.existsSync(releasesDir)) {
-  for (const file of fs.readdirSync(releasesDir).filter((f) => f.endsWith(".json"))) {
-    validateJson(path.join(releasesDir, file), releaseSchema);
+function validateCollection(dirName: string, schema: any) {
+  const dir = path.join(collectionsDir, dirName);
+  if (!fs.existsSync(dir)) return;
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
+    validateYaml(path.join(dir, file), schema);
   }
 }
 
-// Photos — each file is an array of photo entries
-const photosDir = path.join(collectionsDir, "photos");
-if (fs.existsSync(photosDir)) {
-  for (const file of fs.readdirSync(photosDir).filter((f) => f.endsWith(".json"))) {
-    validateJson(path.join(photosDir, file), photoSchema, true);
-  }
-}
-
-// Videos
-const videosDir = path.join(collectionsDir, "videos");
-if (fs.existsSync(videosDir)) {
-  for (const file of fs.readdirSync(videosDir).filter((f) => f.endsWith(".json"))) {
-    validateJson(path.join(videosDir, file), videoSchema, true);
-  }
-}
-
-// Press quotes
-const pressDir = path.join(collectionsDir, "pressQuotes");
-if (fs.existsSync(pressDir)) {
-  for (const file of fs.readdirSync(pressDir).filter((f) => f.endsWith(".json"))) {
-    validateJson(path.join(pressDir, file), pressQuoteSchema, true);
-  }
-}
-
-// Tour dates
-const tourDir = path.join(collectionsDir, "tourDates");
-if (fs.existsSync(tourDir)) {
-  for (const file of fs.readdirSync(tourDir).filter((f) => f.endsWith(".json"))) {
-    validateJson(path.join(tourDir, file), tourDateSchema, true);
-  }
-}
+validateCollection("releases", releaseSchema);
+validateCollection("photos", photoSchema);
+validateCollection("videos", videoSchema);
+validateCollection("pressQuotes", pressQuoteSchema);
+validateCollection("tourDates", tourDateSchema);
 
 // ============================================================
 // Report

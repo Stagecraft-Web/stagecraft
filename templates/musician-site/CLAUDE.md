@@ -33,19 +33,17 @@ For any content change (bio, headline, CTA text, tour date, release info, photo,
 
 ### 4. Image references must carry metadata
 
-Every image reference in a JSON content file must be an object with at minimum `src` and `alt`:
+Every image reference in a YAML content file must be an object with at minimum `src` and `alt`:
 
-```json
-{
-  "src": "/images/your-image.jpg",
-  "alt": "Descriptive alt text — never leave blank",
-  "caption": "Optional display caption",
-  "credit": "Optional photographer credit",
-  "usageSlot": "gallery"
-}
+```yaml
+src: /images/your-image.jpg
+alt: Descriptive alt text — never leave blank
+caption: Optional display caption
+credit: Optional photographer credit
+usageSlot: gallery
 ```
 
-Do not use bare strings for image fields in JSON content files. Markdoc frontmatter image fields are strings (see limitation note below).
+Do not use bare strings for image fields in YAML content files. Markdoc frontmatter image fields are strings (see limitation note below).
 
 ### 5. Run validate:content after any content change
 
@@ -88,17 +86,17 @@ Use this to find where any piece of content lives.
 
 | What | Path | Schema | Format |
 |------|------|--------|--------|
-| Music releases (albums, singles, EPs) | `src/content/collections/releases/*.json` | `releaseSchema` | One JSON file per release |
-| Photo gallery | `src/content/collections/photos/gallery.json` | `photoSchema` (array) | Array of image metadata objects |
-| Videos | `src/content/collections/videos/videos.json` | `videoSchema` (array) | Array |
-| Press quotes | `src/content/collections/pressQuotes/quotes.json` | `pressQuoteSchema` (array) | Array |
-| Tour dates | `src/content/collections/tourDates/dates.json` | `tourDateSchema` (array) | Array |
+| Music releases (albums, singles, EPs) | `src/content/collections/releases/*.yaml` | `releaseSchema` | One YAML file per release |
+| Photo gallery | `src/content/collections/photos/*.yaml` | `photoSchema` | One YAML file per photo |
+| Videos | `src/content/collections/videos/*.yaml` | `videoSchema` | One YAML file per video |
+| Press quotes | `src/content/collections/pressQuotes/*.yaml` | `pressQuoteSchema` | One YAML file per quote |
+| Tour dates | `src/content/collections/tourDates/*.yaml` | `tourDateSchema` | One YAML file per date |
 
 ### Images
 
 Static images live in `public/images/`. Reference as `/images/filename.ext` from content and components.
 
-Image references in **JSON content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
+Image references in **YAML content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
 
 Image references in **Markdoc frontmatter** are plain path strings.
 
@@ -120,13 +118,14 @@ src/content/
     press.mdoc        ← singleton: press page content
     contact.mdoc      ← singleton: contact page intro
   collections/
-    releases/         ← one .json file per release
-    photos/           ← gallery.json (array)
-    videos/           ← videos.json (array)
-    pressQuotes/      ← quotes.json (array)
-    tourDates/        ← dates.json (array)
+    releases/         ← one .yaml file per release
+    photos/           ← one .yaml file per photo
+    videos/           ← one .yaml file per video
+    pressQuotes/      ← one .yaml file per quote
+    tourDates/        ← one .yaml file per date
 
 src/content.config.ts   ← Astro content collection definitions
+keystatic.config.ts     ← Keystatic CMS config (singletons, collections, field types)
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
   content.ts            ← validated config loaders (getSiteConfig, getNav, getTheme)
@@ -141,7 +140,8 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in JSON, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Static images in `public/images/`. Served as-is; reference as `/images/filename.ext`.
 
@@ -242,8 +242,9 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 1. Define the item schema in `src/lib/schemas.ts`.
 2. Create the collection directory under `src/content/collections/{name}/`.
 3. Add a content collection definition in `src/content.config.ts`.
-4. Add validation for the collection to `scripts/validate-content.ts`.
-5. Add sample data files. Array-based JSON files require an `id` field on each entry.
+4. Add a Keystatic collection definition in `keystatic.config.ts`.
+5. Add validation for the collection to `scripts/validate-content.ts`.
+6. Add sample YAML data files (one file per entry). Quote date strings in YAML to prevent auto-parsing (e.g. `date: "2026-05-15"`).
 
 ---
 

@@ -2,24 +2,20 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import ContactForm from "../components/ContactForm.astro";
-import { parseFrontmatter, parseBody } from "../lib/markdown";
+import { getEntry, render } from "astro:content";
 
-// @ts-ignore - markdown import
-import contactContent from "../content/pages/contact.md?raw";
-
-const frontmatter = parseFrontmatter(contactContent);
-const paragraphs = parseBody(contactContent);
+const contact = await getEntry("contactPage", "contact");
+if (!contact) throw new Error("Missing contact page content");
+const { Content } = await render(contact);
 ---
 
 <BaseLayout title="Contact">
-  <PageHeader headline={frontmatter.headline || "Contact"} />
+  <PageHeader headline={contact.data.headline} />
   <section class="section">
     <div class="container">
-      {paragraphs.length > 0 && (
-        <div class="prose" style="margin-bottom: 2rem;">
-          {paragraphs.map((p: string) => <p>{p}</p>)}
-        </div>
-      )}
+      <div class="prose" style="margin-bottom: 2rem;">
+        <Content />
+      </div>
       <ContactForm />
     </div>
   </section>

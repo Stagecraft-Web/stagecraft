@@ -96,7 +96,9 @@ model Site {
   githubRepoName      String?
   githubDefaultBranch String   @default("main")
   netlifySiteId       String?
+  netlifyAdminUrl     String?
   productionUrl       String?
+  archivedAt          DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -133,10 +135,12 @@ model SiteJob {
   status         String    @default("queued") // queued | running | completed | failed | awaiting_review | canceled
   requestPayload Json?
   resultPayload  Json?
-  errorMessage   String?   @db.Text
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime  @default(now())
+  errorMessage    String?   @db.Text
+  failureCategory String?   // github_api_error | netlify_deploy_error | validation_error | ai_error | timeout | unknown
+  repairAttempts  Int       @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
 
   site           Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id])
@@ -158,9 +162,10 @@ model ChangeRequest {
   prNumber       Int?
   previewUrl     String?
   summary        String?  @db.Text
-  status         String   @default("pending") // pending | in_progress | ready_for_review | approved | rejected | discarded
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status          String   @default("pending") // pending | in_progress | ready_for_review | approved | rejected | discarded
+  failureCategory String?  // github_api_error | netlify_deploy_error | validation_error | ai_error | timeout | unknown
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   site Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
   user User    @relation(fields: [userId], references: [id])
@@ -179,8 +184,12 @@ model AssetUpload {
   mimeType            String
   fileSize            Int
   uploadStatus        String   @default("uploading") // uploading | processing | ready | committed | failed
-  temporaryStorageRef String?
+  temporaryStorageRef String?  @db.Text
   targetRepoPath      String?
+  alt                 String?
+  caption             String?  @db.Text
+  credit              String?
+  usageSlot           String?  // hero | gallery | about | press | logo
   metadata            Json?
   createdAt           DateTime @default(now())
 

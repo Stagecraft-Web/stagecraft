@@ -2,6 +2,8 @@
 
 This document explains how to manually edit your musician website.
 
+---
+
 ## Quick Start
 
 ```bash
@@ -9,110 +11,290 @@ npm install
 npm run dev       # Start dev server at localhost:4321
 npm run build     # Production build
 npm run preview   # Preview production build
+npm run validate:content  # Check content files for errors
 ```
+
+---
 
 ## Content Structure
 
-All site content lives in `src/content/`:
+All site content lives in `src/content/`. This is the only directory you need to edit for routine updates.
 
 ```
 src/content/
   config/
-    site.json       <- Artist name, social links, contact email
-    nav.json        <- Navigation menu items
-    theme.json      <- Colors, fonts, spacing, breakpoints
+    site.json       ← Artist name, social links, contact email, copyright
+    nav.json        ← Navigation menu items
+    theme.json      ← Colors, fonts, spacing
   pages/
-    home.md         <- Homepage headline, intro text
-    about.md        <- Bio / about page
-    music.md        <- Music page intro
-    press.md        <- Press page intro, EPK link
-    contact.md      <- Contact page intro
+    home.md         ← Homepage headline, subheadline, CTA button
+    about.md        ← Bio / about page headline and image
+    music.md        ← Music page headline and intro text
+    photos.md       ← Photos page headline
+    press.md        ← Press page headline, reviews heading, EPK link
+    contact.md      ← Contact page headline and intro text
   collections/
-    releases/       <- Album/single/EP entries (JSON)
-    photos/         <- Photo gallery entries (JSON)
-    videos/         <- Video embed entries (JSON)
-    pressQuotes/    <- Press quotes (JSON)
-    tourDates/      <- Tour date entries (JSON)
+    releases/       ← One JSON file per album/single/EP
+    photos/         ← Photo gallery entries (gallery.json)
+    videos/         ← Video embed entries (videos.json)
+    pressQuotes/    ← Press quotes (quotes.json)
+    tourDates/      ← Tour date entries (dates.json)
 ```
 
-## Common Edits
+---
 
-### Update your bio
-Edit `src/content/pages/about.md`. The text below the `---` frontmatter block is your bio content.
+## Singletons
 
-### Add a tour date
-Edit `src/content/collections/tourDates/dates.json`. Add a new entry:
+### Site identity — `src/content/config/site.json`
+
 ```json
 {
-  "date": "2026-09-15",
-  "venue": "The Venue Name",
-  "city": "City, State",
-  "ticketUrl": "https://tickets.example.com",
-  "status": "upcoming"
+  "artistName": "Your Name",
+  "siteTitle": "Your Name — Official Website",
+  "siteDescription": "Short description for search engines.",
+  "socialLinks": {
+    "instagram": "https://instagram.com/yourhandle",
+    "spotify": "https://open.spotify.com/artist/...",
+    "youtube": "",
+    "bandcamp": ""
+  },
+  "contactEmail": "you@example.com",
+  "copyright": "© 2026 Your Name. All rights reserved."
 }
 ```
 
-### Add photos
-1. Place the image file in `src/assets/images/`.
-2. Add an entry in `src/content/collections/photos/gallery.json`:
+Leave any social link blank (`""`) to hide it from the footer.
+
+### Navigation — `src/content/config/nav.json`
+
 ```json
-{
-  "src": "/src/assets/images/your-photo.jpg",
-  "alt": "Description of the photo",
-  "caption": "Optional caption"
-}
+[
+  { "label": "Home", "href": "/" },
+  { "label": "About", "href": "/about" },
+  { "label": "Music", "href": "/music" }
+]
 ```
 
-### Add a new release
-Create a new JSON file in `src/content/collections/releases/`, e.g. `new-album.json`:
+Add, remove, or reorder entries to change the site navigation.
+
+### Colors and fonts — `src/content/config/theme.json`
+
+Edit the `colors` object to change the palette, and `typography.headingFont` / `typography.bodyFont` for fonts.
+
+After changing `theme.json`, update the matching CSS custom properties in `src/styles/global.css` to match.
+
+---
+
+## Pages
+
+Each page has a Markdown file with two parts: **frontmatter** (between `---` markers) and **body text** (below).
+
+### Homepage — `src/content/pages/home.md`
+
+```markdown
+---
+title: Home
+headline: Your Name
+subheadline: Musician · Performer · Creator
+heroImage: /images/hero.jpg
+ctaText: Listen Now
+ctaLink: /music
+---
+
+Welcome text that appears below the hero section.
+```
+
+### About — `src/content/pages/about.md`
+
+```markdown
+---
+title: About
+headline: About the Artist
+image: /images/about.jpg
+---
+
+Your bio goes here. Write as many paragraphs as you like.
+Each blank line creates a new paragraph.
+```
+
+### Press — `src/content/pages/press.md`
+
+```markdown
+---
+title: Press
+headline: Press & Reviews
+reviewsHeadline: Reviews & Press
+epkDownload: /downloads/epk.pdf
+---
+
+Introductory text for the press page.
+```
+
+- `reviewsHeadline` — heading displayed above the press quotes section.
+- `epkDownload` — path to your EPK PDF. Remove the line to hide the download button.
+
+---
+
+## Collections
+
+### Add a tour date — `src/content/collections/tourDates/dates.json`
+
+```json
+[
+  {
+    "id": "2026-09-15-venue-name",
+    "date": "2026-09-15",
+    "venue": "The Venue Name",
+    "city": "City, State",
+    "ticketUrl": "https://tickets.example.com",
+    "status": "upcoming"
+  }
+]
+```
+
+Each entry needs a unique `id` field (e.g. combine the date and venue name).
+
+Valid status values: `upcoming`, `sold_out`, `canceled`, `past`.
+
+### Add a release — `src/content/collections/releases/`
+
+Create a new JSON file, e.g. `new-album.json`:
+
 ```json
 {
   "title": "Album Title",
   "type": "album",
   "releaseDate": "2026-01-15",
-  "coverImage": "/src/assets/images/cover.jpg",
-  "description": "Description of the release.",
+  "coverImage": {
+    "src": "/images/cover.jpg",
+    "alt": "Album Title cover art",
+    "usageSlot": "release-cover"
+  },
+  "description": "A short description of the release.",
   "links": {
-    "spotify": "https://...",
-    "appleMusic": "https://..."
+    "spotify": "https://open.spotify.com/album/...",
+    "appleMusic": "https://music.apple.com/...",
+    "bandcamp": ""
   },
   "tracks": [
-    { "title": "Track 1", "duration": "3:45" }
+    { "title": "Track One", "duration": "3:45" },
+    { "title": "Track Two", "duration": "4:12" }
   ]
 }
 ```
 
-### Change colors or fonts
-Edit `src/content/config/theme.json`. The `colors` object controls the site palette, `typography.fontSize` controls text sizes, and `typography.fontWeight` controls text weights.
+Valid type values: `album`, `single`, `ep`.
 
-After editing theme.json, update the corresponding CSS custom properties in `src/styles/global.css` to match.
+### Add photos — `src/content/collections/photos/gallery.json`
 
-### Change navigation
-Edit `src/content/config/nav.json`. Each entry has a `label` (display text) and `href` (URL path).
+Place the image in `public/images/`, then add an entry:
 
-## Component Library
+```json
+[
+  {
+    "id": "your-photo",
+    "src": "/images/your-photo.jpg",
+    "alt": "Describe what is in the photo",
+    "caption": "Optional display caption",
+    "credit": "Photo by Jane Smith",
+    "usageSlot": "gallery"
+  }
+]
+```
 
-The site includes reusable components in `src/components/`:
+Each entry needs a unique `id` field.
+
+**`alt` is required** and must describe the image for accessibility and SEO. Never leave it blank.
+
+### Add a video — `src/content/collections/videos/videos.json`
+
+```json
+[
+  {
+    "id": "music-video-title",
+    "title": "Music Video Title",
+    "url": "https://www.youtube.com/embed/VIDEO_ID",
+    "type": "youtube",
+    "description": "Optional description."
+  }
+]
+```
+
+Each entry needs a unique `id` field.
+
+Valid type values: `youtube`, `vimeo`, `other`.
+
+### Add a press quote — `src/content/collections/pressQuotes/quotes.json`
+
+```json
+[
+  {
+    "id": "publication-name",
+    "quote": "A remarkable debut that showcases genuine artistry.",
+    "source": "Publication Name",
+    "url": "https://publication.com/review",
+    "date": "2024-04-01"
+  }
+]
+```
+
+Each entry needs a unique `id` field.
+
+`url` and `date` are optional.
+
+---
+
+## Image Conventions
+
+All images go in `public/images/`. They are served as-is at `/images/filename.ext`.
+
+### Image metadata (for JSON content files)
+
+Whenever you add an image reference to a JSON content file (releases, photos, etc.), use the full metadata shape:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `src` | yes | Path served from public, e.g. `/images/photo.jpg` |
+| `alt` | yes | Descriptive alt text for accessibility |
+| `caption` | no | Display caption shown below the image |
+| `credit` | no | Photographer or source credit, e.g. `"Photo by Jane Smith"` |
+| `focalPoint` | no | `{ "x": 0.5, "y": 0.3 }` — crop hint (0–1 range) |
+| `usageSlot` | no | Context hint: `"hero"`, `"about"`, `"release-cover"`, `"gallery"`, etc. |
+
+The SVG placeholders included in the template are for demo purposes only. Replace them with real image files.
+
+---
+
+## Validating Your Changes
+
+After editing any content file, run:
+
+```bash
+npm run validate:content
+```
+
+This checks all JSON and Markdown files against their schemas and reports field-level errors. Fix any errors before committing.
+
+---
+
+## Component Reference
 
 | Component | Description |
 |-----------|-------------|
-| `Button.astro` | Links and buttons with `primary` / `outline` variants |
+| `Button.astro` | Links and buttons (`primary` / `outline` variants) |
 | `FormGroup.astro` | Labeled form inputs and textareas |
 | `Image.tsx` | Image with loading/error states (React) |
-| `Hero.astro` | Full-width hero section with headline and CTA |
+| `Hero.astro` | Full-width hero section |
 | `PageHeader.astro` | Page title banner |
-| `Header.astro` | Site navigation header |
-| `Footer.astro` | Site footer with social links |
+| `Header.astro` | Site navigation |
+| `Footer.astro` | Footer with social links |
 | `ContactForm.astro` | Contact form with spam protection |
 | `ReleaseCard.astro` | Music release display card |
-| `PhotoGallery.tsx` | Photo grid with lightbox (React) |
+| `PhotoGallery.astro` | Photo grid with lightbox |
 | `Lightbox.tsx` | Fullscreen image viewer (React) |
 
-## Images
-- Place source images in `src/assets/images/`
-- Astro optimizes images at build time
-- SVG placeholders are included for demo — replace with real images
-- Always provide alt text for accessibility
+---
 
 ## Deployment
-This site deploys to Netlify. Pushing to `main` triggers a production deploy. Pull requests create preview deploys.
+
+This site deploys to Netlify. Pushing to `main` triggers a production deploy. Pull requests create preview deploys automatically.

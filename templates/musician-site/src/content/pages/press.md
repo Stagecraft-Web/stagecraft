@@ -1,6 +1,7 @@
 ---
 title: Press
 headline: Press & Reviews
+reviewsHeadline: Reviews & Press
 epkDownload: /downloads/epk.pdf
 ---
 

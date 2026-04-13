@@ -116,10 +116,13 @@ They want:
    Sites should be generated as static-first brochure sites with optional small interactive islands.
 
 6. **No customer content DB**
-   Page content and media metadata should live in the repo instead of a hosted CMS.
+   Page content and media metadata should live in the repo instead of a hosted CMS. This includes v1: no Keystatic, no Contentlayer, no headless CMS integration. Content files are the CMS.
 
 7. **Human-auditable changes**
    Every change should correspond to a branch, commit set, PR, and deploy preview where possible.
+
+8. **Schema-first content**
+   Content should be declared before it is rendered. Every editable piece of information should have a named field in a validated schema. AI edits target schema fields; component code is not the editing surface.
 
 ## 7. High-level architecture
 
@@ -287,55 +290,128 @@ Example:
 
 ## 11. Content model
 
-The site content should be structured and repo-native.
+The site content model must be **schema-first**. Every piece of editable content should have a declared shape — named fields, defined types, and a validation contract — before any component renders it.
 
-The platform must not treat arbitrary component code as the primary content-editing surface.
+The platform must not treat arbitrary component code as the primary content-editing surface. Structured content files are the editing surface. Components are rendering code that consumes that content.
 
-### 11.1 Content storage principles
+### 11.1 Core principles
 
-Store content in typed, structured files such as:
+**Maximally extensible, not maximally abstract.**
+Content schemas should be concrete enough to be self-documenting. Use specific named fields (`headline`, `bio`, `altText`) rather than generic blobs. Schemas should expand to cover common musician-site needs without requiring a rewrite.
 
-- JSON
-- YAML
-- Markdown / MDX
-- Astro content collections if useful
+**Make common edits explicit.**
+Anything a user is likely to change — bio, headline, social links, hero image — should be a named field in a schema, not buried in component code. If editing a piece of content requires touching a `.astro` or `.tsx` file, that is a design smell.
 
-### 11.2 Recommended content structure
+**Content should be understandable in Git diffs.**
+A change to the artist bio should produce a diff that reads like a content change, not a code change. JSON and Markdown files accomplish this. Inline JSX strings do not.
 
-Example:
+**One content contract across the stack.**
+The same schema drives validation, rendering, AI editing, and any future editor UI. There is no separate “admin schema” vs “code schema.”
 
-```txt
-/src/content
-  /config
-    site.json
-    nav.json
-    theme.json
-  /pages
-    home.md
-    about.md
-    music.md
-    press.md
-    contact.md
-  /collections
-    photos/
-    releases/
-    videos/
-    pressQuotes/
-    tourDates/
+**Designed for future human editors — without requiring one now.**
+The schema-first content model is intentionally compatible with filesystem/Git-based structured editors (such as a future Keystatic or similar form-based UI) without requiring content migration. v1 ships with no CMS dependency: no Keystatic, no Contentlayer, no headless CMS. If a form-based editing surface is ever added, it plugs into the existing content files as they are. The schema is the integration point.
+
+### 11.2 Content categories
+
+Content in each site falls into four categories. The AI should understand this taxonomy and prefer editing in the correct category rather than reaching for component code.
+
+**1. Structured content** — the editable information about the artist and their work.
+Examples: bio, headline, social links, release metadata, photo alt text, press quotes, tour dates, contact page copy, SEO metadata.
+
+**2. Theme and config** — site-level settings that control appearance and navigation.
+Examples: site name, contact email, nav items, color palette, font choices, dark/light mode preference.
+
+**3. Layout and component code** — the `.astro` and React files that render content. These should rarely need editing for routine content requests.
+
+**4. AI-only structural changes** — page additions, nav restructuring, new section types. These require editing both content and component code and must be explicitly classified as structural changes, not content edits.
+
+### 11.3 Singletons and collections
+
+Organize content into two shapes:
+
+**Singletons** — one record per site. Each lives at a predictable, stable file path.
+
+| Singleton | Path |
+|-----------|------|
+| Site settings | `src/content/config/site.json` |
+| Navigation | `src/content/config/nav.json` |
+| Theme tokens | `src/content/config/theme.json` |
+| Homepage content | `src/content/pages/home.md` |
+| About / bio | `src/content/pages/about.md` |
+| Contact page | `src/content/pages/contact.md` |
+| SEO defaults | `src/content/config/seo.json` |
+
+**Collections** — zero or more items, each with a stable shape.
+
+| Collection | Path pattern |
+|-----------|-------------|
+| Releases | `src/content/collections/releases/*.json` |
+| Photos | `src/content/collections/photos/gallery.json` |
+| Videos | `src/content/collections/videos/videos.json` |
+| Press quotes | `src/content/collections/pressQuotes/quotes.json` |
+| Tour dates | `src/content/collections/tourDates/dates.json` |
+
+### 11.4 Stable field shapes
+
+Schema fields should be named and stable. Each schema should:
+
+- use specific field names that match the content domain (not `text1`, `text2`)
+- declare required vs optional fields explicitly
+- declare the type of each field (`string`, `string[]`, `boolean`, `url`, `date`, `object`)
+- be validated at build time and before any AI-generated change is committed
+
+Example — release schema:
+```json
+{
+  “title”: “Debut Album”,
+  “artist”: “Alex Rivera”,
+  “type”: “album”,
+  “releaseDate”: “2024-03-15”,
+  “coverImage”: “src/assets/images/release-cover.jpg”,
+  “streamingUrl”: “https://open.spotify.com/album/...”,
+  “description”: “Optional short description”
+}
 ```
 
-### 11.3 Content-editing principle
+### 11.5 Normalized image metadata
 
-Most user requests should map to structured content edits first.
+Every significant image entry in any collection or singleton should carry normalized metadata fields:
 
-Examples:
+| Field | Required | Description |
+|-------|----------|-------------|
+| `src` | yes | Path to the image file in `src/assets/images/` |
+| `alt` | yes | Descriptive alt text for accessibility |
+| `caption` | no | Optional display caption |
+| `credit` | no | Optional photographer credit |
+| `focalPoint` | no | Optional `{ x, y }` hint for responsive cropping |
+| `usageSlot` | no | Identifies where the image appears (e.g. `”hero”`, `”gallery”`, `”about”`) |
+| `mobileVariant` | no | Optional path to a mobile-specific image file (different crop or composition) |
+| `aspectPreference` | no | Optional preferred aspect ratio hint for the rendering component (e.g. `”16:9”`, `”square”`, `”portrait”`) |
 
-- “Update my bio” should primarily edit `about.md`
-- “Add these 5 photos” should primarily add assets plus metadata entries
-- “Add a Teaching page” should add a page content file and register it in navigation config
-- “Change my homepage button text” should edit structured homepage content
+This metadata should live alongside the image reference in content files, not only in component code.
 
-The AI should only edit layout/component code when the request truly implies a design or structural change.
+### 11.6 Predictable file conventions
+
+File paths and naming follow a strict convention so that the AI and humans can always find content without searching:
+
+- Singletons: `src/content/config/*.json` or `src/content/pages/*.md`
+- Collections: `src/content/collections/{collectionName}/*.json` (one file per item) or a single `*.json` array for small collections
+- Images: `src/assets/images/{context}/{slug}.{ext}` (e.g. `src/assets/images/gallery/show-2024.jpg`)
+- Public assets (favicons, downloads): `public/{type}/`
+
+These conventions must be documented in `EDITING.md` and enforced by the content validation script.
+
+### 11.7 Content-editing principle
+
+Most user requests should map to structured content edits — editing files in `src/content/` — rather than changes to component code.
+
+- “Update my bio” → edit `src/content/pages/about.md`
+- “Add these 5 photos” → add files to `src/assets/images/gallery/` and add entries to `photos/gallery.json`
+- “Add a Teaching page” → add `src/content/pages/teaching.md` and add a nav entry to `nav.json`
+- “Change my homepage button text” → edit the relevant field in `src/content/pages/home.md`
+- “Update my Spotify link” → edit `src/content/config/site.json`
+
+The AI should only edit layout or component code when the request explicitly implies a structural or design change that cannot be expressed as a content edit. This preference must be stated in `CLAUDE.md` and reinforced by the request classifier in the platform.
 
 ## 12. Asset and image handling
 
@@ -508,7 +584,7 @@ The AI should generate within a blueprint rather than inventing an unconstrained
 
 ## 16. AI orchestration requirements
 
-Claude Code should not be treated as a freeform autonomous designer. It should be guided by structured tasks and repo conventions.
+Claude Code should not be treated as a freeform autonomous designer. It should be guided by structured tasks, repo conventions, and a strict content hierarchy.
 
 ### 16.1 AI task types
 
@@ -527,7 +603,8 @@ Define separate modes:
 
 Claude Code should:
 
-- prefer editing content files over component code
+- **prefer editing schema-driven content files over component code** — the content model exists precisely so that the vast majority of requests never require touching a `.astro` or `.tsx` file
+- **prefer editing a named schema field over freeform string insertion** — if a piece of content has a dedicated field (e.g. `bio`, `headline`, `altText`), edit that field rather than finding where it's interpolated in a template
 - preserve template architecture unless a structural change is requested
 - avoid broad refactors unless necessary
 - produce small, reviewable diffs
@@ -535,6 +612,7 @@ Claude Code should:
 - keep accessibility high
 - keep performance good
 - maintain type safety
+- run content schema validation after any content-file change before committing
 
 ### 16.3 AI output requirements
 

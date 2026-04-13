@@ -1,0 +1,65 @@
+---
+import Image from "./Image.astro";
+import Lightbox from "./Lightbox";
+
+interface Photo {
+  src: string;
+  alt: string;
+  caption?: string;
+}
+
+interface Props {
+  photos: Photo[];
+}
+
+const { photos } = Astro.props;
+---
+
+<div class="photo-gallery-grid">
+  {photos.map((photo, i) => (
+    <button
+      class="photo-gallery-item"
+      data-photo-index={i}
+      aria-label={`View ${photo.alt}`}
+    >
+      <Image src={photo.src} alt={photo.alt} aspectRatio="4/3" />
+      {photo.caption && <span class="photo-gallery-caption">{photo.caption}</span>}
+    </button>
+  ))}
+</div>
+
+<Lightbox client:only="react" images={photos} />
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-photo-index]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const index = Number(btn.dataset.photoIndex);
+      window.dispatchEvent(new CustomEvent("open-lightbox", { detail: { index } }));
+    });
+  });
+</script>
+
+<style>
+  .photo-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 1.5rem;
+  }
+
+  .photo-gallery-item {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: var(--radius);
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .photo-gallery-caption {
+    display: block;
+    padding: 0.5rem 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+</style>

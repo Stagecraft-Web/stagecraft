@@ -336,9 +336,9 @@ Organize content into two shapes:
 | Site settings | `src/content/config/site.json` |
 | Navigation | `src/content/config/nav.json` |
 | Theme tokens | `src/content/config/theme.json` |
-| Homepage content | `src/content/pages/home.md` |
-| About / bio | `src/content/pages/about.md` |
-| Contact page | `src/content/pages/contact.md` |
+| Homepage content | `src/content/pages/home.mdoc` |
+| About / bio | `src/content/pages/about.mdoc` |
+| Contact page | `src/content/pages/contact.mdoc` |
 | SEO defaults | `src/content/config/seo.json` |
 
 **Collections** — zero or more items, each with a stable shape.
@@ -405,10 +405,10 @@ These conventions must be documented in `EDITING.md` and enforced by the content
 
 Most user requests should map to structured content edits — editing files in `src/content/` — rather than changes to component code.
 
-- “Update my bio” → edit `src/content/pages/about.md`
+- “Update my bio” → edit `src/content/pages/about.mdoc`
 - “Add these 5 photos” → add files to `src/assets/images/gallery/` and add entries to `photos/gallery.json`
-- “Add a Teaching page” → add `src/content/pages/teaching.md` and add a nav entry to `nav.json`
-- “Change my homepage button text” → edit the relevant field in `src/content/pages/home.md`
+- “Add a Teaching page” → add `src/content/pages/teaching.mdoc` and add a nav entry to `nav.json`
+- “Change my homepage button text” → edit the relevant field in `src/content/pages/home.mdoc`
 - “Update my Spotify link” → edit `src/content/config/site.json`
 
 The AI should only edit layout or component code when the request explicitly implies a structural or design change that cannot be expressed as a content edit. This preference must be stated in `CLAUDE.md` and reinforced by the request classifier in the platform.

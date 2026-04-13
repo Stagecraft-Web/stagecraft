@@ -27,12 +27,12 @@ src/content/
     nav.json        ← Navigation menu items
     theme.json      ← Colors, fonts, spacing
   pages/
-    home.md         ← Homepage headline, subheadline, CTA button
-    about.md        ← Bio / about page headline and image
-    music.md        ← Music page headline and intro text
-    photos.md       ← Photos page headline
-    press.md        ← Press page headline, reviews heading, EPK link
-    contact.md      ← Contact page headline and intro text
+    home.mdoc       ← Homepage headline, subheadline, CTA button
+    about.mdoc      ← Bio / about page headline and image
+    music.mdoc      ← Music page headline and intro text
+    photos.mdoc     ← Photos page headline
+    press.mdoc      ← Press page headline, reviews heading, EPK link
+    contact.mdoc    ← Contact page headline and intro text
   collections/
     releases/       ← One JSON file per album/single/EP
     photos/         ← Photo gallery entries (gallery.json)
@@ -87,9 +87,9 @@ After changing `theme.json`, update the matching CSS custom properties in `src/s
 
 ## Pages
 
-Each page has a Markdown file with two parts: **frontmatter** (between `---` markers) and **body text** (below).
+Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between `---` markers) and **body text** (below).
 
-### Homepage — `src/content/pages/home.md`
+### Homepage — `src/content/pages/home.mdoc`
 
 ```markdown
 ---
@@ -104,7 +104,7 @@ ctaLink: /music
 Welcome text that appears below the hero section.
 ```
 
-### About — `src/content/pages/about.md`
+### About — `src/content/pages/about.mdoc`
 
 ```markdown
 ---
@@ -117,7 +117,7 @@ Your bio goes here. Write as many paragraphs as you like.
 Each blank line creates a new paragraph.
 ```
 
-### Press — `src/content/pages/press.md`
+### Press — `src/content/pages/press.mdoc`
 
 ```markdown
 ---
@@ -273,7 +273,7 @@ After editing any content file, run:
 npm run validate:content
 ```
 
-This checks all JSON and Markdown files against their schemas and reports field-level errors. Fix any errors before committing.
+This checks all JSON and Markdoc files against their schemas and reports field-level errors. Fix any errors before committing.
 
 ---
 

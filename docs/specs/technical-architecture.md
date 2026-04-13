@@ -397,9 +397,9 @@ Content falls into four categories with a strict preference ordering for AI edit
 | Site settings | `src/content/config/site.json` |
 | Navigation | `src/content/config/nav.json` |
 | Theme tokens | `src/content/config/theme.json` |
-| Homepage content | `src/content/pages/home.md` |
-| About / bio | `src/content/pages/about.md` |
-| Contact page | `src/content/pages/contact.md` |
+| Homepage content | `src/content/pages/home.mdoc` |
+| About / bio | `src/content/pages/about.mdoc` |
+| Contact page | `src/content/pages/contact.mdoc` |
 
 #### Collections (zero or more items, stable shapes)
 

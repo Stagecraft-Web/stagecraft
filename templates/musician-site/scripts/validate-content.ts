@@ -68,12 +68,12 @@ requireFile(path.join(ROOT, "src/content/config/theme.json"));
 
 // Page content files (validated by Astro content collections at build time,
 // but check they exist so validate:content catches missing files early)
-requireFile(path.join(ROOT, "src/content/pages/home.md"));
-requireFile(path.join(ROOT, "src/content/pages/about.md"));
-requireFile(path.join(ROOT, "src/content/pages/music.md"));
-requireFile(path.join(ROOT, "src/content/pages/photos.md"));
-requireFile(path.join(ROOT, "src/content/pages/press.md"));
-requireFile(path.join(ROOT, "src/content/pages/contact.md"));
+requireFile(path.join(ROOT, "src/content/pages/home.mdoc"));
+requireFile(path.join(ROOT, "src/content/pages/about.mdoc"));
+requireFile(path.join(ROOT, "src/content/pages/music.mdoc"));
+requireFile(path.join(ROOT, "src/content/pages/photos.mdoc"));
+requireFile(path.join(ROOT, "src/content/pages/press.mdoc"));
+requireFile(path.join(ROOT, "src/content/pages/contact.mdoc"));
 
 // ============================================================
 // Validate config singletons

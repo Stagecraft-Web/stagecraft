@@ -16,7 +16,7 @@ interface EditSitePayload {
 
 // Primary content file to target for each edit mode
 const MODE_PRIMARY_FILE: Record<EditMode, string> = {
-  content_edit: "src/content/pages/home.md",
+  content_edit: "src/content/pages/home.mdoc",
   asset_update: "src/content/config/site.json",
   page_add: "src/content/config/nav.json",
   page_remove: "src/content/config/nav.json",
@@ -30,7 +30,7 @@ const MODE_PRIMARY_FILE: Record<EditMode, string> = {
 const SLOT_CONTENT_FILE: Record<string, string> = {
   hero: "src/content/config/site.json",
   gallery: "src/content/collections/photos",
-  about: "src/content/pages/about.md",
+  about: "src/content/pages/about.mdoc",
   press: "src/content/collections/photos",
   logo: "src/content/config/site.json",
 };
@@ -118,7 +118,7 @@ async function buildAssetFiles(
     } else if (asset.usageSlot === "about") {
       // Prepend a frontmatter image field to about.md
       // We'll handle this via a separate content file update below
-      const aboutPath = "src/content/pages/about.md";
+      const aboutPath = "src/content/pages/about.mdoc";
       let aboutContent = "";
       try {
         aboutContent = await getFileContent(userId, owner, repo, aboutPath, baseBranch);
@@ -223,7 +223,7 @@ export async function handleEditSite(ctx: JobContext): Promise<JobResult> {
       }
     } else {
       // Content / other edit: apply stub edit to primary content file
-      const targetFile = MODE_PRIMARY_FILE[classifiedMode] ?? "src/content/pages/home.md";
+      const targetFile = MODE_PRIMARY_FILE[classifiedMode] ?? "src/content/pages/home.mdoc";
       let fileContent = "";
       try {
         fileContent = await getFileContent(userId, owner, repo, targetFile, baseBranch);

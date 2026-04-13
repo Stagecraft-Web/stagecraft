@@ -45,7 +45,7 @@ Every image reference in a JSON content file must be an object with at minimum `
 }
 ```
 
-Do not use bare strings for image fields in JSON content files. Markdown frontmatter image fields are strings (see limitation note below).
+Do not use bare strings for image fields in JSON content files. Markdoc frontmatter image fields are strings (see limitation note below).
 
 ### 5. Run validate:content after any content change
 
@@ -71,18 +71,18 @@ Use this to find where any piece of content lives.
 | Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
 | Navigation menu | `src/content/config/nav.json` | `navSchema` |
 | Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
-| Homepage headline, subheadline, CTA | `src/content/pages/home.md` | `homeFrontmatterSchema` |
-| Homepage intro text (below hero) | `src/content/pages/home.md` (body) | — |
-| About page headline | `src/content/pages/about.md` | `aboutFrontmatterSchema` |
-| Artist bio | `src/content/pages/about.md` (body) | — |
-| Music page headline | `src/content/pages/music.md` | `musicFrontmatterSchema` |
-| Music page intro text | `src/content/pages/music.md` (body) | — |
-| Photos page headline | `src/content/pages/photos.md` | `photosFrontmatterSchema` |
-| Press page headline, EPK download link | `src/content/pages/press.md` | `pressFrontmatterSchema` |
-| Press reviews section heading | `src/content/pages/press.md` → `reviewsHeadline` | `pressFrontmatterSchema` |
-| Press intro text | `src/content/pages/press.md` (body) | — |
-| Contact page headline | `src/content/pages/contact.md` | `contactFrontmatterSchema` |
-| Contact intro text | `src/content/pages/contact.md` (body) | — |
+| Homepage headline, subheadline, CTA | `src/content/pages/home.mdoc` | `homeFrontmatterSchema` |
+| Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
+| About page headline | `src/content/pages/about.mdoc` | `aboutFrontmatterSchema` |
+| Artist bio | `src/content/pages/about.mdoc` (body) | — |
+| Music page headline | `src/content/pages/music.mdoc` | `musicFrontmatterSchema` |
+| Music page intro text | `src/content/pages/music.mdoc` (body) | — |
+| Photos page headline | `src/content/pages/photos.mdoc` | `photosFrontmatterSchema` |
+| Press page headline, EPK download link | `src/content/pages/press.mdoc` | `pressFrontmatterSchema` |
+| Press reviews section heading | `src/content/pages/press.mdoc` → `reviewsHeadline` | `pressFrontmatterSchema` |
+| Press intro text | `src/content/pages/press.mdoc` (body) | — |
+| Contact page headline | `src/content/pages/contact.mdoc` | `contactFrontmatterSchema` |
+| Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
 
 ### Collections
 
@@ -100,7 +100,7 @@ Static images live in `public/images/`. Reference as `/images/filename.ext` from
 
 Image references in **JSON content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
 
-Image references in **Markdown frontmatter** are plain path strings.
+Image references in **Markdoc frontmatter** are plain path strings.
 
 ---
 
@@ -113,12 +113,12 @@ src/content/
     nav.json          ← singleton: navigation menu
     theme.json        ← singleton: design tokens
   pages/
-    home.md           ← singleton: homepage content
-    about.md          ← singleton: about/bio page
-    music.md          ← singleton: music page intro
-    photos.md         ← singleton: photos page headline
-    press.md          ← singleton: press page content
-    contact.md        ← singleton: contact page intro
+    home.mdoc         ← singleton: homepage content
+    about.mdoc        ← singleton: about/bio page
+    music.mdoc        ← singleton: music page intro
+    photos.mdoc       ← singleton: photos page headline
+    press.mdoc        ← singleton: press page content
+    contact.mdoc      ← singleton: contact page intro
   collections/
     releases/         ← one .json file per release
     photos/           ← gallery.json (array)
@@ -141,7 +141,7 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdown, collections in JSON, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in JSON, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Static images in `public/images/`. Served as-is; reference as `/images/filename.ext`.
 
@@ -229,7 +229,7 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 ## Adding a New Page
 
-1. Create a Markdown file in `src/content/pages/` with required frontmatter (`title`, `headline`).
+1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter (`title`, `headline`).
 2. Add a frontmatter schema for the new page to `src/lib/schemas.ts`.
 3. Add a content collection definition in `src/content.config.ts`.
 4. Create an Astro page file in `src/pages/`. Use `getEntry()` and `render()` from `astro:content`.

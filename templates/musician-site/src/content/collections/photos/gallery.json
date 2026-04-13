@@ -1,5 +1,6 @@
 [
   {
+    "id": "photo-1",
     "src": "/images/photo-1.svg",
     "alt": "Live performance at venue",
     "caption": "Live at The Venue, 2024",
@@ -7,6 +8,7 @@
     "usageSlot": "gallery"
   },
   {
+    "id": "photo-2",
     "src": "/images/photo-2.svg",
     "alt": "Studio recording session",
     "caption": "In the studio",

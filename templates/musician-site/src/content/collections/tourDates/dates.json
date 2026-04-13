@@ -1,5 +1,6 @@
 [
   {
+    "id": "2026-05-15-blue-note",
     "date": "2026-05-15",
     "venue": "The Blue Note",
     "city": "New York, NY",
@@ -7,6 +8,7 @@
     "status": "upcoming"
   },
   {
+    "id": "2026-06-01-fillmore",
     "date": "2026-06-01",
     "venue": "The Fillmore",
     "city": "San Francisco, CA",

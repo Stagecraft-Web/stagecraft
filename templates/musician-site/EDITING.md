@@ -96,7 +96,7 @@ Each page has a Markdown file with two parts: **frontmatter** (between `---` mar
 title: Home
 headline: Your Name
 subheadline: Musician · Performer · Creator
-heroImage: /src/assets/images/hero.jpg
+heroImage: /images/hero.jpg
 ctaText: Listen Now
 ctaLink: /music
 ---
@@ -110,7 +110,7 @@ Welcome text that appears below the hero section.
 ---
 title: About
 headline: About the Artist
-image: /src/assets/images/about.jpg
+image: /images/about.jpg
 ---
 
 Your bio goes here. Write as many paragraphs as you like.
@@ -142,6 +142,7 @@ Introductory text for the press page.
 ```json
 [
   {
+    "id": "2026-09-15-venue-name",
     "date": "2026-09-15",
     "venue": "The Venue Name",
     "city": "City, State",
@@ -150,6 +151,8 @@ Introductory text for the press page.
   }
 ]
 ```
+
+Each entry needs a unique `id` field (e.g. combine the date and venue name).
 
 Valid status values: `upcoming`, `sold_out`, `canceled`, `past`.
 
@@ -163,7 +166,7 @@ Create a new JSON file, e.g. `new-album.json`:
   "type": "album",
   "releaseDate": "2026-01-15",
   "coverImage": {
-    "src": "/src/assets/images/cover.jpg",
+    "src": "/images/cover.jpg",
     "alt": "Album Title cover art",
     "usageSlot": "release-cover"
   },
@@ -184,12 +187,13 @@ Valid type values: `album`, `single`, `ep`.
 
 ### Add photos — `src/content/collections/photos/gallery.json`
 
-First, place the image in `src/assets/images/`. Then add an entry:
+Place the image in `public/images/`, then add an entry:
 
 ```json
 [
   {
-    "src": "/src/assets/images/your-photo.jpg",
+    "id": "your-photo",
+    "src": "/images/your-photo.jpg",
     "alt": "Describe what is in the photo",
     "caption": "Optional display caption",
     "credit": "Photo by Jane Smith",
@@ -198,6 +202,8 @@ First, place the image in `src/assets/images/`. Then add an entry:
 ]
 ```
 
+Each entry needs a unique `id` field.
+
 **`alt` is required** and must describe the image for accessibility and SEO. Never leave it blank.
 
 ### Add a video — `src/content/collections/videos/videos.json`
@@ -205,6 +211,7 @@ First, place the image in `src/assets/images/`. Then add an entry:
 ```json
 [
   {
+    "id": "music-video-title",
     "title": "Music Video Title",
     "url": "https://www.youtube.com/embed/VIDEO_ID",
     "type": "youtube",
@@ -213,6 +220,8 @@ First, place the image in `src/assets/images/`. Then add an entry:
 ]
 ```
 
+Each entry needs a unique `id` field.
+
 Valid type values: `youtube`, `vimeo`, `other`.
 
 ### Add a press quote — `src/content/collections/pressQuotes/quotes.json`
@@ -220,6 +229,7 @@ Valid type values: `youtube`, `vimeo`, `other`.
 ```json
 [
   {
+    "id": "publication-name",
     "quote": "A remarkable debut that showcases genuine artistry.",
     "source": "Publication Name",
     "url": "https://publication.com/review",
@@ -228,13 +238,15 @@ Valid type values: `youtube`, `vimeo`, `other`.
 ]
 ```
 
+Each entry needs a unique `id` field.
+
 `url` and `date` are optional.
 
 ---
 
 ## Image Conventions
 
-All images go in `src/assets/images/`. Astro optimizes them at build time.
+All images go in `public/images/`. They are served as-is at `/images/filename.ext`.
 
 ### Image metadata (for JSON content files)
 
@@ -242,7 +254,7 @@ Whenever you add an image reference to a JSON content file (releases, photos, et
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `src` | yes | Path from repo root, e.g. `/src/assets/images/photo.jpg` |
+| `src` | yes | Path served from public, e.g. `/images/photo.jpg` |
 | `alt` | yes | Descriptive alt text for accessibility |
 | `caption` | no | Display caption shown below the image |
 | `credit` | no | Photographer or source credit, e.g. `"Photo by Jane Smith"` |
@@ -278,7 +290,7 @@ This checks all JSON and Markdown files against their schemas and reports field-
 | `Footer.astro` | Footer with social links |
 | `ContactForm.astro` | Contact form with spam protection |
 | `ReleaseCard.astro` | Music release display card |
-| `PhotoGallery.tsx` | Photo grid with lightbox (React) |
+| `PhotoGallery.astro` | Photo grid with lightbox |
 | `Lightbox.tsx` | Fullscreen image viewer (React) |
 
 ---

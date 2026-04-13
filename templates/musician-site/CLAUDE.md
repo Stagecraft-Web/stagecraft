@@ -37,7 +37,7 @@ Every image reference in a JSON content file must be an object with at minimum `
 
 ```json
 {
-  "src": "/src/assets/images/your-image.jpg",
+  "src": "/images/your-image.jpg",
   "alt": "Descriptive alt text — never leave blank",
   "caption": "Optional display caption",
   "credit": "Optional photographer credit",
@@ -96,11 +96,11 @@ Use this to find where any piece of content lives.
 
 ### Images
 
-Source images live in `src/assets/images/`. Astro handles optimization at build time.
+Static images live in `public/images/`. Reference as `/images/filename.ext` from content and components.
 
 Image references in **JSON content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
 
-Image references in **Markdown frontmatter** are plain path strings — the frontmatter parser does not handle nested YAML objects. Alt text for frontmatter images is specified separately when rendering.
+Image references in **Markdown frontmatter** are plain path strings.
 
 ---
 
@@ -126,14 +126,14 @@ src/content/
     pressQuotes/      ← quotes.json (array)
     tourDates/        ← dates.json (array)
 
-src/assets/images/    ← source images (optimized at build)
+src/content.config.ts   ← Astro content collection definitions
 src/lib/
-  schemas.ts          ← all Zod schemas (source of schema truth)
-  content.ts          ← validated config loaders (getSiteConfig, getNav, getTheme)
-  markdown.ts         ← parseFrontmatter, parseBody utilities
+  schemas.ts            ← all Zod schemas (source of schema truth)
+  content.ts            ← validated config loaders (getSiteConfig, getNav, getTheme)
+public/images/          ← static images (served as-is)
 ```
 
-Do not place content files outside these locations. The validation script flags path violations.
+Do not place content files outside these locations.
 
 ---
 
@@ -141,9 +141,9 @@ Do not place content files outside these locations. The validation script flags 
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Structured files in `src/content/`. Page copy in Markdown, collections in JSON, config in JSON.
+- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdown, collections in JSON, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
-- **Images**: Source images in `src/assets/images/`. Astro optimizes at build time.
+- **Images**: Static images in `public/images/`. Served as-is; reference as `/images/filename.ext`.
 
 ---
 
@@ -231,8 +231,8 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 1. Create a Markdown file in `src/content/pages/` with required frontmatter (`title`, `headline`).
 2. Add a frontmatter schema for the new page to `src/lib/schemas.ts`.
-3. Add validation for the new page to `scripts/validate-content.ts`.
-4. Create an Astro page file in `src/pages/`. Use `parseFrontmatter` and `parseBody`.
+3. Add a content collection definition in `src/content.config.ts`.
+4. Create an Astro page file in `src/pages/`. Use `getEntry()` and `render()` from `astro:content`.
 5. Add a navigation entry in `src/content/config/nav.json`.
 
 ---
@@ -241,8 +241,9 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 1. Define the item schema in `src/lib/schemas.ts`.
 2. Create the collection directory under `src/content/collections/{name}/`.
-3. Add validation for the collection to `scripts/validate-content.ts`.
-4. Add sample data files.
+3. Add a content collection definition in `src/content.config.ts`.
+4. Add validation for the collection to `scripts/validate-content.ts`.
+5. Add sample data files. Array-based JSON files require an `id` field on each entry.
 
 ---
 

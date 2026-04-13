@@ -2,33 +2,27 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import Button from "../components/Button.astro";
-import { parseFrontmatter, parseBody } from "../lib/markdown";
-import type { PressQuote } from "../lib/schemas";
+import { getEntry, getCollection, render } from "astro:content";
 
-// @ts-ignore - markdown import
-import pressContent from "../content/pages/press.md?raw";
+const press = await getEntry("pressPage", "press");
+if (!press) throw new Error("Missing press page content");
+const { Content } = await render(press);
 
-const frontmatter = parseFrontmatter(pressContent);
-const paragraphs = parseBody(pressContent);
-
-const quoteFiles = import.meta.glob("../content/collections/pressQuotes/*.json", { eager: true });
-const quoteSets: PressQuote[][] = Object.values(quoteFiles).map((mod: any) => mod.default);
-const quotes: PressQuote[] = quoteSets.flat();
+const quoteEntries = await getCollection("pressQuotes");
+const quotes = quoteEntries.map((e) => e.data);
 ---
 
 <BaseLayout title="Press">
-  <PageHeader headline={frontmatter.headline || "Press"} />
+  <PageHeader headline={press.data.headline} />
   <section class="section">
     <div class="container">
-      {paragraphs.length > 0 && (
-        <div class="prose" style="margin-bottom: 2rem;">
-          {paragraphs.map((p: string) => <p>{p}</p>)}
-        </div>
-      )}
+      <div class="prose" style="margin-bottom: 2rem;">
+        <Content />
+      </div>
 
-      {frontmatter.epkDownload && (
+      {press.data.epkDownload && (
         <div style="margin-bottom: 2rem;">
-          <Button href={frontmatter.epkDownload} variant="outline">
+          <Button href={press.data.epkDownload} variant="outline">
             Download EPK
           </Button>
         </div>
@@ -36,7 +30,7 @@ const quotes: PressQuote[] = quoteSets.flat();
 
       {quotes.length > 0 && (
         <div class="quotes">
-          <h2>{frontmatter.reviewsHeadline || "Reviews & Press"}</h2>
+          <h2>{press.data.reviewsHeadline || "Reviews & Press"}</h2>
           <div class="quote-list">
             {quotes.map((q) => (
               <blockquote class="quote-card">

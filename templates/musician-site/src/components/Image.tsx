@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface ImageProps {
   src: string;
@@ -20,6 +20,13 @@ export default function Image({
   objectFit = "cover",
 }: ImageProps) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (imgRef.current?.complete) {
+      setStatus("loaded");
+    }
+  }, []);
 
   return (
     <div
@@ -48,6 +55,7 @@ export default function Image({
         </div>
       ) : (
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
           loading={loading}

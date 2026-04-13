@@ -1,0 +1,44 @@
+---
+interface Props {
+  src: string;
+  alt: string;
+  class?: string;
+  loading?: "lazy" | "eager";
+  /** Aspect ratio for the container (e.g. "4/3", "16/9") */
+  aspectRatio?: string;
+  /** Object-fit behavior */
+  objectFit?: "cover" | "contain" | "fill";
+}
+
+const {
+  src,
+  alt,
+  class: className,
+  loading = "lazy",
+  aspectRatio,
+  objectFit = "cover",
+} = Astro.props;
+
+const containerStyle = [
+  aspectRatio && `aspect-ratio: ${aspectRatio}`,
+].filter(Boolean).join("; ");
+
+const imgStyle = `object-fit: ${objectFit}`;
+---
+
+<div class:list={["site-image", className]} style={containerStyle || undefined}>
+  <img src={src} alt={alt} loading={loading} style={imgStyle} />
+</div>
+
+<style>
+  .site-image {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .site-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>

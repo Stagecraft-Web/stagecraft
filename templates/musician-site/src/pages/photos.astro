@@ -2,21 +2,17 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
 import PhotoGallery from "../components/PhotoGallery.astro";
-import { parseFrontmatter } from "../lib/markdown";
-import type { Photo } from "../lib/schemas";
+import { getEntry, getCollection } from "astro:content";
 
-// @ts-ignore - markdown import
-import photosContent from "../content/pages/photos.md?raw";
+const photosPage = await getEntry("photosPage", "photos");
+if (!photosPage) throw new Error("Missing photos page content");
 
-const frontmatter = parseFrontmatter(photosContent);
-
-const photoFiles = import.meta.glob("../content/collections/photos/*.json", { eager: true });
-const photoSets: Photo[][] = Object.values(photoFiles).map((mod: any) => mod.default);
-const photos: Photo[] = photoSets.flat();
+const photoEntries = await getCollection("photos");
+const photos = photoEntries.map((e) => e.data);
 ---
 
 <BaseLayout title="Photos">
-  <PageHeader headline={frontmatter.headline || "Photos"} />
+  <PageHeader headline={photosPage.data.headline} />
   <section class="section">
     <div class="container">
       <PhotoGallery photos={photos} />

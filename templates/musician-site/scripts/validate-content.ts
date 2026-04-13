@@ -9,14 +9,7 @@ import {
   videoSchema,
   pressQuoteSchema,
   tourDateSchema,
-  homeFrontmatterSchema,
-  aboutFrontmatterSchema,
-  musicFrontmatterSchema,
-  photosFrontmatterSchema,
-  pressFrontmatterSchema,
-  contactFrontmatterSchema,
 } from "../src/lib/schemas.js";
-import { parseFrontmatter } from "../src/lib/markdown.js";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 let errors: string[] = [];
@@ -58,31 +51,9 @@ function validateJson(filePath: string, schema: any, isArray = false) {
   }
 }
 
-function validateJsonIfExists(filePath: string, schema: any, isArray = false) {
-  if (fs.existsSync(filePath)) {
-    validateJson(filePath, schema, isArray);
-  }
-}
-
 // ============================================================
-// Markdown frontmatter validation helpers
+// Required singleton files
 // ============================================================
-
-function validateMarkdown(filePath: string, schema: any) {
-  const rel = path.relative(ROOT, filePath);
-  try {
-    const raw = fs.readFileSync(filePath, "utf-8");
-    const frontmatter = parseFrontmatter(raw);
-    const result = schema.safeParse(frontmatter);
-    if (!result.success) {
-      result.error.issues.forEach((issue: any) => {
-        errors.push(`${rel}: frontmatter.${issue.path.join(".")}: ${issue.message}`);
-      });
-    }
-  } catch (e: any) {
-    errors.push(`${rel}: ${e.message}`);
-  }
-}
 
 function requireFile(filePath: string) {
   const rel = path.relative(ROOT, filePath);
@@ -91,62 +62,12 @@ function requireFile(filePath: string) {
   }
 }
 
-// ============================================================
-// Path convention checks
-// Canonical paths:
-//   Singletons:   src/content/config/*.json
-//   Pages:        src/content/pages/*.md
-//   Collections:  src/content/collections/{name}/*.json
-//   Images:       src/assets/images/
-// ============================================================
-
-function checkPathConventions() {
-  const contentDir = path.join(ROOT, "src/content");
-  if (!fs.existsSync(contentDir)) return;
-
-  // Walk src/content/ and flag any JSON/Markdown files outside canonical locations
-  function walk(dir: string) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      const rel = path.relative(ROOT, full);
-
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.isFile()) {
-        const relToContent = path.relative(contentDir, full);
-        const parts = relToContent.split(path.sep);
-
-        if (entry.name.endsWith(".json")) {
-          // JSON must be in config/ or collections/{name}/
-          const topDir = parts[0];
-          if (topDir !== "config" && topDir !== "collections") {
-            warnings.push(
-              `${rel}: JSON content file is outside canonical location (expected src/content/config/ or src/content/collections/{name}/)`
-            );
-          }
-        } else if (entry.name.endsWith(".md")) {
-          // Markdown must be in pages/
-          const topDir = parts[0];
-          if (topDir !== "pages") {
-            warnings.push(
-              `${rel}: Markdown content file is outside canonical location (expected src/content/pages/)`
-            );
-          }
-        }
-      }
-    }
-  }
-
-  walk(contentDir);
-}
-
-// ============================================================
-// Required singleton files
-// ============================================================
-
 requireFile(path.join(ROOT, "src/content/config/site.json"));
 requireFile(path.join(ROOT, "src/content/config/nav.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
+
+// Page content files (validated by Astro content collections at build time,
+// but check they exist so validate:content catches missing files early)
 requireFile(path.join(ROOT, "src/content/pages/home.md"));
 requireFile(path.join(ROOT, "src/content/pages/about.md"));
 requireFile(path.join(ROOT, "src/content/pages/music.md"));
@@ -163,18 +84,9 @@ validateJson(path.join(ROOT, "src/content/config/nav.json"), navSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
 
 // ============================================================
-// Validate page frontmatter
-// ============================================================
-
-validateMarkdown(path.join(ROOT, "src/content/pages/home.md"), homeFrontmatterSchema);
-validateMarkdown(path.join(ROOT, "src/content/pages/about.md"), aboutFrontmatterSchema);
-validateMarkdown(path.join(ROOT, "src/content/pages/music.md"), musicFrontmatterSchema);
-validateMarkdown(path.join(ROOT, "src/content/pages/photos.md"), photosFrontmatterSchema);
-validateMarkdown(path.join(ROOT, "src/content/pages/press.md"), pressFrontmatterSchema);
-validateMarkdown(path.join(ROOT, "src/content/pages/contact.md"), contactFrontmatterSchema);
-
-// ============================================================
 // Validate collections
+// (Also validated by Astro content collections at build time,
+// but this script gives faster feedback without a full build.)
 // ============================================================
 
 const collectionsDir = path.join(ROOT, "src/content/collections");
@@ -218,12 +130,6 @@ if (fs.existsSync(tourDir)) {
     validateJson(path.join(tourDir, file), tourDateSchema, true);
   }
 }
-
-// ============================================================
-// Path convention check
-// ============================================================
-
-checkPathConventions();
 
 // ============================================================
 // Report

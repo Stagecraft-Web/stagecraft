@@ -1,26 +1,24 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
-import { parseFrontmatter, parseBody } from "../lib/markdown";
+import { getEntry, render } from "astro:content";
 
-// @ts-ignore - markdown import
-import aboutContent from "../content/pages/about.md?raw";
-
-const frontmatter = parseFrontmatter(aboutContent);
-const paragraphs = parseBody(aboutContent);
+const about = await getEntry("aboutPage", "about");
+if (!about) throw new Error("Missing about page content");
+const { Content } = await render(about);
 ---
 
 <BaseLayout title="About">
-  <PageHeader headline={frontmatter.headline || "About"} />
+  <PageHeader headline={about.data.headline} />
   <section class="section">
     <div class="container about-layout">
-      {frontmatter.image && (
+      {about.data.image && (
         <div class="about-image">
-          <img src={frontmatter.image} alt={frontmatter.headline || "About the artist"} />
+          <img src={about.data.image} alt={about.data.headline} />
         </div>
       )}
       <div class="prose">
-        {paragraphs.map((p: string) => <p>{p}</p>)}
+        <Content />
       </div>
     </div>
   </section>

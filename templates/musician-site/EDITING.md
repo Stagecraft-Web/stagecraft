@@ -102,7 +102,7 @@ Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between 
 title: Home
 headline: Your Name
 subheadline: Musician · Performer · Creator
-heroImage: /images/hero.jpg
+heroImage: ../../assets/images/hero.jpg
 ctaText: Listen Now
 ctaLink: /music
 ---
@@ -116,7 +116,7 @@ Welcome text that appears below the hero section.
 ---
 title: About
 headline: About the Artist
-image: /images/about.jpg
+image: ../../assets/images/about.jpg
 ---
 
 Your bio goes here. Write as many paragraphs as you like.
@@ -168,7 +168,7 @@ title: Album Title
 type: album
 releaseDate: "2026-01-15"
 coverImage:
-  src: /images/cover.jpg
+  src: ../../../assets/images/cover.jpg
   alt: Album Title cover art
   usageSlot: release-cover
 description: A short description of the release.
@@ -187,10 +187,10 @@ Valid type values: `album`, `single`, `ep`.
 
 ### Add a photo — `src/content/collections/photos/`
 
-Place the image in `public/images/`, then create a YAML file, e.g. `your-photo.yaml`:
+Place the image in `src/assets/images/`, then create a YAML file, e.g. `your-photo.yaml`:
 
 ```yaml
-src: /images/your-photo.jpg
+src: ../../../assets/images/your-photo.jpg
 alt: Describe what is in the photo
 caption: Optional display caption
 credit: Photo by Jane Smith
@@ -229,7 +229,16 @@ date: "2024-04-01"
 
 ## Image Conventions
 
-All images go in `public/images/`. They are served as-is at `/images/filename.ext`.
+All images go in `src/assets/images/`. Astro processes them at build time — optimising formats, adding content hashes, and detecting dimensions automatically.
+
+### Image paths
+
+Image paths in content files are **relative** from the content file to `src/assets/images/`:
+
+| Content location | Relative path prefix |
+|-----------------|---------------------|
+| `src/content/pages/*.mdoc` | `../../assets/images/` |
+| `src/content/collections/*/*.yaml` | `../../../assets/images/` |
 
 ### Image metadata (for YAML content files)
 
@@ -237,7 +246,7 @@ Whenever you add an image reference to a YAML content file (releases, photos, et
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `src` | yes | Path served from public, e.g. `/images/photo.jpg` |
+| `src` | yes | Relative path to image in `src/assets/images/` |
 | `alt` | yes | Descriptive alt text for accessibility |
 | `caption` | no | Display caption shown below the image |
 | `credit` | no | Photographer or source credit, e.g. `"Photo by Jane Smith"` |

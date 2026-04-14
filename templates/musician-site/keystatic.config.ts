@@ -47,7 +47,11 @@ export default config({
         title: fields.text({ label: "Title", validation: { isRequired: true } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
         subheadline: fields.text({ label: "Subheadline" }),
-        heroImage: fields.text({ label: "Hero Image Path" }),
+        heroImage: fields.image({
+          label: "Hero Image",
+          directory: "src/assets/images",
+          publicPath: "../../assets/images/",
+        }),
         ctaText: fields.text({ label: "CTA Button Text" }),
         ctaLink: fields.text({ label: "CTA Button Link" }),
         content: fields.markdoc({ label: "Body Content" }),
@@ -61,7 +65,11 @@ export default config({
       schema: {
         title: fields.text({ label: "Title", validation: { isRequired: true } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        image: fields.text({ label: "Image Path" }),
+        image: fields.image({
+          label: "Image",
+          directory: "src/assets/images",
+          publicPath: "../../assets/images/",
+        }),
         content: fields.markdoc({ label: "Bio" }),
       },
     }),
@@ -136,7 +144,12 @@ export default config({
         releaseDate: fields.date({ label: "Release Date", validation: { isRequired: true } }),
         coverImage: fields.object(
           {
-            src: fields.text({ label: "Image Path", validation: { isRequired: true } }),
+            src: fields.image({
+              label: "Cover Image",
+              directory: "src/assets/images",
+              publicPath: "../../../assets/images/",
+              validation: { isRequired: true },
+            }),
             alt: fields.text({ label: "Alt Text", validation: { isRequired: true } }),
             caption: fields.text({ label: "Caption" }),
             credit: fields.text({ label: "Credit" }),
@@ -184,7 +197,12 @@ export default config({
       slugField: "alt",
       path: "src/content/collections/photos/*",
       schema: {
-        src: fields.text({ label: "Image Path", validation: { isRequired: true } }),
+        src: fields.image({
+          label: "Photo",
+          directory: "src/assets/images",
+          publicPath: "../../../assets/images/",
+          validation: { isRequired: true },
+        }),
         alt: fields.slug({ name: { label: "Alt Text", validation: { isRequired: true } } }),
         caption: fields.text({ label: "Caption" }),
         credit: fields.text({ label: "Credit" }),

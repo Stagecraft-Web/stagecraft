@@ -36,14 +36,19 @@ For any content change (bio, headline, CTA text, tour date, release info, photo,
 Every image reference in a YAML content file must be an object with at minimum `src` and `alt`:
 
 ```yaml
-src: /images/your-image.jpg
+src: ../../../assets/images/your-image.jpg
 alt: Descriptive alt text — never leave blank
 caption: Optional display caption
 credit: Optional photographer credit
 usageSlot: gallery
 ```
 
-Do not use bare strings for image fields in YAML content files. Markdoc frontmatter image fields are strings (see limitation note below).
+Image `src` paths are **relative** from the content file to `src/assets/images/`. This enables Astro's build-time image optimisation (format conversion, hashing, dimensions).
+
+- From `src/content/collections/*/*.yaml`: use `../../../assets/images/filename.ext`
+- From `src/content/pages/*.mdoc`: use `../../assets/images/filename.ext`
+
+Do not use absolute `/images/` paths or reference `public/`. Markdoc frontmatter image fields are also relative paths (resolved by Astro's `image()` schema helper).
 
 ### 5. Run validate:content after any content change
 
@@ -94,11 +99,11 @@ Use this to find where any piece of content lives.
 
 ### Images
 
-Static images live in `public/images/`. Reference as `/images/filename.ext` from content and components.
+Images live in `src/assets/images/` and are processed by Astro's build pipeline (optimised format, content-hashed URLs, automatic dimensions).
 
-Image references in **YAML content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
+Image references in **YAML content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`). The `src` field is a relative path from the YAML file to `src/assets/images/`.
 
-Image references in **Markdoc frontmatter** are plain path strings.
+Image references in **Markdoc frontmatter** are relative path strings resolved by Astro's `image()` helper.
 
 ---
 
@@ -129,7 +134,7 @@ keystatic.config.ts     ← Keystatic CMS config (singletons, collections, field
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
   content.ts            ← validated config loaders (getSiteConfig, getNav, getTheme)
-public/images/          ← static images (served as-is)
+src/assets/images/      ← optimised images (processed by Astro at build time)
 ```
 
 Do not place content files outside these locations.
@@ -143,7 +148,7 @@ Do not place content files outside these locations.
 - **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
-- **Images**: Static images in `public/images/`. Served as-is; reference as `/images/filename.ext`.
+- **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
 
 ---
 
@@ -178,28 +183,30 @@ Polymorphic button/link with variants.
 Form field wrapper with label, input/textarea, and required indicator.
 - Props: `label`, `name`, `type`, `isTextarea`, `rows`, `isRequired`, `autocomplete`
 
-### `Image.astro`
-Zero-JS image component with consistent styling.
-- Props: `src`, `alt` (required), `class`, `loading`, `aspectRatio`, `objectFit`
-- Lazy loading by default, no client-side hydration needed
+### `<Image>` from `astro:assets`
+Astro's built-in optimised image component. Use in all `.astro` files.
+- Accepts `ImageMetadata` objects (from content collections with `image()` schema) or imported images
+- Automatically provides `width`, `height`, format conversion, content-hashed URLs
+- Use `import { Image } from "astro:assets";`
 
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.
-- Props: `src`, `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
+- Props: `src` (string URL), `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
 - Shows placeholder during load, fallback on error
 - Used only inside `Lightbox.tsx` where dynamic image loading state is needed
+- Cannot use Astro's `<Image>` in React — this component handles client-side image state
 
 ### `PhotoGallery.astro`
 Photo grid with lightbox support.
-- Props: `photos` (array of `{ src, alt, caption? }`)
-- Renders a static thumbnail grid using `Image.astro` (zero hydration cost)
-- Includes `Lightbox` as a React island (`client:only="react"`) for full-size viewing
+- Props: `photos` (array of `{ src: ImageMetadata, alt, caption? }`)
+- Renders a static thumbnail grid using Astro's `<Image>` (zero hydration cost)
+- Passes resolved string URLs to `Lightbox` (React island, `client:only="react"`)
 - Communicates with Lightbox via `open-lightbox` custom event
 
 ### When to use each
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
-- Use `Image.astro` in `.astro` components for all images
+- Use `<Image>` from `astro:assets` in `.astro` components for all images
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components

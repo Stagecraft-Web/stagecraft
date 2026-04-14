@@ -2,7 +2,7 @@ title: Debut Album
 type: album
 releaseDate: "2024-03-15"
 coverImage:
-  src: /images/release-cover.svg
+  src: ../../../assets/images/release-cover.svg
   alt: Debut Album cover art
   usageSlot: release-cover
 description: The debut full-length album featuring 10 original tracks.

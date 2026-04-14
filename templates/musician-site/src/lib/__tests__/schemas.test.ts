@@ -3,6 +3,7 @@ import {
   imageMetadataSchema,
   siteConfigSchema,
   themeSchema,
+  pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
   pressQuoteSchema,
@@ -116,6 +117,28 @@ describe("themeSchema", () => {
   it("rejects missing breakpoints", () => {
     const { breakpoints, ...noBreakpoints } = valid;
     expect(() => themeSchema.parse(noBreakpoints)).toThrow();
+  });
+});
+
+describe("pageFrontmatterSchema", () => {
+  it("accepts valid page frontmatter", () => {
+    expect(pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" })).toEqual({
+      title: "Home",
+      headline: "Welcome",
+    });
+  });
+
+  it("rejects missing title", () => {
+    expect(() => pageFrontmatterSchema.parse({ headline: "Welcome" })).toThrow();
+  });
+
+  it("rejects empty headline", () => {
+    expect(() => pageFrontmatterSchema.parse({ title: "Home", headline: "" })).toThrow();
+  });
+
+  it("ignores extra fields", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Hi", extra: "field" });
+    expect(result.title).toBe("Home");
   });
 });
 

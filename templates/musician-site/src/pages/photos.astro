@@ -4,7 +4,7 @@ import PageHeader from "../components/PageHeader.astro";
 import PhotoGallery from "../components/PhotoGallery.astro";
 import { getEntry, getCollection } from "astro:content";
 
-const photosPage = await getEntry("photosPage", "photos");
+const photosPage = await getEntry("pages", "photos");
 if (!photosPage) throw new Error("Missing photos page content");
 
 const photoEntries = await getCollection("photos");

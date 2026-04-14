@@ -1,10 +1,9 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
-import Button from "../components/Button.astro";
 import { getEntry, getCollection, render } from "astro:content";
 
-const press = await getEntry("pressPage", "press");
+const press = await getEntry("pages", "press");
 if (!press) throw new Error("Missing press page content");
 const { Content } = await render(press);
 
@@ -16,35 +15,24 @@ const quotes = quoteEntries.map((e) => e.data);
   <PageHeader headline={press.data.headline} />
   <section class="section">
     <div class="container">
-      <div class="prose" style="margin-bottom: 2rem;">
+      <div class="prose">
         <Content />
       </div>
 
-      {press.data.epkDownload && (
-        <div style="margin-bottom: 2rem;">
-          <Button href={press.data.epkDownload} variant="outline">
-            Download EPK
-          </Button>
-        </div>
-      )}
-
       {quotes.length > 0 && (
-        <div class="quotes">
-          <h2>{press.data.reviewsHeadline || "Reviews & Press"}</h2>
-          <div class="quote-list">
-            {quotes.map((q) => (
-              <blockquote class="quote-card">
-                <p>"{q.quote}"</p>
-                <footer>
-                  {q.url ? (
-                    <a href={q.url} target="_blank" rel="noopener noreferrer">{q.source}</a>
-                  ) : (
-                    <span>{q.source}</span>
-                  )}
-                </footer>
-              </blockquote>
-            ))}
-          </div>
+        <div class="quote-list">
+          {quotes.map((q) => (
+            <blockquote class="quote-card">
+              <p>"{q.quote}"</p>
+              <footer>
+                {q.url ? (
+                  <a href={q.url} target="_blank" rel="noopener noreferrer">{q.source}</a>
+                ) : (
+                  <span>{q.source}</span>
+                )}
+              </footer>
+            </blockquote>
+          ))}
         </div>
       )}
     </div>

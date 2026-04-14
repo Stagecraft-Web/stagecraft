@@ -1,0 +1,53 @@
+---
+import { Image } from "astro:assets";
+import { resolveImage } from "../lib/resolve-image";
+
+interface Props {
+  src: string;
+  alt: string;
+  position?: "left" | "right";
+}
+
+const { src, alt, position = "left" } = Astro.props;
+const resolved = resolveImage(src);
+---
+
+<div class:list={["page-image-layout", `position-${position}`]}>
+  {resolved && (
+    <div class="page-image-media">
+      <Image src={resolved} alt={alt} />
+    </div>
+  )}
+  <div class="page-image-content prose">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .page-image-layout {
+    display: grid;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .page-image-media img {
+    width: 100%;
+    border-radius: var(--radius);
+    display: block;
+  }
+
+  /* --breakpoint-md (768px) */
+  @media (min-width: 768px) {
+    .page-image-layout {
+      grid-template-columns: 1fr 2fr;
+    }
+
+    .position-right {
+      grid-template-columns: 2fr 1fr;
+    }
+
+    .position-right .page-image-media {
+      order: 2;
+    }
+  }
+</style>

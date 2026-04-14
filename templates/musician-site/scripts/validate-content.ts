@@ -5,6 +5,7 @@ import {
   siteConfigSchema,
   navSchema,
   themeSchema,
+  pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
   videoSchema,
@@ -67,14 +68,36 @@ requireFile(path.join(ROOT, "src/content/config/site.json"));
 requireFile(path.join(ROOT, "src/content/config/nav.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
 
-// Page content files (validated by Astro content collections at build time,
-// but check they exist so validate:content catches missing files early)
-requireFile(path.join(ROOT, "src/content/pages/home.mdoc"));
-requireFile(path.join(ROOT, "src/content/pages/about.mdoc"));
-requireFile(path.join(ROOT, "src/content/pages/music.mdoc"));
-requireFile(path.join(ROOT, "src/content/pages/photos.mdoc"));
-requireFile(path.join(ROOT, "src/content/pages/press.mdoc"));
-requireFile(path.join(ROOT, "src/content/pages/contact.mdoc"));
+// Page content files — validate existence and frontmatter
+const pageFiles = ["home", "about", "music", "photos", "press", "contact"];
+for (const page of pageFiles) {
+  const filePath = path.join(ROOT, `src/content/pages/${page}.mdoc`);
+  requireFile(filePath);
+  if (fs.existsSync(filePath)) {
+    validatePageFrontmatter(filePath);
+  }
+}
+
+function validatePageFrontmatter(filePath: string) {
+  const rel = path.relative(ROOT, filePath);
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) {
+      errors.push(`${rel}: missing frontmatter block`);
+      return;
+    }
+    const data = yaml.parse(fmMatch[1]);
+    const result = pageFrontmatterSchema.safeParse(data);
+    if (!result.success) {
+      result.error.issues.forEach((issue: any) => {
+        errors.push(`${rel}: ${issue.path.join(".")}: ${issue.message}`);
+      });
+    }
+  } catch (e: any) {
+    errors.push(`${rel}: ${e.message}`);
+  }
+}
 
 // ============================================================
 // Validate config singletons

@@ -60,45 +60,13 @@ export const themeSchema = z.object({
 });
 
 // ============================================================
-// Page frontmatter schemas
-// These validate the YAML frontmatter block in src/content/pages/*.md.
-// parseFrontmatter() returns Record<string, string>, so all values
-// are strings here — parseFrontmatter does not coerce types.
+// Page frontmatter schema
+// All pages share a minimal frontmatter shape: title + headline.
+// Page-specific structured content (hero sections, images, EPK
+// links) lives in the Markdoc body as custom tags, not frontmatter.
 // ============================================================
 
-export const homeFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-  subheadline: z.string().optional(),
-  heroImage: z.string().optional(),  // path to image in src/assets/images/
-  ctaText: z.string().optional(),
-  ctaLink: z.string().optional(),
-});
-
-export const aboutFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-  image: z.string().optional(),  // path to image in src/assets/images/
-});
-
-export const musicFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-});
-
-export const photosFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-});
-
-export const pressFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-  reviewsHeadline: z.string().optional(),  // heading above the quotes section
-  epkDownload: z.string().optional(),
-});
-
-export const contactFrontmatterSchema = z.object({
+export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
   headline: z.string().min(1),
 });
@@ -154,12 +122,7 @@ export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
-export type HomeFrontmatter = z.infer<typeof homeFrontmatterSchema>;
-export type AboutFrontmatter = z.infer<typeof aboutFrontmatterSchema>;
-export type MusicFrontmatter = z.infer<typeof musicFrontmatterSchema>;
-export type PhotosFrontmatter = z.infer<typeof photosFrontmatterSchema>;
-export type PressFrontmatter = z.infer<typeof pressFrontmatterSchema>;
-export type ContactFrontmatter = z.infer<typeof contactFrontmatterSchema>;
+export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;
 export type Release = z.infer<typeof releaseSchema>;
 export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;

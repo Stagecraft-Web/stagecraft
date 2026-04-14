@@ -1,4 +1,54 @@
 import { config, fields, collection, singleton } from "@keystatic/core";
+import { block, wrapper } from "@keystatic/core/content-components";
+
+// ---------------------------------------------------------------------------
+// Markdoc content components — these appear as insertable blocks in the
+// Keystatic Markdoc editor. Tag names here must match markdoc.config.mjs.
+// ---------------------------------------------------------------------------
+
+const heroBlock = block({
+  label: "Hero Section",
+  schema: {
+    headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
+    subheadline: fields.text({ label: "Subheadline" }),
+    ctaText: fields.text({ label: "CTA Button Text" }),
+    ctaLink: fields.text({ label: "CTA Button Link" }),
+    image: fields.image({
+      label: "Hero Image",
+      directory: "src/assets/images",
+      publicPath: "../../assets/images/",
+    }),
+  },
+});
+
+const pageImageWrapper = wrapper({
+  label: "Page Image",
+  schema: {
+    src: fields.image({
+      label: "Image",
+      directory: "src/assets/images",
+      publicPath: "../../assets/images/",
+      validation: { isRequired: true },
+    }),
+    alt: fields.text({ label: "Alt Text", validation: { isRequired: true } }),
+    position: fields.select({
+      label: "Image Position",
+      options: [
+        { label: "Left", value: "left" },
+        { label: "Right", value: "right" },
+      ],
+      defaultValue: "left",
+    }),
+  },
+});
+
+const epkDownloadBlock = block({
+  label: "EPK Download",
+  schema: {
+    path: fields.text({ label: "File Path", validation: { isRequired: true } }),
+    label: fields.text({ label: "Button Label" }),
+  },
+});
 
 export default config({
   storage: { kind: "local" },
@@ -37,6 +87,10 @@ export default config({
 
     // -----------------------------------------------------------------
     // Page singletons (Markdoc with frontmatter)
+    //
+    // All pages share a minimal frontmatter (title + headline).
+    // Page-specific structured content uses Markdoc content components
+    // that appear as insertable blocks in the editor.
     // -----------------------------------------------------------------
 
     homePage: singleton({
@@ -46,15 +100,12 @@ export default config({
       schema: {
         title: fields.text({ label: "Title", validation: { isRequired: true } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        subheadline: fields.text({ label: "Subheadline" }),
-        heroImage: fields.image({
-          label: "Hero Image",
-          directory: "src/assets/images",
-          publicPath: "../../assets/images/",
+        content: fields.markdoc({
+          label: "Body Content",
+          components: {
+            hero: heroBlock,
+          },
         }),
-        ctaText: fields.text({ label: "CTA Button Text" }),
-        ctaLink: fields.text({ label: "CTA Button Link" }),
-        content: fields.markdoc({ label: "Body Content" }),
       },
     }),
 
@@ -65,12 +116,12 @@ export default config({
       schema: {
         title: fields.text({ label: "Title", validation: { isRequired: true } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        image: fields.image({
-          label: "Image",
-          directory: "src/assets/images",
-          publicPath: "../../assets/images/",
+        content: fields.markdoc({
+          label: "Bio",
+          components: {
+            "page-image": pageImageWrapper,
+          },
         }),
-        content: fields.markdoc({ label: "Bio" }),
       },
     }),
 
@@ -103,9 +154,12 @@ export default config({
       schema: {
         title: fields.text({ label: "Title", validation: { isRequired: true } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        reviewsHeadline: fields.text({ label: "Reviews Section Heading" }),
-        epkDownload: fields.text({ label: "EPK Download Path" }),
-        content: fields.markdoc({ label: "Press Intro" }),
+        content: fields.markdoc({
+          label: "Press Intro",
+          components: {
+            "epk-download": epkDownloadBlock,
+          },
+        }),
       },
     }),
 

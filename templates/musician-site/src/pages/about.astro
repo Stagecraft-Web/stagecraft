@@ -1,10 +1,9 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHeader from "../components/PageHeader.astro";
-import { Image } from "astro:assets";
 import { getEntry, render } from "astro:content";
 
-const about = await getEntry("aboutPage", "about");
+const about = await getEntry("pages", "about");
 if (!about) throw new Error("Missing about page content");
 const { Content } = await render(about);
 ---
@@ -12,36 +11,8 @@ const { Content } = await render(about);
 <BaseLayout title="About">
   <PageHeader headline={about.data.headline} />
   <section class="section">
-    <div class="container about-layout">
-      {about.data.image && (
-        <div class="about-image">
-          <Image src={about.data.image} alt={about.data.headline} />
-        </div>
-      )}
-      <div class="prose">
-        <Content />
-      </div>
+    <div class="container">
+      <Content />
     </div>
   </section>
 </BaseLayout>
-
-<style>
-  .about-layout {
-    display: grid;
-    gap: 3rem;
-    align-items: start;
-  }
-
-  .about-image img {
-    width: 100%;
-    border-radius: var(--radius);
-    display: block;
-  }
-
-  /* --breakpoint-md (768px) */
-  @media (min-width: 768px) {
-    .about-layout {
-      grid-template-columns: 1fr 2fr;
-    }
-  }
-</style>

@@ -74,17 +74,13 @@ Use this to find where any piece of content lives.
 | Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
 | Navigation menu | `src/content/config/nav.json` | `navSchema` |
 | Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
-| Homepage headline, subheadline, CTA | `src/content/pages/home.mdoc` | `homeFrontmatterSchema` |
+| Any page title + headline | `src/content/pages/*.mdoc` | `pageFrontmatterSchema` |
+| Homepage hero (headline, CTA, image) | `src/content/pages/home.mdoc` body → `{% hero %}` tag | — |
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
-| About page headline | `src/content/pages/about.mdoc` | `aboutFrontmatterSchema` |
-| Artist bio | `src/content/pages/about.mdoc` (body) | — |
-| Music page headline | `src/content/pages/music.mdoc` | `musicFrontmatterSchema` |
+| About page image + bio | `src/content/pages/about.mdoc` body → `{% page-image %}` wrapper | — |
 | Music page intro text | `src/content/pages/music.mdoc` (body) | — |
-| Photos page headline | `src/content/pages/photos.mdoc` | `photosFrontmatterSchema` |
-| Press page headline, EPK download link | `src/content/pages/press.mdoc` | `pressFrontmatterSchema` |
-| Press reviews section heading | `src/content/pages/press.mdoc` → `reviewsHeadline` | `pressFrontmatterSchema` |
-| Press intro text | `src/content/pages/press.mdoc` (body) | — |
-| Contact page headline | `src/content/pages/contact.mdoc` | `contactFrontmatterSchema` |
+| Press EPK download link | `src/content/pages/press.mdoc` body → `{% epk-download %}` tag | — |
+| Press reviews section heading | `src/content/pages/press.mdoc` body → `## heading` | — |
 | Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
 
 ### Collections
@@ -103,7 +99,7 @@ Images live in `src/assets/images/` and are processed by Astro's build pipeline 
 
 Image references in **YAML content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`). The `src` field is a relative path from the YAML file to `src/assets/images/`.
 
-Image references in **Markdoc frontmatter** are relative path strings resolved by Astro's `image()` helper.
+Image references in **Markdoc tag attributes** (e.g. `{% hero image="..." %}`, `{% page-image src="..." %}`) are string paths resolved at render time by the `resolveImage()` utility (`src/lib/resolve-image.ts`), which uses `import.meta.glob` to map filenames to optimised `ImageMetadata` objects.
 
 ---
 
@@ -129,11 +125,13 @@ src/content/
     pressQuotes/      ← one .yaml file per quote
     tourDates/        ← one .yaml file per date
 
-src/content.config.ts   ← Astro content collection definitions
-keystatic.config.ts     ← Keystatic CMS config (singletons, collections, field types)
+src/content.config.ts   ← Astro content collection definitions (unified pages collection)
+keystatic.config.ts     ← Keystatic CMS config (singletons, collections, content components)
+markdoc.config.mjs      ← Markdoc custom tag definitions (hero, page-image, epk-download)
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
   content.ts            ← validated config loaders (getSiteConfig, getNav, getTheme)
+  resolve-image.ts      ← resolveImage() utility for Markdoc tag components
 src/assets/images/      ← optimised images (processed by Astro at build time)
 ```
 
@@ -145,7 +143,8 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (title + headline). Page-specific structured content (hero, images, EPK links) uses custom Markdoc tags in the body. Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. Tags: `{% hero %}` (Hero.astro), `{% page-image %}` (PageImage.astro), `{% epk-download %}` (EpkDownload.astro). Image tags use `resolveImage()` for build-time optimization.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
@@ -189,6 +188,24 @@ Astro's built-in optimised image component. Use in all `.astro` files.
 - Automatically provides `width`, `height`, format conversion, content-hashed URLs
 - Use `import { Image } from "astro:assets";`
 
+### `Hero.astro` (Markdoc tag: `{% hero %}`)
+Full-width hero section with headline, subheadline, CTA button, and optional image.
+- Rendered by the `{% hero %}` Markdoc tag — do not instantiate directly
+- Uses `resolveImage()` to convert string image paths to optimised `ImageMetadata`
+- Self-contained styling (full-width background, centered text)
+
+### `PageImage.astro` (Markdoc tag: `{% page-image %}`)
+Image + text wrapper layout (e.g. about page).
+- Rendered by the `{% page-image %}` Markdoc wrapper tag
+- Props: `src`, `alt` (required), `position` ("left" or "right")
+- Child content renders in a `.prose` wrapper beside the image
+- Uses `resolveImage()` for optimised images
+
+### `EpkDownload.astro` (Markdoc tag: `{% epk-download %}`)
+Download button for EPK files.
+- Rendered by the `{% epk-download %}` Markdoc tag
+- Props: `path` (required), `label` (default: "Download EPK")
+
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.
 - Props: `src` (string URL), `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
@@ -207,6 +224,7 @@ Photo grid with lightbox support.
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
 - Use `<Image>` from `astro:assets` in `.astro` components for all images
+- Use Markdoc tags (`{% hero %}`, `{% page-image %}`, `{% epk-download %}`) in `.mdoc` content files for page-specific structured sections
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components

@@ -1,4 +1,6 @@
 ---
+import { Image } from "astro:assets";
+import { resolveImage } from "../lib/resolve-image";
 import Button from "./Button.astro";
 
 interface Props {
@@ -6,13 +8,21 @@ interface Props {
   subheadline?: string;
   ctaText?: string;
   ctaLink?: string;
+  /** Relative path to an image in src/assets/images/ */
+  image?: string;
 }
 
-const { headline, subheadline, ctaText, ctaLink } = Astro.props;
+const { headline, subheadline, ctaText, ctaLink, image } = Astro.props;
+const resolved = resolveImage(image);
 ---
 
 <section class="hero section">
   <div class="container hero-inner">
+    {resolved && (
+      <div class="hero-image">
+        <Image src={resolved} alt={headline} />
+      </div>
+    )}
     <h1>{headline}</h1>
     {subheadline && <p class="hero-sub">{subheadline}</p>}
     {ctaText && ctaLink && (
@@ -39,6 +49,18 @@ const { headline, subheadline, ctaText, ctaLink } = Astro.props;
     font-size: var(--font-size-lg);
     opacity: 0.85;
     margin-bottom: 2rem;
+  }
+
+  .hero-image {
+    margin-bottom: 2rem;
+  }
+
+  .hero-image img {
+    max-width: 280px;
+    height: auto;
+    margin-inline: auto;
+    display: block;
+    border-radius: var(--radius);
   }
 
   /* --breakpoint-md (768px) */

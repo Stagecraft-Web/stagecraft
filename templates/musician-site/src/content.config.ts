@@ -25,60 +25,13 @@ const imageMetadataSchema = ({ image }: SchemaContext) =>
   });
 
 // ---------------------------------------------------------------------------
-// Pages — one collection per page type (each has a different schema)
+// Pages — unified collection with minimal shared frontmatter.
+// Page-specific structured content (hero sections, images, EPK links) lives
+// in the Markdoc body as custom tags, not in frontmatter.
 // ---------------------------------------------------------------------------
 
-const homePage = defineCollection({
-  loader: glob({ pattern: "home.mdoc", base: "./src/content/pages" }),
-  schema: ({ image }) =>
-    z.object({
-      title: z.string().min(1),
-      headline: z.string().min(1),
-      subheadline: z.string().optional(),
-      heroImage: image().optional(),
-      ctaText: z.string().optional(),
-      ctaLink: z.string().optional(),
-    }),
-});
-
-const aboutPage = defineCollection({
-  loader: glob({ pattern: "about.mdoc", base: "./src/content/pages" }),
-  schema: ({ image }) =>
-    z.object({
-      title: z.string().min(1),
-      headline: z.string().min(1),
-      image: image().optional(),
-    }),
-});
-
-const musicPage = defineCollection({
-  loader: glob({ pattern: "music.mdoc", base: "./src/content/pages" }),
-  schema: z.object({
-    title: z.string().min(1),
-    headline: z.string().min(1),
-  }),
-});
-
-const photosPage = defineCollection({
-  loader: glob({ pattern: "photos.mdoc", base: "./src/content/pages" }),
-  schema: z.object({
-    title: z.string().min(1),
-    headline: z.string().min(1),
-  }),
-});
-
-const pressPage = defineCollection({
-  loader: glob({ pattern: "press.mdoc", base: "./src/content/pages" }),
-  schema: z.object({
-    title: z.string().min(1),
-    headline: z.string().min(1),
-    reviewsHeadline: z.string().optional(),
-    epkDownload: z.string().optional(),
-  }),
-});
-
-const contactPage = defineCollection({
-  loader: glob({ pattern: "contact.mdoc", base: "./src/content/pages" }),
+const pages = defineCollection({
+  loader: glob({ pattern: "*.mdoc", base: "./src/content/pages" }),
   schema: z.object({
     title: z.string().min(1),
     headline: z.string().min(1),
@@ -86,7 +39,7 @@ const contactPage = defineCollection({
 });
 
 // ---------------------------------------------------------------------------
-// Collections — JSON data
+// Collections — YAML data
 // ---------------------------------------------------------------------------
 
 const releases = defineCollection({
@@ -147,12 +100,7 @@ const tourDates = defineCollection({
 // ---------------------------------------------------------------------------
 
 export const collections = {
-  homePage,
-  aboutPage,
-  musicPage,
-  photosPage,
-  pressPage,
-  contactPage,
+  pages,
   releases,
   photos,
   videos,

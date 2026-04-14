@@ -4,7 +4,7 @@ import PageHeader from "../components/PageHeader.astro";
 import ContactForm from "../components/ContactForm.astro";
 import { getEntry, render } from "astro:content";
 
-const contact = await getEntry("contactPage", "contact");
+const contact = await getEntry("pages", "contact");
 if (!contact) throw new Error("Missing contact page content");
 const { Content } = await render(contact);
 ---

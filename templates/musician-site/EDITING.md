@@ -97,47 +97,56 @@ Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between 
 
 ### Homepage — `src/content/pages/home.mdoc`
 
-```markdown
+All pages share minimal frontmatter (`title` + `headline`). Page-specific structured content uses Markdoc tags in the body.
+
+```markdoc
 ---
 title: Home
 headline: Your Name
-subheadline: Musician · Performer · Creator
-heroImage: ../../assets/images/hero.jpg
-ctaText: Listen Now
-ctaLink: /music
 ---
+
+{% hero headline="Your Name" subheadline="Musician · Performer · Creator" ctaText="Listen Now" ctaLink="/music" image="../../assets/images/hero.jpg" /%}
 
 Welcome text that appears below the hero section.
 ```
 
+The `{% hero %}` tag renders a full-width hero section. Attributes: `headline`, `subheadline`, `ctaText`, `ctaLink`, `image`.
+
 ### About — `src/content/pages/about.mdoc`
 
-```markdown
+```markdoc
 ---
 title: About
 headline: About the Artist
-image: ../../assets/images/about.jpg
 ---
+
+{% page-image src="../../assets/images/about.jpg" alt="Artist portrait" position="left" %}
 
 Your bio goes here. Write as many paragraphs as you like.
 Each blank line creates a new paragraph.
+
+{% /page-image %}
 ```
+
+The `{% page-image %}` wrapper tag creates a two-column layout with the image and wrapped text. Attributes: `src`, `alt`, `position` ("left" or "right").
 
 ### Press — `src/content/pages/press.mdoc`
 
-```markdown
+```markdoc
 ---
 title: Press
 headline: Press & Reviews
-reviewsHeadline: Reviews & Press
-epkDownload: /downloads/epk.pdf
 ---
 
 Introductory text for the press page.
+
+{% epk-download path="/downloads/epk.pdf" label="Download EPK" /%}
+
+## Reviews & Press
 ```
 
-- `reviewsHeadline` — heading displayed above the press quotes section.
-- `epkDownload` — path to your EPK PDF. Remove the line to hide the download button.
+- The `{% epk-download %}` tag renders a download button. Remove the tag to hide it.
+- The `## Reviews & Press` heading appears above the press quotes section. Edit the text directly.
 
 ---
 
@@ -275,8 +284,9 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 |-----------|-------------|
 | `Button.astro` | Links and buttons (`primary` / `outline` variants) |
 | `FormGroup.astro` | Labeled form inputs and textareas |
-| `Image.tsx` | Image with loading/error states (React) |
-| `Hero.astro` | Full-width hero section |
+| `Hero.astro` | Full-width hero section (Markdoc tag: `{% hero %}`) |
+| `PageImage.astro` | Image + text layout wrapper (Markdoc tag: `{% page-image %}`) |
+| `EpkDownload.astro` | EPK download button (Markdoc tag: `{% epk-download %}`) |
 | `PageHeader.astro` | Page title banner |
 | `Header.astro` | Site navigation |
 | `Footer.astro` | Footer with social links |
@@ -284,6 +294,7 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `ReleaseCard.astro` | Music release display card |
 | `PhotoGallery.astro` | Photo grid with lightbox |
 | `Lightbox.tsx` | Fullscreen image viewer (React) |
+| `Image.tsx` | Image with loading/error states (React, Lightbox only) |
 
 ---
 

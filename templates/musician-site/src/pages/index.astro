@@ -1,25 +1,12 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Hero from "../components/Hero.astro";
 import { getEntry, render } from "astro:content";
 
-const home = await getEntry("homePage", "home");
+const home = await getEntry("pages", "home");
 if (!home) throw new Error("Missing home page content");
 const { Content } = await render(home);
 ---
 
 <BaseLayout>
-  <Hero
-    headline={home.data.headline}
-    subheadline={home.data.subheadline}
-    ctaText={home.data.ctaText}
-    ctaLink={home.data.ctaLink}
-  />
-  <section class="section">
-    <div class="container">
-      <div class="prose">
-        <Content />
-      </div>
-    </div>
-  </section>
+  <Content />
 </BaseLayout>

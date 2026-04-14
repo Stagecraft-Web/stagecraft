@@ -8,7 +8,8 @@ import {
   photoSchema,
   pressQuoteSchema,
   tourDateSchema,
-  navSchema,
+  navConfigItemSchema,
+  navConfigSchema,
 } from "../schemas";
 
 describe("imageMetadataSchema", () => {
@@ -122,10 +123,24 @@ describe("themeSchema", () => {
 
 describe("pageFrontmatterSchema", () => {
   it("accepts valid page frontmatter", () => {
-    expect(pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" })).toEqual({
-      title: "Home",
-      headline: "Welcome",
-    });
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
+    expect(result.title).toBe("Home");
+    expect(result.headline).toBe("Welcome");
+  });
+
+  it("defaults showInNav to true", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
+    expect(result.showInNav).toBe(true);
+  });
+
+  it("accepts explicit showInNav: false", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome", showInNav: false });
+    expect(result.showInNav).toBe(false);
+  });
+
+  it("accepts explicit showInNav: true", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome", showInNav: true });
+    expect(result.showInNav).toBe(true);
   });
 
   it("rejects missing title", () => {
@@ -229,16 +244,45 @@ describe("tourDateSchema", () => {
   });
 });
 
-describe("navSchema", () => {
-  it("accepts valid nav items", () => {
-    const items = [
-      { label: "Home", href: "/" },
-      { label: "Music", href: "/music" },
-    ];
-    expect(navSchema.parse(items)).toEqual(items);
+describe("navConfigItemSchema", () => {
+  it("accepts valid nav config item", () => {
+    expect(navConfigItemSchema.parse({ page: "about", label: "About" })).toEqual({
+      page: "about",
+      label: "About",
+    });
+  });
+
+  it("rejects empty page", () => {
+    expect(() => navConfigItemSchema.parse({ page: "", label: "About" })).toThrow();
   });
 
   it("rejects empty label", () => {
-    expect(() => navSchema.parse([{ label: "", href: "/" }])).toThrow();
+    expect(() => navConfigItemSchema.parse({ page: "about", label: "" })).toThrow();
+  });
+});
+
+describe("navConfigSchema", () => {
+  it("accepts valid nav config", () => {
+    const config = {
+      items: [
+        { page: "home", label: "Home" },
+        { page: "about", label: "About" },
+      ],
+    };
+    expect(navConfigSchema.parse(config)).toEqual(config);
+  });
+
+  it("accepts empty items array", () => {
+    expect(navConfigSchema.parse({ items: [] })).toEqual({ items: [] });
+  });
+
+  it("rejects missing items field", () => {
+    expect(() => navConfigSchema.parse({})).toThrow();
+  });
+
+  it("rejects flat array (must be wrapped in items)", () => {
+    expect(() =>
+      navConfigSchema.parse([{ page: "home", label: "Home" }])
+    ).toThrow();
   });
 });

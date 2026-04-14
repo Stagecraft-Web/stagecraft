@@ -3,7 +3,7 @@ import path from "path";
 import yaml from "yaml";
 import {
   siteConfigSchema,
-  navSchema,
+  navConfigSchema,
   themeSchema,
   pageFrontmatterSchema,
   releaseSchema,
@@ -68,14 +68,18 @@ requireFile(path.join(ROOT, "src/content/config/site.json"));
 requireFile(path.join(ROOT, "src/content/config/nav.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
 
-// Page content files — validate existence and frontmatter
-const pageFiles = ["home", "about", "music", "photos", "press", "contact"];
-for (const page of pageFiles) {
-  const filePath = path.join(ROOT, `src/content/pages/${page}.mdoc`);
-  requireFile(filePath);
-  if (fs.existsSync(filePath)) {
-    validatePageFrontmatter(filePath);
+// Page content files — dynamically scan all .mdoc files in pages directory
+const pagesDir = path.join(ROOT, "src/content/pages");
+if (fs.existsSync(pagesDir)) {
+  const pageFiles = fs.readdirSync(pagesDir).filter((f) => f.endsWith(".mdoc"));
+  if (pageFiles.length === 0) {
+    warnings.push("No .mdoc page files found in src/content/pages/");
   }
+  for (const file of pageFiles) {
+    validatePageFrontmatter(path.join(pagesDir, file));
+  }
+} else {
+  errors.push("src/content/pages/: directory is missing");
 }
 
 function validatePageFrontmatter(filePath: string) {
@@ -104,7 +108,7 @@ function validatePageFrontmatter(filePath: string) {
 // ============================================================
 
 validateJson(path.join(ROOT, "src/content/config/site.json"), siteConfigSchema);
-validateJson(path.join(ROOT, "src/content/config/nav.json"), navSchema);
+validateJson(path.join(ROOT, "src/content/config/nav.json"), navConfigSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
 
 // ============================================================

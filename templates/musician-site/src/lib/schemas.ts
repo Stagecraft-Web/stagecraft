@@ -33,12 +33,23 @@ export const siteConfigSchema = z.object({
   copyright: z.string(),
 });
 
+// Nav config — what's stored in nav.json (source of ordering truth).
+// Each entry references a page slug and provides a display label.
+export const navConfigItemSchema = z.object({
+  page: z.string().min(1),
+  label: z.string().min(1),
+});
+
+export const navConfigSchema = z.object({
+  items: z.array(navConfigItemSchema),
+});
+
+// Resolved nav item — what Header.astro actually renders (derived at build time
+// by reconciling nav.json ordering with page showInNav fields).
 export const navItemSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
 });
-
-export const navSchema = z.array(navItemSchema);
 
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),
@@ -69,6 +80,7 @@ export const themeSchema = z.object({
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
   headline: z.string().min(1),
+  showInNav: z.boolean().default(true),
 });
 
 // ============================================================
@@ -120,6 +132,8 @@ export const tourDateSchema = z.object({
 
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
+export type NavConfigItem = z.infer<typeof navConfigItemSchema>;
+export type NavConfig = z.infer<typeof navConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;

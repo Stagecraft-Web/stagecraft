@@ -74,14 +74,18 @@ Leave any social link blank (`""`) to hide it from the footer.
 ### Navigation — `src/content/config/nav.json`
 
 ```json
-[
-  { "label": "Home", "href": "/" },
-  { "label": "About", "href": "/about" },
-  { "label": "Music", "href": "/music" }
-]
+{
+  "items": [
+    { "page": "home", "label": "Home" },
+    { "page": "about", "label": "About" },
+    { "page": "music", "label": "Music" }
+  ]
+}
 ```
 
-Add, remove, or reorder entries to change the site navigation.
+Each entry references a page by its slug (filename without `.mdoc` extension) and provides a display label. Reorder items to change the navigation order. You can also reorder via the Keystatic CMS at `/keystatic` → Navigation.
+
+Pages with `showInNav: true` in their frontmatter that are not listed in nav.json are automatically appended at the end of the navigation. To hide a page from navigation, set `showInNav: false` in its frontmatter.
 
 ### Colors and fonts — `src/content/config/theme.json`
 
@@ -95,14 +99,25 @@ After changing `theme.json`, update the matching CSS custom properties in `src/s
 
 Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between `---` markers) and **body text** (below).
 
+### Shared frontmatter
+
+All pages share three frontmatter fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `title` | yes | Page title (used in browser tab, navigation label fallback) |
+| `headline` | yes | Page headline (displayed in the page header) |
+| `showInNav` | no | Whether to show this page in the navigation (default: `true`) |
+
 ### Homepage — `src/content/pages/home.mdoc`
 
-All pages share minimal frontmatter (`title` + `headline`). Page-specific structured content uses Markdoc tags in the body.
+Page-specific structured content uses Markdoc tags in the body.
 
 ```markdoc
 ---
 title: Home
 headline: Your Name
+showInNav: true
 ---
 
 {% hero headline="Your Name" subheadline="Musician · Performer · Creator" ctaText="Listen Now" ctaLink="/music" image="../../assets/images/hero.jpg" /%}
@@ -147,6 +162,38 @@ Introductory text for the press page.
 
 - The `{% epk-download %}` tag renders a download button. Remove the tag to hide it.
 - The `## Reviews & Press` heading appears above the press quotes section. Edit the text directly.
+
+### Creating a new page
+
+You can create new pages via the Keystatic CMS at `/keystatic` → Pages → "Create new", or by creating a file directly:
+
+1. Create a `.mdoc` file in `src/content/pages/` (e.g. `src/content/pages/tour-schedule.mdoc`):
+
+```markdoc
+---
+title: Tour Schedule
+headline: Upcoming Shows
+showInNav: true
+---
+
+Your page content here. You can use any Markdoc tags (hero, page-image, epk-download).
+```
+
+2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug).
+
+3. If `showInNav: true`, the page automatically appears in the navigation. To control its position, add an entry to `src/content/config/nav.json`:
+
+```json
+{
+  "items": [
+    { "page": "home", "label": "Home" },
+    { "page": "tour-schedule", "label": "Tour" },
+    { "page": "about", "label": "About" }
+  ]
+}
+```
+
+4. To hide a page from navigation (e.g. a landing page), set `showInNav: false`.
 
 ---
 

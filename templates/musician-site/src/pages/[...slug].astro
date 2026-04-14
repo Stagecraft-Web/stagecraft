@@ -1,0 +1,31 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import { getCollection, render } from "astro:content";
+
+export async function getStaticPaths() {
+  // Pages with dedicated template files — these are NOT handled by the catch-all
+  const dedicatedPages = new Set(["home", "about", "music", "photos", "press", "contact"]);
+  const pages = await getCollection("pages");
+  return pages
+    .filter((p) => !dedicatedPages.has(p.id))
+    .map((p) => ({
+      params: { slug: p.id },
+      props: { entry: p },
+    }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={entry.data.title}>
+  <PageHeader headline={entry.data.headline} />
+  <section class="section">
+    <div class="container">
+      <div class="prose">
+        <Content />
+      </div>
+    </div>
+  </section>
+</BaseLayout>

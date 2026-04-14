@@ -1,8 +1,10 @@
-[
-  { "label": "Home", "href": "/" },
-  { "label": "About", "href": "/about" },
-  { "label": "Music", "href": "/music" },
-  { "label": "Photos", "href": "/photos" },
-  { "label": "Press", "href": "/press" },
-  { "label": "Contact", "href": "/contact" }
-]
+{
+  "items": [
+    { "page": "home", "label": "Home" },
+    { "page": "about", "label": "About" },
+    { "page": "music", "label": "Music" },
+    { "page": "photos", "label": "Photos" },
+    { "page": "press", "label": "Press" },
+    { "page": "contact", "label": "Contact" }
+  ]
+}

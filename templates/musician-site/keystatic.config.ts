@@ -86,96 +86,60 @@ export default config({
     }),
 
     // -----------------------------------------------------------------
-    // Page singletons (Markdoc with frontmatter)
-    //
-    // All pages share a minimal frontmatter (title + headline).
-    // Page-specific structured content uses Markdoc content components
-    // that appear as insertable blocks in the editor.
+    // Navigation — drag-to-reorder ordered list of page references.
+    // Pages with showInNav: true that aren't listed here are auto-appended
+    // at the end of the nav at build time.
     // -----------------------------------------------------------------
 
-    homePage: singleton({
-      label: "Homepage",
-      path: "src/content/pages/home",
+    navigation: singleton({
+      label: "Navigation",
+      path: "src/content/config/nav",
+      format: { data: "json" },
+      schema: {
+        items: fields.array(
+          fields.object({
+            page: fields.text({ label: "Page Slug", validation: { isRequired: true } }),
+            label: fields.text({ label: "Display Label", validation: { isRequired: true } }),
+          }),
+          {
+            label: "Navigation Items",
+            itemLabel: (props) => props.fields.label.value || "Nav Item",
+          },
+        ),
+      },
+    }),
+  },
+
+  collections: {
+    // -----------------------------------------------------------------
+    // Pages — one Markdoc file per page.
+    //
+    // All pages share minimal frontmatter (title + headline + showInNav).
+    // Page-specific structured content uses Markdoc content components
+    // that appear as insertable blocks in the editor. All components are
+    // available in every page for maximum flexibility.
+    // -----------------------------------------------------------------
+
+    pages: collection({
+      label: "Pages",
+      slugField: "title",
+      path: "src/content/pages/*",
       format: { contentField: "content" },
       schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
+        title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
+        showInNav: fields.checkbox({ label: "Show in Navigation", defaultValue: true }),
         content: fields.markdoc({
           label: "Body Content",
           components: {
             hero: heroBlock,
-          },
-        }),
-      },
-    }),
-
-    aboutPage: singleton({
-      label: "About Page",
-      path: "src/content/pages/about",
-      format: { contentField: "content" },
-      schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        content: fields.markdoc({
-          label: "Bio",
-          components: {
             "page-image": pageImageWrapper,
-          },
-        }),
-      },
-    }),
-
-    musicPage: singleton({
-      label: "Music Page",
-      path: "src/content/pages/music",
-      format: { contentField: "content" },
-      schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        content: fields.markdoc({ label: "Intro Text" }),
-      },
-    }),
-
-    photosPage: singleton({
-      label: "Photos Page",
-      path: "src/content/pages/photos",
-      format: { contentField: "content" },
-      schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        content: fields.markdoc({ label: "Intro Text" }),
-      },
-    }),
-
-    pressPage: singleton({
-      label: "Press Page",
-      path: "src/content/pages/press",
-      format: { contentField: "content" },
-      schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        content: fields.markdoc({
-          label: "Press Intro",
-          components: {
             "epk-download": epkDownloadBlock,
           },
         }),
       },
     }),
 
-    contactPage: singleton({
-      label: "Contact Page",
-      path: "src/content/pages/contact",
-      format: { contentField: "content" },
-      schema: {
-        title: fields.text({ label: "Title", validation: { isRequired: true } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        content: fields.markdoc({ label: "Intro Text" }),
-      },
-    }),
-  },
-
-  collections: {
     // -----------------------------------------------------------------
     // Music releases — one YAML file per release
     // -----------------------------------------------------------------

@@ -122,21 +122,20 @@ describe("themeSchema", () => {
 
 describe("pageFrontmatterSchema", () => {
   it("accepts valid page frontmatter", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
+    const result = pageFrontmatterSchema.parse({ title: "Home" });
     expect(result.title).toBe("Home");
-    expect(result.headline).toBe("Welcome");
   });
 
   it("rejects missing title", () => {
-    expect(() => pageFrontmatterSchema.parse({ headline: "Welcome" })).toThrow();
+    expect(() => pageFrontmatterSchema.parse({})).toThrow();
   });
 
-  it("rejects empty headline", () => {
-    expect(() => pageFrontmatterSchema.parse({ title: "Home", headline: "" })).toThrow();
+  it("rejects empty title", () => {
+    expect(() => pageFrontmatterSchema.parse({ title: "" })).toThrow();
   });
 
   it("ignores extra fields", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Hi", extra: "field" });
+    const result = pageFrontmatterSchema.parse({ title: "Home", extra: "field" });
     expect(result.title).toBe("Home");
   });
 });

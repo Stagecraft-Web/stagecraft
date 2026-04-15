@@ -34,7 +34,6 @@ const pages = defineCollection({
   loader: glob({ pattern: "*.mdoc", base: "./src/content/pages" }),
   schema: z.object({
     title: z.string().min(1),
-    headline: z.string().min(1).optional(),
   }),
 });
 

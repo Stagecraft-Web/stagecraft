@@ -6,23 +6,94 @@ import { block, wrapper } from "@keystatic/core/content-components";
 // Keystatic Markdoc editor. Tag names here must match markdoc.config.mjs.
 // ---------------------------------------------------------------------------
 
-const heroBlock = block({
-  label: "Hero Section",
+const sectionWrapper = wrapper({
+  label: "Section",
+  description: "A content section with optional title. Wraps content in a centered container with vertical padding.",
   schema: {
-    headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-    subheadline: fields.text({ label: "Subheadline" }),
-    ctaText: fields.text({ label: "CTA Button Text" }),
-    ctaLink: fields.text({ label: "CTA Button Link" }),
+    title: fields.text({ label: "Title" }),
+    headingLevel: fields.select({
+      label: "Heading Level",
+      options: [
+        { label: "H1", value: "h1" },
+        { label: "H2", value: "h2" },
+        { label: "H3", value: "h3" },
+        { label: "H4", value: "h4" },
+      ],
+      defaultValue: "h2",
+    }),
+    isTitleHidden: fields.checkbox({
+      label: "Hide title visually",
+      description: "Title is still read by screen readers for accessibility.",
+    }),
+  },
+});
+
+const fullscreenSectionWrapper = wrapper({
+  label: "Fullscreen Section",
+  description: "A full-viewport section with a background image. Content appears on top of the image.",
+  schema: {
+    title: fields.text({ label: "Title" }),
+    headingLevel: fields.select({
+      label: "Heading Level",
+      options: [
+        { label: "H1", value: "h1" },
+        { label: "H2", value: "h2" },
+        { label: "H3", value: "h3" },
+        { label: "H4", value: "h4" },
+      ],
+      defaultValue: "h2",
+    }),
+    isTitleHidden: fields.checkbox({
+      label: "Hide title visually",
+      description: "Title is still read by screen readers for accessibility.",
+    }),
     image: fields.image({
-      label: "Hero Image",
+      label: "Background Image",
       directory: "src/assets/images",
       publicPath: "../../assets/images/",
     }),
   },
 });
 
-const pageImageWrapper = wrapper({
-  label: "Page Image",
+const buttonBlock = block({
+  label: "Button",
+  description: "A styled button or link.",
+  schema: {
+    label: fields.text({ label: "Label", validation: { isRequired: true } }),
+    href: fields.text({ label: "Link URL" }),
+    variant: fields.select({
+      label: "Variant",
+      options: [
+        { label: "Primary", value: "primary" },
+        { label: "Outline", value: "outline" },
+      ],
+      defaultValue: "primary",
+    }),
+    isExternal: fields.checkbox({ label: "Open in new tab" }),
+  },
+});
+
+const columnsWrapper = wrapper({
+  label: "Columns",
+  description: "Side-by-side columns that stack on mobile. Place Column components inside.",
+  schema: {
+    layout: fields.text({
+      label: "Layout",
+      description: "Column proportions separated by dashes, e.g. '1-1' (equal), '1-2' (narrow-wide), '2-1' (wide-narrow), '1-1-1' (three equal).",
+      defaultValue: "1-1",
+    }),
+  },
+});
+
+const columnWrapper = wrapper({
+  label: "Column",
+  description: "A single column within a Columns layout.",
+  schema: {},
+});
+
+const contentImageBlock = block({
+  label: "Image",
+  description: "An optimized image. Use inside columns or anywhere in page content.",
   schema: {
     src: fields.image({
       label: "Image",
@@ -31,14 +102,6 @@ const pageImageWrapper = wrapper({
       validation: { isRequired: true },
     }),
     alt: fields.text({ label: "Alt Text", validation: { isRequired: true } }),
-    position: fields.select({
-      label: "Image Position",
-      options: [
-        { label: "Left", value: "left" },
-        { label: "Right", value: "right" },
-      ],
-      defaultValue: "left",
-    }),
   },
 });
 
@@ -136,7 +199,7 @@ export default config({
     // -----------------------------------------------------------------
     // Pages — one Markdoc file per page.
     //
-    // All pages share minimal frontmatter (title + headline).
+    // All pages share minimal frontmatter (title only).
     // Navigation membership is controlled by the Navigation singleton,
     // not by page frontmatter. Page-specific structured content uses
     // Markdoc content components that appear as insertable blocks.
@@ -149,15 +212,15 @@ export default config({
       format: { contentField: "content" },
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
-        headline: fields.text({
-          label: "Headline",
-          description: "Displayed in the page header. Omit for full-width pages (e.g. homepage with a hero).",
-        }),
         content: fields.markdoc({
           label: "Body Content",
           components: {
-            hero: heroBlock,
-            "page-image": pageImageWrapper,
+            section: sectionWrapper,
+            "fullscreen-section": fullscreenSectionWrapper,
+            button: buttonBlock,
+            columns: columnsWrapper,
+            column: columnWrapper,
+            "content-image": contentImageBlock,
             "epk-download": epkDownloadBlock,
             "release-list": releaseListBlock,
             "press-quotes": pressQuotesBlock,

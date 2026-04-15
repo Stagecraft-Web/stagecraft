@@ -1,0 +1,39 @@
+---
+import { Image } from "astro:assets";
+import { resolveImage } from "../lib/resolve-image";
+
+interface Props {
+  title?: string;
+  headingLevel?: "h1" | "h2" | "h3" | "h4";
+  isTitleHidden?: boolean;
+  /** Relative path to a background image in src/assets/images/ */
+  image?: string;
+}
+
+const { title, headingLevel = "h2", isTitleHidden = false, image } = Astro.props;
+const Heading = headingLevel;
+const resolved = resolveImage(image);
+---
+
+<section class="fullscreen-section">
+  {resolved ? (
+    <Image src={resolved} alt="" class="fullscreen-bg" loading="eager" />
+  ) : (
+    <div class="fullscreen-placeholder">
+      <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 16l5-5 4 4 4-4 5 5" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+      </svg>
+    </div>
+  )}
+  <div class="fullscreen-overlay" />
+  <div class="fullscreen-content container">
+    {title && (
+      <Heading class:list={[isTitleHidden && "screenreader-only"]}>
+        {title}
+      </Heading>
+    )}
+    <slot />
+  </div>
+</section>

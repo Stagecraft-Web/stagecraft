@@ -33,12 +33,12 @@ src/content/
     nav.json        ← Navigation menu items
     theme.json      ← Colors, fonts, spacing
   pages/
-    home.mdoc       ← Homepage headline, subheadline, CTA button
-    about.mdoc      ← Bio / about page headline and image
-    music.mdoc      ← Music page headline and intro text
-    photos.mdoc     ← Photos page headline
-    press.mdoc      ← Press page headline, reviews heading, EPK link
-    contact.mdoc    ← Contact page headline and intro text
+    home.mdoc       ← Homepage (fullscreen hero, CTA button)
+    about.mdoc      ← Bio / about page (image + text layout)
+    music.mdoc      ← Music page intro text + release grid
+    photos.mdoc     ← Photos page + gallery
+    press.mdoc      ← Press page, reviews, EPK link
+    contact.mdoc    ← Contact page intro text + form
   collections/
     releases/       ← One YAML file per album/single/EP
     photos/         ← One YAML file per photo
@@ -97,66 +97,87 @@ Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between 
 
 ### Shared frontmatter
 
-All pages share two frontmatter fields:
+All pages have one frontmatter field:
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `title` | yes | Page title (used in browser tab and as the nav label) |
-| `headline` | no | Page headline (displayed in the page header). Omit for full-width pages (e.g. homepage with a hero). |
 
-Navigation membership is controlled by the Navigation singleton, not by page frontmatter.
+Navigation membership is controlled by the Navigation singleton, not by page frontmatter. Page titles/headings displayed on the page itself are handled by the `{% section title="..." %}` Markdoc tag in the body.
 
 ### Homepage — `src/content/pages/home.mdoc`
 
-Page-specific structured content uses Markdoc tags in the body.
+Page-specific structured content uses Markdoc tags in the body. All page layout is fully self-contained in the `.mdoc` file.
 
 ```markdoc
 ---
 title: Home
 ---
 
-{% hero headline="Your Name" subheadline="Musician · Performer · Creator" ctaText="Listen Now" ctaLink="/music" image="../../assets/images/hero.jpg" /%}
+{% fullscreen-section image="../../assets/images/hero.jpg" alt="Hero background" %}
+
+# Your Name
+
+Musician - Performer - Creator
+
+{% button label="Listen Now" href="/music" /%}
+
+{% /fullscreen-section %}
+
+{% section %}
 
 Welcome text that appears below the hero section.
+
+{% /section %}
 ```
 
-Pages **without** a `headline` get a full-width layout (no page header, no section wrapper). This is ideal for pages with a hero section. Pages **with** a `headline` get the standard PageHeader + section/container layout.
-
-The `{% hero %}` tag renders a full-width hero section. Attributes: `headline`, `subheadline`, `ctaText`, `ctaLink`, `image`.
+The `{% fullscreen-section %}` tag renders a 100vw x 100vh section with a background image and content overlay. The `{% button %}` tag renders a styled CTA button.
 
 ### About — `src/content/pages/about.mdoc`
 
 ```markdoc
 ---
 title: About
-headline: About the Artist
 ---
 
-{% page-image src="../../assets/images/about.jpg" alt="Artist portrait" position="left" %}
+{% section title="About the Artist" %}
+
+{% columns layout="1-2" %}
+
+{% column %}
+{% content-image src="../../assets/images/about.jpg" alt="Artist portrait" /%}
+{% /column %}
+
+{% column %}
 
 Your bio goes here. Write as many paragraphs as you like.
 Each blank line creates a new paragraph.
 
-{% /page-image %}
+{% /column %}
+
+{% /columns %}
+
+{% /section %}
 ```
 
-The `{% page-image %}` wrapper tag creates a two-column layout with the image and wrapped text. Attributes: `src`, `alt`, `position` ("left" or "right").
+The `{% section %}` tag wraps content in a titled section. The `{% columns layout="1-2" %}` tag creates a two-column layout (1:2 ratio). Use `{% content-image %}` for optimised images inside columns.
 
 ### Press — `src/content/pages/press.mdoc`
 
 ```markdoc
 ---
 title: Press
-headline: Press & Reviews
 ---
+
+{% section title="Press & Reviews" %}
 
 Introductory text for the press page.
 
 {% epk-download path="/downloads/epk.pdf" label="Download EPK" /%}
 
-## Reviews & Press
-
 {% press-quotes /%}
+
+{% /section %}
 ```
 
 - The `{% epk-download %}` tag renders a download button. Remove the tag to hide it.
@@ -167,12 +188,15 @@ Introductory text for the press page.
 ```markdoc
 ---
 title: Music
-headline: Music & Releases
 ---
+
+{% section title="Music & Releases" %}
 
 Browse the latest releases and discography below.
 
 {% release-list /%}
+
+{% /section %}
 ```
 
 - The `{% release-list %}` tag renders all releases from the Releases collection in a grid. It can be inserted into any page.
@@ -182,10 +206,13 @@ Browse the latest releases and discography below.
 ```markdoc
 ---
 title: Photos
-headline: Photos
 ---
 
+{% section title="Photos" %}
+
 {% photo-gallery /%}
+
+{% /section %}
 ```
 
 - The `{% photo-gallery %}` tag renders all photos from the Photos collection in a grid with lightbox. It can be inserted into any page.
@@ -195,12 +222,15 @@ headline: Photos
 ```markdoc
 ---
 title: Contact
-headline: Get in Touch
 ---
+
+{% section title="Get in Touch" %}
 
 Have a question, booking inquiry, or just want to say hello? Fill out the form below and we'll get back to you.
 
 {% contact-form /%}
+
+{% /section %}
 ```
 
 - The `{% contact-form %}` tag renders the contact form (name, email, subject, message). It can be inserted into any page.
@@ -214,13 +244,16 @@ You can create new pages via the Keystatic CMS at `/keystatic` → Pages → "Cr
 ```markdoc
 ---
 title: Tour Schedule
-headline: Upcoming Shows
 ---
 
-Your page content here. You can use any Markdoc tags (hero, page-image, epk-download, release-list, press-quotes, photo-gallery, contact-form).
+{% section title="Upcoming Shows" %}
+
+Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, epk-download, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
+
+{% /section %}
 ```
 
-2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug).
+2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug). All page layout is self-contained in the `.mdoc` body -- wrap content in `{% section %}` tags for standard sections or `{% fullscreen-section %}` for hero-style areas.
 
 3. To show the page in navigation, add its slug to the Navigation singleton in Keystatic, or edit `src/content/config/nav.json` directly:
 
@@ -368,17 +401,19 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 |-----------|-------------|
 | `Button.astro` | Links and buttons (`primary` / `outline` variants) |
 | `FormGroup.astro` | Labeled form inputs and textareas |
-| `Hero.astro` | Full-width hero section (Markdoc tag: `{% hero %}`) |
-| `PageImage.astro` | Image + text layout wrapper (Markdoc tag: `{% page-image %}`) |
+| `Section.astro` | Section wrapper with optional title (Markdoc tag: `{% section %}`) |
+| `FullscreenSection.astro` | Full-viewport hero section with background image (Markdoc tag: `{% fullscreen-section %}`) |
+| `ButtonBlock.astro` | CTA button for Markdoc content (Markdoc tag: `{% button %}`) |
+| `Columns.astro` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
+| `Column.astro` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
+| `ContentImage.astro` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
 | `EpkDownload.astro` | EPK download button (Markdoc tag: `{% epk-download %}`) |
 | `ReleaseList.astro` | Music releases grid (Markdoc tag: `{% release-list %}`) |
 | `PressQuotes.astro` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
 | `PhotoGalleryBlock.astro` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
-| `ContactForm.astro` | Contact form (Markdoc tag: `{% contact-form %}`) |
-| `PageHeader.astro` | Page title banner |
+| `ContactForm.astro` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
 | `Header.astro` | Site navigation |
 | `Footer.astro` | Footer with social links |
-| `ContactForm.astro` | Contact form with spam protection |
 | `ReleaseCard.astro` | Music release display card |
 | `PhotoGallery.astro` | Photo grid with lightbox |
 | `Lightbox.tsx` | Fullscreen image viewer (React) |

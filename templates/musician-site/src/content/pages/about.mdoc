@@ -1,9 +1,16 @@
 ---
 title: About
-headline: About the Artist
 ---
 
-{% page-image src="../../assets/images/about.svg" alt="About the Artist" position="left" %}
+{% section title="About the Artist" %}
+
+{% columns layout="1-2" %}
+{% column %}
+
+{% content-image src="../../assets/images/about.svg" alt="About the Artist" /%}
+
+{% /column %}
+{% column %}
 
 Artist Name is a musician and performer based in [City, State]. With a passion for [genre/style], they have been creating and performing music for over [X] years.
 
@@ -11,4 +18,7 @@ Their work draws from a wide range of influences, blending [influences] into a d
 
 When not performing or recording, Artist Name [other activities, teaching, etc.].
 
-{% /page-image %}
+{% /column %}
+{% /columns %}
+
+{% /section %}

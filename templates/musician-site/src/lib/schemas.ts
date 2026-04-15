@@ -69,9 +69,9 @@ export const themeSchema = z.object({
 
 // ============================================================
 // Page frontmatter schema
-// All pages share a minimal frontmatter shape: title + headline.
-// Page-specific structured content (hero sections, images, EPK
-// links) lives in the Markdoc body as custom tags, not frontmatter.
+// All pages share minimal frontmatter: just a title.
+// Page-specific structured content (sections, images, buttons,
+// columns) lives in the Markdoc body as custom tags, not frontmatter.
 //
 // Navigation membership is controlled by the Navigation singleton
 // (nav.json), not by page frontmatter.
@@ -79,7 +79,6 @@ export const themeSchema = z.object({
 
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
-  headline: z.string().min(1).optional(),
 });
 
 // ============================================================

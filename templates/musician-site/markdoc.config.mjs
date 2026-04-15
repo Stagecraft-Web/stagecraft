@@ -2,23 +2,49 @@ import { defineMarkdocConfig, component } from "@astrojs/markdoc/config";
 
 export default defineMarkdocConfig({
   tags: {
-    hero: {
-      render: component("./src/components/Hero.astro"),
-      selfClosing: true,
+    section: {
+      render: component("./src/components/Section.astro"),
       attributes: {
-        headline: { type: String, required: true },
-        subheadline: { type: String },
-        ctaText: { type: String },
-        ctaLink: { type: String },
+        title: { type: String },
+        headingLevel: { type: String, default: "h2" },
+        isTitleHidden: { type: Boolean, default: false },
+      },
+    },
+    "fullscreen-section": {
+      render: component("./src/components/FullscreenSection.astro"),
+      attributes: {
+        title: { type: String },
+        headingLevel: { type: String, default: "h2" },
+        isTitleHidden: { type: Boolean, default: false },
         image: { type: String },
       },
     },
-    "page-image": {
-      render: component("./src/components/PageImage.astro"),
+    button: {
+      render: component("./src/components/ButtonBlock.astro"),
+      selfClosing: true,
+      attributes: {
+        label: { type: String, required: true },
+        href: { type: String },
+        variant: { type: String, default: "primary" },
+        isExternal: { type: Boolean, default: false },
+      },
+    },
+    columns: {
+      render: component("./src/components/Columns.astro"),
+      attributes: {
+        layout: { type: String, default: "1-1" },
+      },
+    },
+    column: {
+      render: component("./src/components/Column.astro"),
+      attributes: {},
+    },
+    "content-image": {
+      render: component("./src/components/ContentImage.astro"),
+      selfClosing: true,
       attributes: {
         src: { type: String, required: true },
         alt: { type: String, required: true },
-        position: { type: String, default: "left" },
       },
     },
     "epk-download": {

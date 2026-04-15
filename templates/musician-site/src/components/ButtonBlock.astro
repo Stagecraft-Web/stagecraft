@@ -1,0 +1,14 @@
+---
+import Button from "./Button.astro";
+
+interface Props {
+  label: string;
+  href?: string;
+  variant?: "primary" | "outline";
+  isExternal?: boolean;
+}
+
+const { label, ...rest } = Astro.props;
+---
+
+<Button {...rest}>{label}</Button>

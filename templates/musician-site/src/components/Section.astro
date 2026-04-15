@@ -1,0 +1,21 @@
+---
+interface Props {
+  title?: string;
+  headingLevel?: "h1" | "h2" | "h3" | "h4";
+  isTitleHidden?: boolean;
+}
+
+const { title, headingLevel = "h2", isTitleHidden = false } = Astro.props;
+const Heading = headingLevel;
+---
+
+<section class="section">
+  <div class="container">
+    {title && (
+      <Heading class:list={[isTitleHidden && "screenreader-only"]}>
+        {title}
+      </Heading>
+    )}
+    <slot />
+  </div>
+</section>

@@ -78,9 +78,9 @@ Use this to find where any piece of content lives.
 | Homepage hero (headline, CTA, image) | `src/content/pages/home.mdoc` body → `{% hero %}` tag | — |
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
 | About page image + bio | `src/content/pages/about.mdoc` body → `{% page-image %}` wrapper | — |
-| Music page intro text | `src/content/pages/music.mdoc` (body) | — |
+| Music releases grid | `src/content/pages/music.mdoc` body → `{% release-list %}` tag | — |
 | Press EPK download link | `src/content/pages/press.mdoc` body → `{% epk-download %}` tag | — |
-| Press reviews section heading | `src/content/pages/press.mdoc` body → `## heading` | — |
+| Press quotes list | `src/content/pages/press.mdoc` body → `{% press-quotes %}` tag | — |
 | Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
 
 ### Collections
@@ -147,7 +147,7 @@ Do not place content files outside these locations.
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
 - **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (title + headline + showInNav). Page-specific structured content (hero, images, EPK links) uses custom Markdoc tags in the body. Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Navigation**: Two controls work together. Each page has a `showInNav` checkbox (inclusion). The Navigation singleton (`nav.json`) stores ordered `{ page, label }` entries (ordering via drag-to-reorder in Keystatic). At build time, `buildNav()` walks the singleton order, keeps only pages with `showInNav: true`, and auto-appends any new visible pages not yet listed.
-- **Dynamic pages**: Pages with dedicated templates (home, about, music, photos, press, contact) have individual `.astro` files. All other pages use the `[...slug].astro` catch-all route with a generic PageHeader + Content layout.
+- **Dynamic pages**: The `[...slug].astro` catch-all renders all pages with PageHeader + Content layout. Only `index.astro` (home), `photos.astro` (gallery), and `contact.astro` (form) have dedicated templates. Page-specific rendering (release grid, press quotes, etc.) uses Markdoc component tags insertable from any page.
 - **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. Tags: `{% hero %}` (Hero.astro), `{% page-image %}` (PageImage.astro), `{% epk-download %}` (EpkDownload.astro). Image tags use `resolveImage()` for build-time optimization.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.

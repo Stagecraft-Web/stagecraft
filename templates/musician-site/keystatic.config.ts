@@ -50,6 +50,18 @@ const epkDownloadBlock = block({
   },
 });
 
+const releaseListBlock = block({
+  label: "Release List",
+  description: "Displays all music releases in a grid.",
+  schema: {},
+});
+
+const pressQuotesBlock = block({
+  label: "Press Quotes",
+  description: "Displays all press quotes from the Press Quotes collection.",
+  schema: {},
+});
+
 export default config({
   storage: { kind: "local" },
 
@@ -140,6 +152,8 @@ export default config({
             hero: heroBlock,
             "page-image": pageImageWrapper,
             "epk-download": epkDownloadBlock,
+            "release-list": releaseListBlock,
+            "press-quotes": pressQuotesBlock,
           },
         }),
       },

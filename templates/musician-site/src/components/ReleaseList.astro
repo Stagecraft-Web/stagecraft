@@ -1,0 +1,15 @@
+---
+import ReleaseCard from "./ReleaseCard.astro";
+import { getCollection } from "astro:content";
+
+const releaseEntries = await getCollection("releases");
+const releases = releaseEntries.map((e) => e.data);
+---
+
+{releases.length > 0 && (
+  <div class="release-grid grid grid-2">
+    {releases.map((release) => (
+      <ReleaseCard release={release} />
+    ))}
+  </div>
+)}

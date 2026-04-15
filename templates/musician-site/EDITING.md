@@ -157,10 +157,27 @@ Introductory text for the press page.
 {% epk-download path="/downloads/epk.pdf" label="Download EPK" /%}
 
 ## Reviews & Press
+
+{% press-quotes /%}
 ```
 
 - The `{% epk-download %}` tag renders a download button. Remove the tag to hide it.
-- The `## Reviews & Press` heading appears above the press quotes section. Edit the text directly.
+- The `{% press-quotes %}` tag pulls in all quotes from the Press Quotes collection. Remove the tag to hide them.
+
+### Music — `src/content/pages/music.mdoc`
+
+```markdoc
+---
+title: Music
+headline: Music & Releases
+---
+
+Browse the latest releases and discography below.
+
+{% release-list /%}
+```
+
+- The `{% release-list %}` tag renders all releases from the Releases collection in a grid. It can be inserted into any page.
 
 ### Creating a new page
 
@@ -174,7 +191,7 @@ title: Tour Schedule
 headline: Upcoming Shows
 ---
 
-Your page content here. You can use any Markdoc tags (hero, page-image, epk-download).
+Your page content here. You can use any Markdoc tags (hero, page-image, epk-download, release-list, press-quotes).
 ```
 
 2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug).

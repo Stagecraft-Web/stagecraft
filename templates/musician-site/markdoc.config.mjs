@@ -29,5 +29,15 @@ export default defineMarkdocConfig({
         label: { type: String, default: "Download EPK" },
       },
     },
+    "release-list": {
+      render: component("./src/components/ReleaseList.astro"),
+      selfClosing: true,
+      attributes: {},
+    },
+    "press-quotes": {
+      render: component("./src/components/PressQuotes.astro"),
+      selfClosing: true,
+      attributes: {},
+    },
   },
 });

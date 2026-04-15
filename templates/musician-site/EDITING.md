@@ -120,7 +120,7 @@ title: Home
 
 Musician - Performer - Creator
 
-{% button href="/music" %}Listen Now{% /button %}
+{% button label="Listen Now" href="/music" /%}
 
 {% /fullscreen-section %}
 

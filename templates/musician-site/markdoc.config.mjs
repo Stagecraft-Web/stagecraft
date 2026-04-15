@@ -21,7 +21,9 @@ export default defineMarkdocConfig({
     },
     button: {
       render: component("./src/components/Button.astro"),
+      selfClosing: true,
       attributes: {
+        label: { type: String, required: true },
         href: { type: String },
         variant: { type: String, default: "primary" },
         isExternal: { type: Boolean, default: false },

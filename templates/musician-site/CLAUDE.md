@@ -209,11 +209,11 @@ Full-viewport section with background image and content overlay.
 - Shows a missing-image placeholder when no image is provided
 - Child content renders in a centered overlay on top of the background
 
-### `Button.astro` as Markdoc tag: `{% button %}`
-The existing Button component is also available as a Markdoc wrapper tag.
-- Rendered by `{% button href="/path" %}Label text{% /button %}`
-- Children become the button label via `<slot />`
-- Props: `href`, `variant` (`primary` | `outline`), `isExternal`
+### `Button.astro` (also Markdoc tag: `{% button %}`)
+Polymorphic button/link with variants. Also used directly as a self-closing Markdoc tag.
+- In Astro templates: `<Button href="/path">Label</Button>` (label via slot)
+- In Markdoc content: `{% button label="Label" href="/path" /%}` (label via prop)
+- Props: `label` (for Markdoc), `href`, `variant` (`primary` | `outline`), `isExternal`
 
 ### `Columns.astro` (Markdoc tag: `{% columns %}`)
 Wrapper tag that creates a CSS grid side-by-side layout.

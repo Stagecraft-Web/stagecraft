@@ -12,6 +12,8 @@ interface Props {
   class?: string;
   /** Open link in new tab */
   isExternal?: boolean;
+  /** Text label — used when rendered via Markdoc (no slot content) */
+  label?: string;
 }
 
 const {
@@ -21,6 +23,7 @@ const {
   type = "button",
   class: className,
   isExternal,
+  label,
 } = Astro.props;
 
 const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
@@ -29,11 +32,11 @@ const externalAttrs = isExternal ? { target: "_blank", rel: "noopener noreferrer
 
 {href ? (
   <a href={href} class={classes} aria-label={ariaLabel} {...externalAttrs}>
-    <slot />
+    {label}<slot />
   </a>
 ) : (
   <button type={type} class={classes} aria-label={ariaLabel}>
-    <slot />
+    {label}<slot />
   </button>
 )}
 

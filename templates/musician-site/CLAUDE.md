@@ -81,7 +81,9 @@ Use this to find where any piece of content lives.
 | Music releases grid | `src/content/pages/music.mdoc` body → `{% release-list %}` tag | — |
 | Press EPK download link | `src/content/pages/press.mdoc` body → `{% epk-download %}` tag | — |
 | Press quotes list | `src/content/pages/press.mdoc` body → `{% press-quotes %}` tag | — |
+| Photos gallery | `src/content/pages/photos.mdoc` body → `{% photo-gallery %}` tag | — |
 | Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
+| Contact form | `src/content/pages/contact.mdoc` body → `{% contact-form %}` tag | — |
 
 ### Collections
 
@@ -127,13 +129,13 @@ src/content/
 
 src/content.config.ts   ← Astro content collection definitions (unified pages collection)
 keystatic.config.ts     ← Keystatic CMS config (singletons, collections, content components)
-markdoc.config.mjs      ← Markdoc custom tag definitions (hero, page-image, epk-download)
+markdoc.config.mjs      ← Markdoc custom tag definitions (hero, page-image, epk-download, release-list, press-quotes, photo-gallery, contact-form)
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
   content.ts            ← validated config loaders (getSiteConfig, buildNav, getTheme)
   resolve-image.ts      ← resolveImage() utility for Markdoc tag components
 src/pages/
-  [...slug].astro       ← catch-all route for dynamic pages (not home/about/music/photos/press/contact)
+  [...slug].astro       ← catch-all route for ALL pages (home maps to /, others to /slug/)
 src/assets/images/      ← optimised images (processed by Astro at build time)
 ```
 
@@ -145,10 +147,10 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (title + headline + showInNav). Page-specific structured content (hero, images, EPK links) uses custom Markdoc tags in the body. Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (title + optional headline). Page-specific structured content (hero, images, EPK links, release grids, photo galleries, contact forms) uses custom Markdoc tags in the body. Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Navigation**: The Navigation singleton (`nav.json`) is the single source of truth for both membership and order. It stores an ordered array of page slugs using Keystatic's relationship field (dropdown picker + drag-to-reorder). At build time, `buildNav()` resolves each slug to a label (from the page's title) and href. Slugs referencing deleted pages are silently dropped.
-- **Dynamic pages**: The `[...slug].astro` catch-all renders all pages with PageHeader + Content layout. Only `index.astro` (home), `photos.astro` (gallery), and `contact.astro` (form) have dedicated templates. Page-specific rendering (release grid, press quotes, etc.) uses Markdoc component tags insertable from any page.
-- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. Tags: `{% hero %}` (Hero.astro), `{% page-image %}` (PageImage.astro), `{% epk-download %}` (EpkDownload.astro). Image tags use `resolveImage()` for build-time optimization.
+- **Dynamic pages**: The `[...slug].astro` catch-all renders **all** pages. Pages with a `headline` get the PageHeader + section/container layout; pages without (e.g. home) get bare `<Content />` for full-width layouts. The "home" page maps to `/` (slug: undefined). All page-specific rendering (release grid, press quotes, photo gallery, contact form) uses Markdoc content component tags insertable from any page.
+- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. Tags: `{% hero %}` (Hero.astro), `{% page-image %}` (PageImage.astro), `{% epk-download %}` (EpkDownload.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
@@ -210,6 +212,26 @@ Download button for EPK files.
 - Rendered by the `{% epk-download %}` Markdoc tag
 - Props: `path` (required), `label` (default: "Download EPK")
 
+### `ReleaseList.astro` (Markdoc tag: `{% release-list %}`)
+Self-closing data-fetching tag that displays all music releases in a grid.
+- Fetches the `releases` collection internally — no props needed
+- Rendered by the `{% release-list /%}` Markdoc tag
+
+### `PressQuotes.astro` (Markdoc tag: `{% press-quotes %}`)
+Self-closing data-fetching tag that displays all press quotes.
+- Fetches the `pressQuotes` collection internally — no props needed
+- Rendered by the `{% press-quotes /%}` Markdoc tag
+
+### `PhotoGalleryBlock.astro` (Markdoc tag: `{% photo-gallery %}`)
+Self-closing data-fetching tag that displays the photo gallery with lightbox.
+- Fetches the `photos` collection internally, delegates rendering to `PhotoGallery.astro`
+- Rendered by the `{% photo-gallery /%}` Markdoc tag
+
+### `ContactForm.astro` (Markdoc tag: `{% contact-form %}`)
+Self-closing tag that renders the contact form.
+- Self-contained form with honeypot, FormGroup fields, client-side JS submit handler
+- Rendered by the `{% contact-form /%}` Markdoc tag
+
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.
 - Props: `src` (string URL), `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
@@ -228,7 +250,7 @@ Photo grid with lightbox support.
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
 - Use `<Image>` from `astro:assets` in `.astro` components for all images
-- Use Markdoc tags (`{% hero %}`, `{% page-image %}`, `{% epk-download %}`) in `.mdoc` content files for page-specific structured sections
+- Use Markdoc tags (`{% hero %}`, `{% page-image %}`, `{% epk-download %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`) in `.mdoc` content files for page-specific structured sections
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components
@@ -258,18 +280,10 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 ## Adding a New Page
 
-For a **generic page** (no special data like galleries, forms, or release cards):
-
-1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`, `headline`.
-2. The `[...slug].astro` catch-all route renders it automatically with PageHeader + Content layout.
-3. To show the page in the nav, add it to the Navigation singleton in Keystatic (or add its slug to `nav.json` → `items` array).
-
-For a **page with custom rendering** (collections, forms, special layouts):
-
-1. Create the `.mdoc` file as above.
-2. Create a dedicated Astro page file in `src/pages/` (e.g. `src/pages/tours.astro`). Use `getEntry()` and `render()` from `astro:content`.
-3. Add the slug to the `dedicatedPages` set in `src/pages/[...slug].astro` so the catch-all skips it.
-4. Add a navigation entry in `src/content/config/nav.json` → `items` array.
+1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`. Add optional `headline` for pages that need a PageHeader.
+2. The `[...slug].astro` catch-all renders it automatically. Pages with `headline` get PageHeader + section/container; pages without get bare `<Content />` (full-width).
+3. Use Markdoc content component tags in the body for structured sections: `{% hero %}`, `{% page-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`, `{% epk-download %}`.
+4. To show the page in the nav, add it to the Navigation singleton in Keystatic (or add its slug to `nav.json` → `items` array).
 
 ---
 

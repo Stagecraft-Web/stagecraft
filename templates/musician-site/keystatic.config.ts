@@ -62,6 +62,18 @@ const pressQuotesBlock = block({
   schema: {},
 });
 
+const photoGalleryBlock = block({
+  label: "Photo Gallery",
+  description: "Displays all photos from the Photos collection with lightbox.",
+  schema: {},
+});
+
+const contactFormBlock = block({
+  label: "Contact Form",
+  description: "Renders the contact form (name, email, subject, message).",
+  schema: {},
+});
+
 export default config({
   storage: { kind: "local" },
 
@@ -137,7 +149,10 @@ export default config({
       format: { contentField: "content" },
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
-        headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
+        headline: fields.text({
+          label: "Headline",
+          description: "Displayed in the page header. Omit for full-width pages (e.g. homepage with a hero).",
+        }),
         content: fields.markdoc({
           label: "Body Content",
           components: {
@@ -146,6 +161,8 @@ export default config({
             "epk-download": epkDownloadBlock,
             "release-list": releaseListBlock,
             "press-quotes": pressQuotesBlock,
+            "photo-gallery": photoGalleryBlock,
+            "contact-form": contactFormBlock,
           },
         }),
       },

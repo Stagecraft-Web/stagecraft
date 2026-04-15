@@ -39,5 +39,15 @@ export default defineMarkdocConfig({
       selfClosing: true,
       attributes: {},
     },
+    "photo-gallery": {
+      render: component("./src/components/PhotoGalleryBlock.astro"),
+      selfClosing: true,
+      attributes: {},
+    },
+    "contact-form": {
+      render: component("./src/components/ContactForm.astro"),
+      selfClosing: true,
+      attributes: {},
+    },
   },
 });

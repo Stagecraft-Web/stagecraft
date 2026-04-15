@@ -4,39 +4,29 @@ import PageHeader from "../components/PageHeader.astro";
 import { getCollection, render } from "astro:content";
 
 export async function getStaticPaths() {
-  // Build a set of page slugs that have dedicated .astro route files.
-  // These take priority in Astro's routing, but emitting them from
-  // getStaticPaths too produces noisy build warnings — so we skip them.
-  const routeModules = import.meta.glob(
-    ["./*.astro", "!./[...slug].astro", "!./keystatic/[...params].astro"],
-    { eager: true },
-  );
-  const dedicatedSlugs = new Set(
-    Object.keys(routeModules).map((file) => {
-      const name = file.replace(/^\.\//, "").replace(/\.astro$/, "");
-      // index.astro serves the "home" page at /
-      return name === "index" ? "home" : name;
-    }),
-  );
-
   const pages = await getCollection("pages");
-  return pages
-    .filter((p) => !dedicatedSlugs.has(p.id))
-    .map((p) => ({
-      params: { slug: p.id },
-      props: { entry: p },
-    }));
+  return pages.map((p) => ({
+    // "home" → undefined so Astro generates the index route (/)
+    params: { slug: p.id === "home" ? undefined : p.id },
+    props: { entry: p },
+  }));
 }
 
 const { entry } = Astro.props;
 const { Content } = await render(entry);
+const hasHeadline = Boolean(entry.data.headline);
 ---
 
 <BaseLayout title={entry.data.title}>
-  <PageHeader headline={entry.data.headline} />
-  <section class="section">
-    <div class="container">
-      <Content />
-    </div>
-  </section>
+  {hasHeadline && (
+    <>
+      <PageHeader headline={entry.data.headline!} />
+      <section class="section">
+        <div class="container">
+          <Content />
+        </div>
+      </section>
+    </>
+  )}
+  {!hasHeadline && <Content />}
 </BaseLayout>

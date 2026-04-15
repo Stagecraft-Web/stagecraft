@@ -102,7 +102,7 @@ All pages share two frontmatter fields:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `title` | yes | Page title (used in browser tab and as the nav label) |
-| `headline` | yes | Page headline (displayed in the page header) |
+| `headline` | no | Page headline (displayed in the page header). Omit for full-width pages (e.g. homepage with a hero). |
 
 Navigation membership is controlled by the Navigation singleton, not by page frontmatter.
 
@@ -113,13 +113,14 @@ Page-specific structured content uses Markdoc tags in the body.
 ```markdoc
 ---
 title: Home
-headline: Your Name
 ---
 
 {% hero headline="Your Name" subheadline="Musician · Performer · Creator" ctaText="Listen Now" ctaLink="/music" image="../../assets/images/hero.jpg" /%}
 
 Welcome text that appears below the hero section.
 ```
+
+Pages **without** a `headline` get a full-width layout (no page header, no section wrapper). This is ideal for pages with a hero section. Pages **with** a `headline` get the standard PageHeader + section/container layout.
 
 The `{% hero %}` tag renders a full-width hero section. Attributes: `headline`, `subheadline`, `ctaText`, `ctaLink`, `image`.
 
@@ -176,6 +177,34 @@ Browse the latest releases and discography below.
 
 - The `{% release-list %}` tag renders all releases from the Releases collection in a grid. It can be inserted into any page.
 
+### Photos — `src/content/pages/photos.mdoc`
+
+```markdoc
+---
+title: Photos
+headline: Photos
+---
+
+{% photo-gallery /%}
+```
+
+- The `{% photo-gallery %}` tag renders all photos from the Photos collection in a grid with lightbox. It can be inserted into any page.
+
+### Contact — `src/content/pages/contact.mdoc`
+
+```markdoc
+---
+title: Contact
+headline: Get in Touch
+---
+
+Have a question, booking inquiry, or just want to say hello? Fill out the form below and we'll get back to you.
+
+{% contact-form /%}
+```
+
+- The `{% contact-form %}` tag renders the contact form (name, email, subject, message). It can be inserted into any page.
+
 ### Creating a new page
 
 You can create new pages via the Keystatic CMS at `/keystatic` → Pages → "Create new", or by creating a file directly:
@@ -188,7 +217,7 @@ title: Tour Schedule
 headline: Upcoming Shows
 ---
 
-Your page content here. You can use any Markdoc tags (hero, page-image, epk-download, release-list, press-quotes).
+Your page content here. You can use any Markdoc tags (hero, page-image, epk-download, release-list, press-quotes, photo-gallery, contact-form).
 ```
 
 2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug).
@@ -342,6 +371,10 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `Hero.astro` | Full-width hero section (Markdoc tag: `{% hero %}`) |
 | `PageImage.astro` | Image + text layout wrapper (Markdoc tag: `{% page-image %}`) |
 | `EpkDownload.astro` | EPK download button (Markdoc tag: `{% epk-download %}`) |
+| `ReleaseList.astro` | Music releases grid (Markdoc tag: `{% release-list %}`) |
+| `PressQuotes.astro` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
+| `PhotoGalleryBlock.astro` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
+| `ContactForm.astro` | Contact form (Markdoc tag: `{% contact-form %}`) |
 | `PageHeader.astro` | Page title banner |
 | `Header.astro` | Site navigation |
 | `Footer.astro` | Footer with social links |

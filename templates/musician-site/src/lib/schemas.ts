@@ -79,7 +79,7 @@ export const themeSchema = z.object({
 
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
-  headline: z.string().min(1),
+  headline: z.string().min(1).optional(),
 });
 
 // ============================================================

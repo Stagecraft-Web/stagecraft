@@ -1,0 +1,319 @@
+/* ============================================================
+   Markdoc Component Styles
+   ============================================================
+   Styles for components rendered via Markdoc custom tags.
+   Imported in BaseLayout so they're always available on every
+   page, since @astrojs/markdoc's component() helper doesn't
+   reliably propagate Astro scoped styles to the page CSS bundle.
+
+   If you add a new Markdoc tag that renders an Astro component
+   with <style>, copy the component's styles here.
+   ============================================================ */
+
+/* ============================================================
+   Hero — {% hero /%}
+   ============================================================ */
+.hero {
+  text-align: center;
+  padding-block: 6rem;
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.hero h1 {
+  color: var(--color-white);
+  font-size: var(--font-size-4xl);
+  margin-bottom: 0.75rem;
+}
+
+.hero-sub {
+  font-size: var(--font-size-lg);
+  opacity: 0.85;
+  margin-bottom: 2rem;
+}
+
+.hero-image {
+  margin-bottom: 2rem;
+}
+
+.hero-image img {
+  max-width: 280px;
+  height: auto;
+  margin-inline: auto;
+  display: block;
+  border-radius: var(--radius);
+}
+
+/* --breakpoint-md (768px) */
+@media (max-width: 768px) {
+  .hero {
+    padding-block: 4rem;
+  }
+  .hero h1 {
+    font-size: var(--font-size-3xl);
+  }
+}
+
+/* ============================================================
+   PageImage — {% page-image %}
+   ============================================================ */
+.page-image-layout {
+  display: grid;
+  gap: 3rem;
+  align-items: start;
+}
+
+.page-image-media img {
+  width: 100%;
+  border-radius: var(--radius);
+  display: block;
+}
+
+/* --breakpoint-md (768px) */
+@media (min-width: 768px) {
+  .page-image-layout {
+    grid-template-columns: 1fr 2fr;
+  }
+
+  .position-right {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .position-right .page-image-media {
+    order: 2;
+  }
+}
+
+/* ============================================================
+   Button — used by EpkDownload, ContactForm, ReleaseCard, Hero
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  text-decoration: none;
+  transition: opacity 0.15s;
+  cursor: pointer;
+  border: none;
+  line-height: 1;
+}
+
+.btn:hover {
+  opacity: 0.9;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--color-secondary);
+  color: var(--color-white);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* ============================================================
+   FormGroup — used by ContactForm
+   ============================================================ */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.form-group-required {
+  color: var(--color-secondary);
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.form-group textarea {
+  resize: vertical;
+}
+
+/* ============================================================
+   ContactForm — {% contact-form /%}
+   ============================================================ */
+.contact-form {
+  max-width: var(--max-text);
+}
+
+.form-status {
+  margin-top: 1rem;
+  padding: 0;
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius);
+  transition: padding 0.15s;
+}
+
+.form-status-success {
+  color: #16a34a;
+  background: #f0fdf4;
+  padding: 0.75rem 1rem;
+  border: 1px solid #bbf7d0;
+}
+
+.form-status-error {
+  color: #dc2626;
+  background: #fef2f2;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fecaca;
+}
+
+/* ============================================================
+   EpkDownload — {% epk-download /%}
+   ============================================================ */
+.epk-download {
+  margin-block: 2rem;
+}
+
+/* ============================================================
+   PressQuotes — {% press-quotes /%}
+   ============================================================ */
+.quote-list {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.quote-card {
+  background: var(--color-surface);
+  border-left: 4px solid var(--color-secondary);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+}
+
+.quote-card p {
+  font-size: var(--font-size-lg);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.quote-card footer {
+  margin-top: 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ============================================================
+   PhotoGallery — {% photo-gallery /%}
+   ============================================================ */
+.photo-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 1.5rem;
+}
+
+.photo-gallery-item {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  overflow: hidden;
+  text-align: left;
+}
+
+.photo-thumb {
+  aspect-ratio: 4/3;
+  overflow: hidden;
+}
+
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-gallery-caption {
+  display: block;
+  padding: 0.5rem 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ============================================================
+   ReleaseCard — rendered by {% release-list /%}
+   ============================================================ */
+.release-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.release-cover {
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.release-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.release-info {
+  padding: 1.5rem;
+}
+
+.release-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.release-type {
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary);
+}
+
+.release-desc {
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.release-links {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.release-link-btn {
+  font-size: var(--font-size-xs);
+  padding: 0.5rem 1rem;
+  text-transform: capitalize;
+}

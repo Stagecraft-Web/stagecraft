@@ -27,47 +27,25 @@ export function getNavConfig(): NavConfigItem[] {
 }
 
 /**
- * Build the resolved navigation list by reconciling nav.json ordering with
- * page `showInNav` frontmatter fields.
+ * Build the resolved navigation list from nav.json.
  *
- * 1. Start with nav.json order (drag-to-reorder via Keystatic).
- * 2. Filter out items whose page doesn't exist or has `showInNav: false`.
- * 3. Auto-append any pages with `showInNav: true` that aren't in nav.json
- *    (newly created pages get added at the end automatically).
+ * The Navigation singleton (nav.json) is the single source of truth for which
+ * pages appear in the nav and in what order. Items referencing pages that don't
+ * exist are silently dropped (e.g. after a page is deleted).
  */
 export async function buildNav(): Promise<NavItem[]> {
   const navConfig = getNavConfig();
   const allPages = await getCollection("pages");
 
-  // Map page slugs → page data for fast lookup
-  const pageMap = new Map(allPages.map((p) => [p.id, p.data]));
+  // Set of existing page slugs for fast lookup
+  const existingPages = new Set(allPages.map((p) => p.id));
 
-  const result: NavItem[] = [];
-  const seen = new Set<string>();
-
-  // Phase 1: nav.json ordering — include only existing pages with showInNav
-  for (const item of navConfig) {
-    const page = pageMap.get(item.page);
-    if (page && page.showInNav !== false) {
-      result.push({
-        label: item.label,
-        href: item.page === "home" ? "/" : `/${item.page}`,
-      });
-      seen.add(item.page);
-    }
-  }
-
-  // Phase 2: auto-append pages not in nav.json that have showInNav
-  for (const page of allPages) {
-    if (!seen.has(page.id) && page.data.showInNav !== false) {
-      result.push({
-        label: page.data.title,
-        href: page.id === "home" ? "/" : `/${page.id}`,
-      });
-    }
-  }
-
-  return result;
+  return navConfig
+    .filter((item) => existingPages.has(item.page))
+    .map((item) => ({
+      label: item.label,
+      href: item.page === "home" ? "/" : `/${item.page}`,
+    }));
 }
 
 export function getTheme(): Theme {

@@ -74,7 +74,7 @@ Use this to find where any piece of content lives.
 | Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
 | Navigation order + labels | `src/content/config/nav.json` → `items` | `navConfigSchema` |
 | Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
-| Any page title + headline + showInNav | `src/content/pages/*.mdoc` | `pageFrontmatterSchema` |
+| Any page title + headline | `src/content/pages/*.mdoc` | `pageFrontmatterSchema` |
 | Homepage hero (headline, CTA, image) | `src/content/pages/home.mdoc` body → `{% hero %}` tag | — |
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
 | About page image + bio | `src/content/pages/about.mdoc` body → `{% page-image %}` wrapper | — |
@@ -146,7 +146,7 @@ Do not place content files outside these locations.
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
 - **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (title + headline + showInNav). Page-specific structured content (hero, images, EPK links) uses custom Markdoc tags in the body. Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
-- **Navigation**: Hybrid system. `nav.json` stores ordered `{ page, label }` entries (drag-to-reorder via Keystatic). At build time, `buildNav()` in `src/lib/content.ts` reconciles nav.json ordering with page `showInNav` frontmatter — filtering out hidden pages and auto-appending new pages not yet in nav.json.
+- **Navigation**: `nav.json` is the single source of truth. It stores ordered `{ page, label }` entries (drag-to-reorder via Keystatic). At build time, `buildNav()` in `src/lib/content.ts` resolves entries to `{ label, href }`, dropping any that reference pages that no longer exist. To add a page to the nav, add it to the Navigation singleton. To hide a page, remove it.
 - **Dynamic pages**: Pages with dedicated templates (home, about, music, photos, press, contact) have individual `.astro` files. All other pages use the `[...slug].astro` catch-all route with a generic PageHeader + Content layout.
 - **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. Tags: `{% hero %}` (Hero.astro), `{% page-image %}` (PageImage.astro), `{% epk-download %}` (EpkDownload.astro). Image tags use `resolveImage()` for build-time optimization.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
@@ -260,9 +260,9 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 For a **generic page** (no special data like galleries, forms, or release cards):
 
-1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`, `headline`, `showInNav: true`.
+1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`, `headline`.
 2. The `[...slug].astro` catch-all route renders it automatically with PageHeader + Content layout.
-3. Optionally add a navigation entry in `src/content/config/nav.json` → `items` array to control ordering. Pages with `showInNav: true` that aren't in nav.json are auto-appended at the end.
+3. To show the page in navigation, add an entry to `src/content/config/nav.json` → `items` array (or use the Navigation singleton in Keystatic).
 
 For a **page with custom rendering** (collections, forms, special layouts):
 

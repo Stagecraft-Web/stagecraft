@@ -45,7 +45,7 @@ export const navConfigSchema = z.object({
 });
 
 // Resolved nav item — what Header.astro actually renders (derived at build time
-// by reconciling nav.json ordering with page showInNav fields).
+// from nav.json, filtered to pages that exist).
 export const navItemSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
@@ -80,7 +80,6 @@ export const themeSchema = z.object({
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
   headline: z.string().min(1),
-  showInNav: z.boolean().default(true),
 });
 
 // ============================================================

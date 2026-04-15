@@ -128,21 +128,6 @@ describe("pageFrontmatterSchema", () => {
     expect(result.headline).toBe("Welcome");
   });
 
-  it("defaults showInNav to true", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
-    expect(result.showInNav).toBe(true);
-  });
-
-  it("accepts explicit showInNav: false", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome", showInNav: false });
-    expect(result.showInNav).toBe(false);
-  });
-
-  it("accepts explicit showInNav: true", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome", showInNav: true });
-    expect(result.showInNav).toBe(true);
-  });
-
   it("rejects missing title", () => {
     expect(() => pageFrontmatterSchema.parse({ headline: "Welcome" })).toThrow();
   });

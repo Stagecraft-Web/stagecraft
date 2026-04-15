@@ -128,7 +128,6 @@ export default config({
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        showInNav: fields.checkbox({ label: "Show in Navigation", defaultValue: true }),
         content: fields.markdoc({
           label: "Body Content",
           components: {

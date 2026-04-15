@@ -98,9 +98,10 @@ export default config({
     }),
 
     // -----------------------------------------------------------------
-    // Navigation — controls page ordering in the nav.
-    // Inclusion is controlled by each page's "Show in Navigation" toggle.
-    // Pages with showInNav: true that aren't listed here are auto-appended.
+    // Navigation — owns both membership and order.
+    // An ordered array of page references (relationship field).
+    // Add a page here to show it in the nav; remove it to hide it.
+    // Drag to reorder.
     // -----------------------------------------------------------------
 
     navigation: singleton({
@@ -109,13 +110,10 @@ export default config({
       format: { data: "json" },
       schema: {
         items: fields.array(
-          fields.object({
-            page: fields.text({ label: "Page Slug", validation: { isRequired: true } }),
-            label: fields.text({ label: "Display Label", validation: { isRequired: true } }),
-          }),
+          fields.relationship({ label: "Page", collection: "pages" }),
           {
             label: "Navigation Items",
-            itemLabel: (props) => props.fields.label.value || "Nav Item",
+            itemLabel: (props) => props.value ?? "Select a page",
           },
         ),
       },
@@ -126,11 +124,10 @@ export default config({
     // -----------------------------------------------------------------
     // Pages — one Markdoc file per page.
     //
-    // All pages share minimal frontmatter (title + headline + showInNav).
-    // showInNav controls whether the page appears in the site navigation.
-    // The Navigation singleton above controls the ordering of visible pages.
-    // Page-specific structured content uses Markdoc content components
-    // that appear as insertable blocks in the editor.
+    // All pages share minimal frontmatter (title + headline).
+    // Navigation membership is controlled by the Navigation singleton,
+    // not by page frontmatter. Page-specific structured content uses
+    // Markdoc content components that appear as insertable blocks.
     // -----------------------------------------------------------------
 
     pages: collection({
@@ -141,11 +138,6 @@ export default config({
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
-        showInNav: fields.checkbox({
-          label: "Show in Navigation",
-          description: "Uncheck to hide this page from the site nav. The page is still accessible by URL.",
-          defaultValue: true,
-        }),
         content: fields.markdoc({
           label: "Body Content",
           components: {

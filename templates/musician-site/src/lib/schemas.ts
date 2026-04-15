@@ -33,19 +33,16 @@ export const siteConfigSchema = z.object({
   copyright: z.string(),
 });
 
-// Nav config — what's stored in nav.json (source of ordering).
-// Each entry references a page slug and provides a display label.
-export const navConfigItemSchema = z.object({
-  page: z.string().min(1),
-  label: z.string().min(1),
-});
-
+// Nav config — what's stored in nav.json.
+// An ordered array of page slugs. The Navigation singleton owns both
+// membership (which pages appear) and order (what sequence).
+// Uses fields.relationship in Keystatic, so each entry is a page slug.
 export const navConfigSchema = z.object({
-  items: z.array(navConfigItemSchema),
+  items: z.array(z.string().min(1)),
 });
 
-// Resolved nav item — what Header.astro actually renders (derived at build time
-// by combining nav.json ordering with per-page showInNav inclusion).
+// Resolved nav item — what Header.astro actually renders (derived at build
+// time by looking up each slug's page title for the label).
 export const navItemSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
@@ -72,18 +69,17 @@ export const themeSchema = z.object({
 
 // ============================================================
 // Page frontmatter schema
-// All pages share a minimal frontmatter shape: title + headline +
-// showInNav. Page-specific structured content (hero sections,
-// images, EPK links) lives in the Markdoc body as custom tags.
+// All pages share a minimal frontmatter shape: title + headline.
+// Page-specific structured content (hero sections, images, EPK
+// links) lives in the Markdoc body as custom tags, not frontmatter.
 //
-// showInNav controls whether the page appears in the nav.
-// The Navigation singleton (nav.json) controls ordering only.
+// Navigation membership is controlled by the Navigation singleton
+// (nav.json), not by page frontmatter.
 // ============================================================
 
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
   headline: z.string().min(1),
-  showInNav: z.boolean().default(true),
 });
 
 // ============================================================
@@ -135,7 +131,6 @@ export const tourDateSchema = z.object({
 
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
-export type NavConfigItem = z.infer<typeof navConfigItemSchema>;
 export type NavConfig = z.infer<typeof navConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;

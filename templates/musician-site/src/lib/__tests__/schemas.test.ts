@@ -8,7 +8,6 @@ import {
   photoSchema,
   pressQuoteSchema,
   tourDateSchema,
-  navConfigItemSchema,
   navConfigSchema,
 } from "../schemas";
 
@@ -128,16 +127,6 @@ describe("pageFrontmatterSchema", () => {
     expect(result.headline).toBe("Welcome");
   });
 
-  it("defaults showInNav to true when omitted", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
-    expect(result.showInNav).toBe(true);
-  });
-
-  it("accepts explicit showInNav: false", () => {
-    const result = pageFrontmatterSchema.parse({ title: "Landing", headline: "Hi", showInNav: false });
-    expect(result.showInNav).toBe(false);
-  });
-
   it("rejects missing title", () => {
     expect(() => pageFrontmatterSchema.parse({ headline: "Welcome" })).toThrow();
   });
@@ -239,31 +228,9 @@ describe("tourDateSchema", () => {
   });
 });
 
-describe("navConfigItemSchema", () => {
-  it("accepts valid nav config item", () => {
-    expect(navConfigItemSchema.parse({ page: "about", label: "About" })).toEqual({
-      page: "about",
-      label: "About",
-    });
-  });
-
-  it("rejects empty page", () => {
-    expect(() => navConfigItemSchema.parse({ page: "", label: "About" })).toThrow();
-  });
-
-  it("rejects empty label", () => {
-    expect(() => navConfigItemSchema.parse({ page: "about", label: "" })).toThrow();
-  });
-});
-
 describe("navConfigSchema", () => {
-  it("accepts valid nav config", () => {
-    const config = {
-      items: [
-        { page: "home", label: "Home" },
-        { page: "about", label: "About" },
-      ],
-    };
+  it("accepts valid nav config (array of slugs)", () => {
+    const config = { items: ["home", "about", "music"] };
     expect(navConfigSchema.parse(config)).toEqual(config);
   });
 
@@ -275,9 +242,11 @@ describe("navConfigSchema", () => {
     expect(() => navConfigSchema.parse({})).toThrow();
   });
 
+  it("rejects empty slug strings", () => {
+    expect(() => navConfigSchema.parse({ items: ["home", ""] })).toThrow();
+  });
+
   it("rejects flat array (must be wrapped in items)", () => {
-    expect(() =>
-      navConfigSchema.parse([{ page: "home", label: "Home" }])
-    ).toThrow();
+    expect(() => navConfigSchema.parse(["home", "about"])).toThrow();
   });
 });

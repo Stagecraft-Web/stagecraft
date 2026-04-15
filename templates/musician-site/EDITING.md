@@ -75,17 +75,13 @@ Leave any social link blank (`""`) to hide it from the footer.
 
 ```json
 {
-  "items": [
-    { "page": "home", "label": "Home" },
-    { "page": "about", "label": "About" },
-    { "page": "music", "label": "Music" }
-  ]
+  "items": ["home", "about", "music", "photos", "press", "contact"]
 }
 ```
 
-Each entry references a page by its slug (filename without `.mdoc` extension) and provides a display label. Reorder, add, or remove items to change the navigation. You can also manage navigation via the Keystatic CMS at `/keystatic` → Navigation.
+An ordered array of page slugs. Add a slug to include the page in the nav; remove it to hide it. Drag to reorder in Keystatic (`/keystatic` → Navigation), or edit the JSON directly.
 
-The Navigation singleton controls the **order** of pages in the nav. Whether a page appears at all is controlled by its `showInNav` checkbox (in the page editor). Pages with `showInNav: true` that aren't listed here are auto-appended at the end.
+The Navigation singleton is the single source of truth for both nav membership and order. The nav label for each page comes from the page's `title` field.
 
 ### Colors and fonts — `src/content/config/theme.json`
 
@@ -101,13 +97,14 @@ Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between 
 
 ### Shared frontmatter
 
-All pages share three frontmatter fields:
+All pages share two frontmatter fields:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `title` | yes | Page title (used in browser tab) |
+| `title` | yes | Page title (used in browser tab and as the nav label) |
 | `headline` | yes | Page headline (displayed in the page header) |
-| `showInNav` | no | Show this page in the site navigation (default: `true`). Toggle via the checkbox in Keystatic or set in frontmatter. |
+
+Navigation membership is controlled by the Navigation singleton, not by page frontmatter.
 
 ### Homepage — `src/content/pages/home.mdoc`
 
@@ -196,19 +193,15 @@ Your page content here. You can use any Markdoc tags (hero, page-image, epk-down
 
 2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug).
 
-3. With `showInNav: true`, the page auto-appears in the navigation. To control its position, add an entry to `src/content/config/nav.json` (or drag-to-reorder in the Navigation singleton in Keystatic):
+3. To show the page in navigation, add its slug to the Navigation singleton in Keystatic, or edit `src/content/config/nav.json` directly:
 
 ```json
 {
-  "items": [
-    { "page": "home", "label": "Home" },
-    { "page": "tour-schedule", "label": "Tour" },
-    { "page": "about", "label": "About" }
-  ]
+  "items": ["home", "tour-schedule", "about", "music", "photos", "press", "contact"]
 }
 ```
 
-To create a page hidden from navigation (e.g. a landing page), set `showInNav: false`. The page is still accessible by URL.
+Pages not listed in Navigation are still accessible by URL — they just won't appear in the site nav (useful for landing pages, link-in-bio destinations, etc.).
 
 ---
 

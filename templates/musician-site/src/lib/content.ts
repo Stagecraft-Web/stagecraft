@@ -27,25 +27,53 @@ export function getNavConfig(): NavConfigItem[] {
 }
 
 /**
- * Build the resolved navigation list from nav.json.
+ * Build the resolved navigation list.
  *
- * The Navigation singleton (nav.json) is the single source of truth for which
- * pages appear in the nav and in what order. Items referencing pages that don't
- * exist are silently dropped (e.g. after a page is deleted).
+ * Two controls work together:
+ * - **Per-page `showInNav`** (inclusion) — each page decides whether it
+ *   appears in the nav at all. Toggle this from the page editor in Keystatic.
+ * - **Navigation singleton** (ordering) — the drag-to-reorder list in
+ *   nav.json controls the order of visible pages. Entries for pages with
+ *   `showInNav: false` are kept as dormant ordering hints so the page
+ *   reappears in its previous position when re-enabled.
+ *
+ * Pages with `showInNav: true` that aren't listed in the Navigation singleton
+ * are auto-appended at the end (e.g. newly created pages).
  */
 export async function buildNav(): Promise<NavItem[]> {
   const navConfig = getNavConfig();
   const allPages = await getCollection("pages");
 
-  // Set of existing page slugs for fast lookup
-  const existingPages = new Set(allPages.map((p) => p.id));
+  // Map page slugs → page data for fast lookup
+  const pageMap = new Map(allPages.map((p) => [p.id, p.data]));
 
-  return navConfig
-    .filter((item) => existingPages.has(item.page))
-    .map((item) => ({
-      label: item.label,
-      href: item.page === "home" ? "/" : `/${item.page}`,
-    }));
+  const result: NavItem[] = [];
+  const seen = new Set<string>();
+
+  // Phase 1: walk nav.json order, include only pages that exist and are visible
+  for (const item of navConfig) {
+    const page = pageMap.get(item.page);
+    if (page && page.showInNav !== false) {
+      result.push({
+        label: item.label,
+        href: item.page === "home" ? "/" : `/${item.page}`,
+      });
+    }
+    // Mark as seen even if hidden, so we don't auto-append it below
+    seen.add(item.page);
+  }
+
+  // Phase 2: auto-append visible pages not yet in nav.json
+  for (const page of allPages) {
+    if (!seen.has(page.id) && page.data.showInNav !== false) {
+      result.push({
+        label: page.data.title,
+        href: page.id === "home" ? "/" : `/${page.id}`,
+      });
+    }
+  }
+
+  return result;
 }
 
 export function getTheme(): Theme {

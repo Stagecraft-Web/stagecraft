@@ -86,9 +86,9 @@ export default config({
     }),
 
     // -----------------------------------------------------------------
-    // Navigation — drag-to-reorder ordered list of page references.
-    // Pages with showInNav: true that aren't listed here are auto-appended
-    // at the end of the nav at build time.
+    // Navigation — controls page ordering in the nav.
+    // Inclusion is controlled by each page's "Show in Navigation" toggle.
+    // Pages with showInNav: true that aren't listed here are auto-appended.
     // -----------------------------------------------------------------
 
     navigation: singleton({
@@ -115,9 +115,10 @@ export default config({
     // Pages — one Markdoc file per page.
     //
     // All pages share minimal frontmatter (title + headline + showInNav).
+    // showInNav controls whether the page appears in the site navigation.
+    // The Navigation singleton above controls the ordering of visible pages.
     // Page-specific structured content uses Markdoc content components
-    // that appear as insertable blocks in the editor. All components are
-    // available in every page for maximum flexibility.
+    // that appear as insertable blocks in the editor.
     // -----------------------------------------------------------------
 
     pages: collection({
@@ -128,6 +129,11 @@ export default config({
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
         headline: fields.text({ label: "Headline", validation: { isRequired: true } }),
+        showInNav: fields.checkbox({
+          label: "Show in Navigation",
+          description: "Uncheck to hide this page from the site nav. The page is still accessible by URL.",
+          defaultValue: true,
+        }),
         content: fields.markdoc({
           label: "Body Content",
           components: {

@@ -128,6 +128,16 @@ describe("pageFrontmatterSchema", () => {
     expect(result.headline).toBe("Welcome");
   });
 
+  it("defaults showInNav to true when omitted", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", headline: "Welcome" });
+    expect(result.showInNav).toBe(true);
+  });
+
+  it("accepts explicit showInNav: false", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Landing", headline: "Hi", showInNav: false });
+    expect(result.showInNav).toBe(false);
+  });
+
   it("rejects missing title", () => {
     expect(() => pageFrontmatterSchema.parse({ headline: "Welcome" })).toThrow();
   });

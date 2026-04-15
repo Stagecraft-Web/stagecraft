@@ -33,7 +33,7 @@ export const siteConfigSchema = z.object({
   copyright: z.string(),
 });
 
-// Nav config — what's stored in nav.json (source of ordering truth).
+// Nav config — what's stored in nav.json (source of ordering).
 // Each entry references a page slug and provides a display label.
 export const navConfigItemSchema = z.object({
   page: z.string().min(1),
@@ -45,7 +45,7 @@ export const navConfigSchema = z.object({
 });
 
 // Resolved nav item — what Header.astro actually renders (derived at build time
-// from nav.json, filtered to pages that exist).
+// by combining nav.json ordering with per-page showInNav inclusion).
 export const navItemSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
@@ -72,14 +72,18 @@ export const themeSchema = z.object({
 
 // ============================================================
 // Page frontmatter schema
-// All pages share a minimal frontmatter shape: title + headline.
-// Page-specific structured content (hero sections, images, EPK
-// links) lives in the Markdoc body as custom tags, not frontmatter.
+// All pages share a minimal frontmatter shape: title + headline +
+// showInNav. Page-specific structured content (hero sections,
+// images, EPK links) lives in the Markdoc body as custom tags.
+//
+// showInNav controls whether the page appears in the nav.
+// The Navigation singleton (nav.json) controls ordering only.
 // ============================================================
 
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
   headline: z.string().min(1),
+  showInNav: z.boolean().default(true),
 });
 
 // ============================================================

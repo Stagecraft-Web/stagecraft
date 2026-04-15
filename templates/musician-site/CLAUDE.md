@@ -147,10 +147,10 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (`title` only). All page layout structure lives in the Markdoc body using layout tags (Section, FullscreenSection, Columns, Column) and content tags (ContentImage, ButtonBlock, EPK links, release grids, photo galleries, contact forms). Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (`title` only). All page layout structure lives in the Markdoc body using layout tags (Section, FullscreenSection, Columns, Column) and content tags (ContentImage, Button, EPK links, release grids, photo galleries, contact forms). Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Navigation**: The Navigation singleton (`nav.json`) is the single source of truth for both membership and order. It stores an ordered array of page slugs using Keystatic's relationship field (dropdown picker + drag-to-reorder). At build time, `buildNav()` resolves each slug to a label (from the page's title) and href. Slugs referencing deleted pages are silently dropped.
 - **Dynamic pages**: The `[...slug].astro` catch-all renders **all** pages as `<BaseLayout><Content /></BaseLayout>` with no conditional layout logic. Pages are fully self-contained: all layout structure (sections, columns, fullscreen areas) is defined in the `.mdoc` content files using Markdoc tags. The "home" page maps to `/` (slug: undefined).
-- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. **Layout tags**: `{% section %}` (Section.astro), `{% fullscreen-section %}` (FullscreenSection.astro), `{% columns %}` (Columns.astro), `{% column %}` (Column.astro). **Content tags**: `{% button %}` (ButtonBlock.astro), `{% content-image %}` (ContentImage.astro), `{% epk-download %}` (EpkDownload.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
+- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. **Layout tags**: `{% section %}` (Section.astro), `{% fullscreen-section %}` (FullscreenSection.astro), `{% columns %}` (Columns.astro), `{% column %}` (Column.astro). **Content tags**: `{% button %}` (Button.astro), `{% content-image %}` (ContentImage.astro), `{% epk-download %}` (EpkDownload.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
@@ -209,10 +209,11 @@ Full-viewport section with background image and content overlay.
 - Shows a missing-image placeholder when no image is provided
 - Child content renders in a centered overlay on top of the background
 
-### `ButtonBlock.astro` (Markdoc tag: `{% button %}`)
-Self-closing Markdoc tag that renders a Button.astro component.
-- Rendered by the `{% button /%}` Markdoc tag
-- Props: `label` (required), `href` (required), plus any props passed through to Button.astro
+### `Button.astro` as Markdoc tag: `{% button %}`
+The existing Button component is also available as a Markdoc wrapper tag.
+- Rendered by `{% button href="/path" %}Label text{% /button %}`
+- Children become the button label via `<slot />`
+- Props: `href`, `variant` (`primary` | `outline`), `isExternal`
 
 ### `Columns.astro` (Markdoc tag: `{% columns %}`)
 Wrapper tag that creates a CSS grid side-by-side layout.

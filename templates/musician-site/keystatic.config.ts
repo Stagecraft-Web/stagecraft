@@ -55,11 +55,10 @@ const fullscreenSectionWrapper = wrapper({
   },
 });
 
-const buttonBlock = block({
+const buttonWrapper = wrapper({
   label: "Button",
-  description: "A styled button or link.",
+  description: "A styled button or link. Place the button label text inside.",
   schema: {
-    label: fields.text({ label: "Label", validation: { isRequired: true } }),
     href: fields.text({ label: "Link URL" }),
     variant: fields.select({
       label: "Variant",
@@ -217,7 +216,7 @@ export default config({
           components: {
             section: sectionWrapper,
             "fullscreen-section": fullscreenSectionWrapper,
-            button: buttonBlock,
+            button: buttonWrapper,
             columns: columnsWrapper,
             column: columnWrapper,
             "content-image": contentImageBlock,

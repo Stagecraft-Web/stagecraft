@@ -14,3 +14,12 @@ const resolved = resolveImage(src);
 {resolved && (
   <Image src={resolved} alt={alt} class="content-image" />
 )}
+
+<style>
+  .content-image {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    display: block;
+  }
+</style>

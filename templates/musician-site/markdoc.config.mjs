@@ -20,10 +20,8 @@ export default defineMarkdocConfig({
       },
     },
     button: {
-      render: component("./src/components/ButtonBlock.astro"),
-      selfClosing: true,
+      render: component("./src/components/Button.astro"),
       attributes: {
-        label: { type: String, required: true },
         href: { type: String },
         variant: { type: String, default: "primary" },
         isExternal: { type: Boolean, default: false },

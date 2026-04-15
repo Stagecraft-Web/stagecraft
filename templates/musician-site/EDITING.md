@@ -120,7 +120,7 @@ title: Home
 
 Musician - Performer - Creator
 
-{% button label="Listen Now" href="/music" /%}
+{% button href="/music" %}Listen Now{% /button %}
 
 {% /fullscreen-section %}
 
@@ -399,11 +399,10 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 
 | Component | Description |
 |-----------|-------------|
-| `Button.astro` | Links and buttons (`primary` / `outline` variants) |
+| `Button.astro` | Links and buttons (`primary` / `outline` variants, also Markdoc tag: `{% button %}`) |
 | `FormGroup.astro` | Labeled form inputs and textareas |
 | `Section.astro` | Section wrapper with optional title (Markdoc tag: `{% section %}`) |
 | `FullscreenSection.astro` | Full-viewport hero section with background image (Markdoc tag: `{% fullscreen-section %}`) |
-| `ButtonBlock.astro` | CTA button for Markdoc content (Markdoc tag: `{% button %}`) |
 | `Columns.astro` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
 | `Column.astro` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
 | `ContentImage.astro` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |

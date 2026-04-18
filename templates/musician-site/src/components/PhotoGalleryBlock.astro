@@ -1,9 +1,0 @@
----
-import PhotoGallery from "./PhotoGallery.astro";
-import { getCollection } from "astro:content";
-
-const photoEntries = await getCollection("photos");
-const photos = photoEntries.map((e) => e.data);
----
-
-{photos.length > 0 && <PhotoGallery photos={photos} />}

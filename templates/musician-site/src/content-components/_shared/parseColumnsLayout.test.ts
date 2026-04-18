@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseColumnsLayout } from "./keystatic-previews";
+import { parseColumnsLayout } from "./parseColumnsLayout";
 
 describe("parseColumnsLayout", () => {
   it("returns the default 1fr 1fr when input is missing or blank", () => {

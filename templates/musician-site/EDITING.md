@@ -399,17 +399,17 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 
 | Component | Description |
 |-----------|-------------|
-| `Button.astro` | Links and buttons (`primary` / `outline` variants, also Markdoc tag: `{% button %}`) |
+| `content-components/Button/` | Links and buttons (`primary` / `outline` variants, also Markdoc tag: `{% button %}`) |
 | `FormGroup.astro` | Labeled form inputs and textareas |
-| `Section.astro` | Section wrapper with optional title (Markdoc tag: `{% section %}`) |
-| `FullscreenSection.astro` | Full-viewport hero section with background image (Markdoc tag: `{% fullscreen-section %}`) |
-| `Columns.astro` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
-| `Column.astro` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
-| `ContentImage.astro` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
-| `ReleaseList.astro` | Music releases grid (Markdoc tag: `{% release-list %}`) |
-| `PressQuotes.astro` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
-| `PhotoGalleryBlock.astro` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
-| `ContactForm.astro` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
+| `content-components/Section/` | Section wrapper with optional title (Markdoc tag: `{% section %}`) |
+| `content-components/FullscreenSection/` | Full-viewport hero section with background image (Markdoc tag: `{% fullscreen-section %}`) |
+| `content-components/Columns/` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
+| `content-components/Column/` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
+| `content-components/Image/` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
+| `content-components/ReleaseList/` | Music releases grid (Markdoc tag: `{% release-list %}`) |
+| `content-components/PressQuotes/` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
+| `content-components/PhotoGallery/` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
+| `content-components/ContactForm/` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
 | `Header.astro` | Site navigation |
 | `Footer.astro` | Footer with social links |
 | `ReleaseCard.astro` | Music release display card |

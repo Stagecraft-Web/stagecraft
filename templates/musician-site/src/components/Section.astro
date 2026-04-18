@@ -10,12 +10,10 @@ const Heading = headingLevel;
 ---
 
 <section class="section">
-  <div class="container">
-    {title && (
-      <Heading class:list={[isTitleHidden && "screenreader-only"]}>
-        {title}
-      </Heading>
-    )}
-    <slot />
-  </div>
+  {title && (
+    <Heading class:list={[isTitleHidden && "screenreader-only"]}>
+      {title}
+    </Heading>
+  )}
+  <slot />
 </section>

@@ -41,7 +41,9 @@ const resolved = resolveImage(image);
 <style>
   .fullscreen-section {
     position: relative;
-    width: 100%;
+    /* Break out of the page container to span the full viewport width. */
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
     min-height: 100vh;
     display: flex;
     align-items: center;

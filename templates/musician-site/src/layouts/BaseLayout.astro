@@ -47,6 +47,19 @@ const colorMode = theme.colorMode ?? "light";
       <slot />
     </main>
     <Footer />
+
+    <style>
+      /* Default page container — every page gets sensible horizontal margins
+         and a max-width. Full-bleed children (e.g. FullscreenSection) use a
+         breakout pattern to escape these bounds. */
+      main {
+        width: 100%;
+        max-width: var(--max-content);
+        margin-inline: auto;
+        padding-inline: 1.5rem;
+        padding-block-end: 2rem;
+      }
+    </style>
     {colorMode === "light" && (
       <script is:inline>
         // Listen for OS theme changes (only in light mode — dark mode is always dark)

@@ -1,0 +1,24 @@
+{
+  // -------------------------------------------------------------------------
+  // Markdoc language server (Stripe.markdoc-language-support).
+  //
+  // Gives us syntax highlighting for `.mdoc` files, bracket matching inside
+  // `{% ... %}` tags, and a file-template command.
+  //
+  // NOTE: this extension only reads JSON config files (markdoc.config.json).
+  // Our project's tag schema lives in TypeScript (markdoc.config.ts), which
+  // the extension cannot parse. As a result:
+  //
+  //   - Syntax highlighting and bracket matching WORK out of the box.
+  //   - Tag-name completion and attribute validation DO NOT — those rely on
+  //     a readable JSON config and would require generating one from our .ts
+  //     source. Build-time validation via `astro build` and script-time
+  //     validation via `npm run validate:content` cover that gap.
+  //
+  // If the extension ever adds .ts/.js config support, point it at the real
+  // config with:  "markdoc.config.path": "markdoc.config.ts"
+  // -------------------------------------------------------------------------
+  "files.associations": {
+    "*.mdoc": "markdoc"
+  }
+}

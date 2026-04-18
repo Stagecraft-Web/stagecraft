@@ -1,0 +1,29 @@
+---
+interface Props {
+  /** Column proportions separated by dashes, e.g. "1-1", "1-2", "2-1", "1-1-1" */
+  layout?: string;
+}
+
+const { layout = "1-1" } = Astro.props;
+const gridColumns = layout.split("-").map((n) => `${n}fr`).join(" ");
+---
+
+<div class="columns" style={`--columns: ${gridColumns}`}>
+  <slot />
+</div>
+
+<style>
+  .columns {
+    display: grid;
+    grid-template-columns: var(--columns);
+    gap: 2rem;
+    align-items: start;
+  }
+
+  /* --breakpoint-md (768px) */
+  @media (max-width: 768px) {
+    .columns {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
-import { getNav, getSiteConfig } from "../lib/content";
+import { buildNav, getSiteConfig } from "../lib/content";
 
-const nav = getNav();
+const nav = await buildNav();
 const site = getSiteConfig();
 const currentPath = Astro.url.pathname;
 ---

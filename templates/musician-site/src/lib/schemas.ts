@@ -33,12 +33,20 @@ export const siteConfigSchema = z.object({
   copyright: z.string(),
 });
 
+// Nav config — what's stored in nav.json.
+// An ordered array of page slugs. The Navigation singleton owns both
+// membership (which pages appear) and order (what sequence).
+// Uses fields.relationship in Keystatic, so each entry is a page slug.
+export const navConfigSchema = z.object({
+  items: z.array(z.string().min(1)),
+});
+
+// Resolved nav item — what Header.astro actually renders (derived at build
+// time by looking up each slug's page title for the label).
 export const navItemSchema = z.object({
   label: z.string().min(1),
   href: z.string().min(1),
 });
-
-export const navSchema = z.array(navItemSchema);
 
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),
@@ -60,47 +68,17 @@ export const themeSchema = z.object({
 });
 
 // ============================================================
-// Page frontmatter schemas
-// These validate the YAML frontmatter block in src/content/pages/*.md.
-// parseFrontmatter() returns Record<string, string>, so all values
-// are strings here — parseFrontmatter does not coerce types.
+// Page frontmatter schema
+// All pages share minimal frontmatter: just a title.
+// Page-specific structured content (sections, images, buttons,
+// columns) lives in the Markdoc body as custom tags, not frontmatter.
+//
+// Navigation membership is controlled by the Navigation singleton
+// (nav.json), not by page frontmatter.
 // ============================================================
 
-export const homeFrontmatterSchema = z.object({
+export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
-  headline: z.string().min(1),
-  subheadline: z.string().optional(),
-  heroImage: z.string().optional(),  // path to image in src/assets/images/
-  ctaText: z.string().optional(),
-  ctaLink: z.string().optional(),
-});
-
-export const aboutFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-  image: z.string().optional(),  // path to image in src/assets/images/
-});
-
-export const musicFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-});
-
-export const photosFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-});
-
-export const pressFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
-  reviewsHeadline: z.string().optional(),  // heading above the quotes section
-  epkDownload: z.string().optional(),
-});
-
-export const contactFrontmatterSchema = z.object({
-  title: z.string().min(1),
-  headline: z.string().min(1),
 });
 
 // ============================================================
@@ -152,14 +130,10 @@ export const tourDateSchema = z.object({
 
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
+export type NavConfig = z.infer<typeof navConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
-export type HomeFrontmatter = z.infer<typeof homeFrontmatterSchema>;
-export type AboutFrontmatter = z.infer<typeof aboutFrontmatterSchema>;
-export type MusicFrontmatter = z.infer<typeof musicFrontmatterSchema>;
-export type PhotosFrontmatter = z.infer<typeof photosFrontmatterSchema>;
-export type PressFrontmatter = z.infer<typeof pressFrontmatterSchema>;
-export type ContactFrontmatter = z.infer<typeof contactFrontmatterSchema>;
+export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;
 export type Release = z.infer<typeof releaseSchema>;
 export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;

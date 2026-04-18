@@ -33,19 +33,22 @@ For any content change (bio, headline, CTA text, tour date, release info, photo,
 
 ### 4. Image references must carry metadata
 
-Every image reference in a JSON content file must be an object with at minimum `src` and `alt`:
+Every image reference in a YAML content file must be an object with at minimum `src` and `alt`:
 
-```json
-{
-  "src": "/images/your-image.jpg",
-  "alt": "Descriptive alt text — never leave blank",
-  "caption": "Optional display caption",
-  "credit": "Optional photographer credit",
-  "usageSlot": "gallery"
-}
+```yaml
+src: ../../../assets/images/your-image.jpg
+alt: Descriptive alt text — never leave blank
+caption: Optional display caption
+credit: Optional photographer credit
+usageSlot: gallery
 ```
 
-Do not use bare strings for image fields in JSON content files. Markdoc frontmatter image fields are strings (see limitation note below).
+Image `src` paths are **relative** from the content file to `src/assets/images/`. This enables Astro's build-time image optimisation (format conversion, hashing, dimensions).
+
+- From `src/content/collections/*/*.yaml`: use `../../../assets/images/filename.ext`
+- From `src/content/pages/*.mdoc`: use `../../assets/images/filename.ext`
+
+Do not use absolute `/images/` paths or reference `public/`. Markdoc frontmatter image fields are also relative paths (resolved by Astro's `image()` schema helper).
 
 ### 5. Run validate:content after any content change
 
@@ -69,38 +72,36 @@ Use this to find where any piece of content lives.
 | Social links (Instagram, Spotify, etc.) | `src/content/config/site.json` → `socialLinks` | `siteConfigSchema` |
 | Contact email | `src/content/config/site.json` → `contactEmail` | `siteConfigSchema` |
 | Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
-| Navigation menu | `src/content/config/nav.json` | `navSchema` |
+| Navigation order + labels | `src/content/config/nav.json` → `items` | `navConfigSchema` |
 | Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
-| Homepage headline, subheadline, CTA | `src/content/pages/home.mdoc` | `homeFrontmatterSchema` |
+| Any page title | `src/content/pages/*.mdoc` | `pageFrontmatterSchema` |
+| Homepage hero (fullscreen section, CTA) | `src/content/pages/home.mdoc` body → `{% fullscreen-section %}` + `{% button %}` | — |
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
-| About page headline | `src/content/pages/about.mdoc` | `aboutFrontmatterSchema` |
-| Artist bio | `src/content/pages/about.mdoc` (body) | — |
-| Music page headline | `src/content/pages/music.mdoc` | `musicFrontmatterSchema` |
-| Music page intro text | `src/content/pages/music.mdoc` (body) | — |
-| Photos page headline | `src/content/pages/photos.mdoc` | `photosFrontmatterSchema` |
-| Press page headline, EPK download link | `src/content/pages/press.mdoc` | `pressFrontmatterSchema` |
-| Press reviews section heading | `src/content/pages/press.mdoc` → `reviewsHeadline` | `pressFrontmatterSchema` |
-| Press intro text | `src/content/pages/press.mdoc` (body) | — |
-| Contact page headline | `src/content/pages/contact.mdoc` | `contactFrontmatterSchema` |
+| About page image + bio | `src/content/pages/about.mdoc` body → `{% section %}` + `{% columns %}` + `{% content-image %}` | — |
+| Music releases grid | `src/content/pages/music.mdoc` body → `{% release-list %}` tag | — |
+| Press EPK download link | `src/content/pages/press.mdoc` body → `{% epk-download %}` tag | — |
+| Press quotes list | `src/content/pages/press.mdoc` body → `{% press-quotes %}` tag | — |
+| Photos gallery | `src/content/pages/photos.mdoc` body → `{% photo-gallery %}` tag | — |
 | Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
+| Contact form | `src/content/pages/contact.mdoc` body → `{% contact-form %}` tag | — |
 
 ### Collections
 
 | What | Path | Schema | Format |
 |------|------|--------|--------|
-| Music releases (albums, singles, EPs) | `src/content/collections/releases/*.json` | `releaseSchema` | One JSON file per release |
-| Photo gallery | `src/content/collections/photos/gallery.json` | `photoSchema` (array) | Array of image metadata objects |
-| Videos | `src/content/collections/videos/videos.json` | `videoSchema` (array) | Array |
-| Press quotes | `src/content/collections/pressQuotes/quotes.json` | `pressQuoteSchema` (array) | Array |
-| Tour dates | `src/content/collections/tourDates/dates.json` | `tourDateSchema` (array) | Array |
+| Music releases (albums, singles, EPs) | `src/content/collections/releases/*.yaml` | `releaseSchema` | One YAML file per release |
+| Photo gallery | `src/content/collections/photos/*.yaml` | `photoSchema` | One YAML file per photo |
+| Videos | `src/content/collections/videos/*.yaml` | `videoSchema` | One YAML file per video |
+| Press quotes | `src/content/collections/pressQuotes/*.yaml` | `pressQuoteSchema` | One YAML file per quote |
+| Tour dates | `src/content/collections/tourDates/*.yaml` | `tourDateSchema` | One YAML file per date |
 
 ### Images
 
-Static images live in `public/images/`. Reference as `/images/filename.ext` from content and components.
+Images live in `src/assets/images/` and are processed by Astro's build pipeline (optimised format, content-hashed URLs, automatic dimensions).
 
-Image references in **JSON content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`).
+Image references in **YAML content files** use the `imageMetadataSchema` object shape (required: `src`, `alt`). The `src` field is a relative path from the YAML file to `src/assets/images/`.
 
-Image references in **Markdoc frontmatter** are plain path strings.
+Image references in **Markdoc tag attributes** (e.g. `{% fullscreen-section image="..." %}`, `{% content-image src="..." %}`) are string paths resolved at render time by the `resolveImage()` utility (`src/lib/resolve-image.ts`), which uses `import.meta.glob` to map filenames to optimised `ImageMetadata` objects.
 
 ---
 
@@ -116,21 +117,26 @@ src/content/
     home.mdoc         ← singleton: homepage content
     about.mdoc        ← singleton: about/bio page
     music.mdoc        ← singleton: music page intro
-    photos.mdoc       ← singleton: photos page headline
+    photos.mdoc       ← singleton: photos page
     press.mdoc        ← singleton: press page content
     contact.mdoc      ← singleton: contact page intro
   collections/
-    releases/         ← one .json file per release
-    photos/           ← gallery.json (array)
-    videos/           ← videos.json (array)
-    pressQuotes/      ← quotes.json (array)
-    tourDates/        ← dates.json (array)
+    releases/         ← one .yaml file per release
+    photos/           ← one .yaml file per photo
+    videos/           ← one .yaml file per video
+    pressQuotes/      ← one .yaml file per quote
+    tourDates/        ← one .yaml file per date
 
-src/content.config.ts   ← Astro content collection definitions
+src/content.config.ts   ← Astro content collection definitions (unified pages collection)
+keystatic.config.ts     ← Keystatic CMS config (singletons, collections, content components)
+markdoc.config.mjs      ← Markdoc custom tag definitions (section, fullscreen-section, button, columns, column, content-image, epk-download, release-list, press-quotes, photo-gallery, contact-form)
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
-  content.ts            ← validated config loaders (getSiteConfig, getNav, getTheme)
-public/images/          ← static images (served as-is)
+  content.ts            ← validated config loaders (getSiteConfig, buildNav, getTheme)
+  resolve-image.ts      ← resolveImage() utility for Markdoc tag components
+src/pages/
+  [...slug].astro       ← catch-all route for ALL pages (home maps to /, others to /slug/)
+src/assets/images/      ← optimised images (processed by Astro at build time)
 ```
 
 Do not place content files outside these locations.
@@ -141,9 +147,13 @@ Do not place content files outside these locations.
 
 - **Framework**: Astro + React + TypeScript (strict mode)
 - **Rendering**: Static by default via `@astrojs/netlify` adapter. Pages are prerendered at build time. API routes use `export const prerender = false`.
-- **Content**: Astro content collections (`src/content.config.ts`). Page copy in Markdoc (`.mdoc`), collections in JSON, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (`title` only). All page layout structure lives in the Markdoc body using layout tags (Section, FullscreenSection, Columns, Column) and content tags (ContentImage, Button, EPK links, release grids, photo galleries, contact forms). Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
+- **Navigation**: The Navigation singleton (`nav.json`) is the single source of truth for both membership and order. It stores an ordered array of page slugs using Keystatic's relationship field (dropdown picker + drag-to-reorder). At build time, `buildNav()` resolves each slug to a label (from the page's title) and href. Slugs referencing deleted pages are silently dropped.
+- **Dynamic pages**: The `[...slug].astro` catch-all renders **all** pages as `<BaseLayout><Content /></BaseLayout>` with no conditional layout logic. Pages are fully self-contained: all layout structure (sections, columns, fullscreen areas) is defined in the `.mdoc` content files using Markdoc tags. The "home" page maps to `/` (slug: undefined).
+- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. **Layout tags**: `{% section %}` (Section.astro), `{% fullscreen-section %}` (FullscreenSection.astro), `{% columns %}` (Columns.astro), `{% column %}` (Column.astro). **Content tags**: `{% button %}` (Button.astro), `{% content-image %}` (ContentImage.astro), `{% epk-download %}` (EpkDownload.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
+- **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
-- **Images**: Static images in `public/images/`. Served as-is; reference as `/images/filename.ext`.
+- **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
 
 ---
 
@@ -178,28 +188,96 @@ Polymorphic button/link with variants.
 Form field wrapper with label, input/textarea, and required indicator.
 - Props: `label`, `name`, `type`, `isTextarea`, `rows`, `isRequired`, `autocomplete`
 
-### `Image.astro`
-Zero-JS image component with consistent styling.
-- Props: `src`, `alt` (required), `class`, `loading`, `aspectRatio`, `objectFit`
-- Lazy loading by default, no client-side hydration needed
+### `<Image>` from `astro:assets`
+Astro's built-in optimised image component. Use in all `.astro` files.
+- Accepts `ImageMetadata` objects (from content collections with `image()` schema) or imported images
+- Automatically provides `width`, `height`, format conversion, content-hashed URLs
+- Use `import { Image } from "astro:assets";`
+
+### `Section.astro` (Markdoc tag: `{% section %}`)
+Wrapper tag that creates a `<section>` with optional title and `.container` wrapper.
+- Rendered by the `{% section %}` Markdoc wrapper tag
+- Props: `title` (optional heading text), `headingLevel` (1-4, default 2), `isTitleHidden` (boolean, visually hides the title while keeping it accessible)
+- Child content renders inside a `.container` wrapper
+- Use to wrap all standard page content sections
+
+### `FullscreenSection.astro` (Markdoc tag: `{% fullscreen-section %}`)
+Full-viewport section with background image and content overlay.
+- Rendered by the `{% fullscreen-section %}` Markdoc wrapper tag
+- Minimum 100vw x 100vh dimensions
+- Props: `image` (string path resolved via `resolveImage()`), `alt` (required)
+- Shows a missing-image placeholder when no image is provided
+- Child content renders in a centered overlay on top of the background
+
+### `Button.astro` (also Markdoc tag: `{% button %}`)
+Polymorphic button/link with variants. Also used directly as a self-closing Markdoc tag.
+- In Astro templates: `<Button href="/path">Label</Button>` (label via slot)
+- In Markdoc content: `{% button label="Label" href="/path" /%}` (label via prop)
+- Props: `label` (for Markdoc), `href`, `variant` (`primary` | `outline`), `isExternal`
+
+### `Columns.astro` (Markdoc tag: `{% columns %}`)
+Wrapper tag that creates a CSS grid side-by-side layout.
+- Rendered by the `{% columns %}` Markdoc wrapper tag
+- Props: `layout` (string pattern like "1-1", "1-2", "2-1" controlling column proportions)
+- Collapses to vertical stacking on mobile
+- Children should be `{% column %}` tags
+
+### `Column.astro` (Markdoc tag: `{% column %}`)
+Wrapper tag for individual columns inside a Columns layout.
+- Rendered by the `{% column %}` Markdoc wrapper tag
+- Must be used inside `{% columns %}`
+
+### `ContentImage.astro` (Markdoc tag: `{% content-image %}`)
+Self-closing tag that renders an optimised image via `resolveImage()`.
+- Rendered by the `{% content-image /%}` Markdoc tag
+- Props: `src` (required, string path), `alt` (required)
+- Use inside `{% column %}` for image+text layouts
+
+### `EpkDownload.astro` (Markdoc tag: `{% epk-download %}`)
+Download button for EPK files.
+- Rendered by the `{% epk-download %}` Markdoc tag
+- Props: `path` (required), `label` (default: "Download EPK")
+
+### `ReleaseList.astro` (Markdoc tag: `{% release-list %}`)
+Self-closing data-fetching tag that displays all music releases in a grid.
+- Fetches the `releases` collection internally — no props needed
+- Rendered by the `{% release-list /%}` Markdoc tag
+
+### `PressQuotes.astro` (Markdoc tag: `{% press-quotes %}`)
+Self-closing data-fetching tag that displays all press quotes.
+- Fetches the `pressQuotes` collection internally — no props needed
+- Rendered by the `{% press-quotes /%}` Markdoc tag
+
+### `PhotoGalleryBlock.astro` (Markdoc tag: `{% photo-gallery %}`)
+Self-closing data-fetching tag that displays the photo gallery with lightbox.
+- Fetches the `photos` collection internally, delegates rendering to `PhotoGallery.astro`
+- Rendered by the `{% photo-gallery /%}` Markdoc tag
+
+### `ContactForm.astro` (Markdoc tag: `{% contact-form %}`)
+Self-closing tag that renders the contact form.
+- Self-contained form with honeypot, FormGroup fields, client-side JS submit handler
+- Rendered by the `{% contact-form /%}` Markdoc tag
 
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.
-- Props: `src`, `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
+- Props: `src` (string URL), `alt`, `className`, `loading`, `aspectRatio`, `objectFit`
 - Shows placeholder during load, fallback on error
 - Used only inside `Lightbox.tsx` where dynamic image loading state is needed
+- Cannot use Astro's `<Image>` in React — this component handles client-side image state
 
 ### `PhotoGallery.astro`
 Photo grid with lightbox support.
-- Props: `photos` (array of `{ src, alt, caption? }`)
-- Renders a static thumbnail grid using `Image.astro` (zero hydration cost)
-- Includes `Lightbox` as a React island (`client:only="react"`) for full-size viewing
+- Props: `photos` (array of `{ src: ImageMetadata, alt, caption? }`)
+- Renders a static thumbnail grid using Astro's `<Image>` (zero hydration cost)
+- Passes resolved string URLs to `Lightbox` (React island, `client:only="react"`)
 - Communicates with Lightbox via `open-lightbox` custom event
 
 ### When to use each
 - Use `Button` for all clickable actions (links, submit buttons, icon buttons)
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
-- Use `Image.astro` in `.astro` components for all images
+- Use `<Image>` from `astro:assets` in `.astro` components for all images
+- Use layout Markdoc tags (`{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`) to structure page layout in `.mdoc` content files
+- Use content Markdoc tags (`{% button %}`, `{% content-image %}`, `{% epk-download %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`) for page-specific content blocks
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components
@@ -229,11 +307,11 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 ## Adding a New Page
 
-1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter (`title`, `headline`).
-2. Add a frontmatter schema for the new page to `src/lib/schemas.ts`.
-3. Add a content collection definition in `src/content.config.ts`.
-4. Create an Astro page file in `src/pages/`. Use `getEntry()` and `render()` from `astro:content`.
-5. Add a navigation entry in `src/content/config/nav.json`.
+1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`.
+2. The `[...slug].astro` catch-all renders it automatically as `<BaseLayout><Content /></BaseLayout>`.
+3. Wrap all page content in `{% section title="Page Title" %}` (or `{% fullscreen-section %}` for hero-style pages). Pages are fully self-contained -- all layout structure lives in the `.mdoc` body.
+4. Use layout tags (`{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`) to structure the page and content tags (`{% button %}`, `{% content-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`, `{% epk-download %}`) for content blocks.
+5. To show the page in the nav, add it to the Navigation singleton in Keystatic (or add its slug to `nav.json` → `items` array).
 
 ---
 
@@ -242,8 +320,9 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 1. Define the item schema in `src/lib/schemas.ts`.
 2. Create the collection directory under `src/content/collections/{name}/`.
 3. Add a content collection definition in `src/content.config.ts`.
-4. Add validation for the collection to `scripts/validate-content.ts`.
-5. Add sample data files. Array-based JSON files require an `id` field on each entry.
+4. Add a Keystatic collection definition in `keystatic.config.ts`.
+5. Add validation for the collection to `scripts/validate-content.ts`.
+6. Add sample YAML data files (one file per entry). Quote date strings in YAML to prevent auto-parsing (e.g. `date: "2026-05-15"`).
 
 ---
 

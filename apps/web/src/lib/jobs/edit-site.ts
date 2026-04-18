@@ -116,16 +116,15 @@ async function buildAssetFiles(
       }
       jsonUpdates[siteJsonPath][asset.usageSlot === "hero" ? "heroImage" : "logoImage"] = publicPath;
     } else if (asset.usageSlot === "about") {
-      // Prepend a frontmatter image field to about.md
-      // We'll handle this via a separate content file update below
+      // Inject a {% page-image %} Markdoc tag into the about page body
       const aboutPath = "src/content/pages/about.mdoc";
       let aboutContent = "";
       try {
         aboutContent = await getFileContent(userId, owner, repo, aboutPath, baseBranch);
       } catch {
-        aboutContent = "---\ntitle: About\n---\n";
+        aboutContent = "---\ntitle: About\nheadline: About the Artist\n---\n";
       }
-      aboutContent = injectFrontmatterField(aboutContent, "photo", publicPath);
+      aboutContent = injectMarkdocImageTag(aboutContent, publicPath);
       files.push({ path: aboutPath, content: aboutContent });
     }
   }
@@ -143,6 +142,27 @@ async function buildAssetFiles(
     : `Added ${assets.length} image${assets.length === 1 ? "" : "s"}`;
 
   return { files, assetIds, summary };
+}
+
+/**
+ * Insert or replace a {% page-image %} Markdoc tag in the about page body.
+ * If one already exists, its src attribute is updated. Otherwise, a new tag
+ * wraps the existing body content.
+ */
+export function injectMarkdocImageTag(content: string, imagePath: string): string {
+  const pageImageRegex = /{% page-image\s+src="[^"]*"/;
+  if (pageImageRegex.test(content)) {
+    // Replace existing src attribute
+    return content.replace(pageImageRegex, `{% page-image src="${imagePath}"`);
+  }
+  // Wrap body content in a new {% page-image %} tag after frontmatter
+  const fmMatch = content.match(/^(---\n[\s\S]*?\n---\n)([\s\S]*)$/);
+  if (fmMatch) {
+    const frontmatter = fmMatch[1];
+    const body = fmMatch[2].trim();
+    return `${frontmatter}\n{% page-image src="${imagePath}" alt="About the Artist" position="left" %}\n\n${body}\n\n{% /page-image %}\n`;
+  }
+  return content;
 }
 
 /** Insert or replace a frontmatter field in a Markdown file. */

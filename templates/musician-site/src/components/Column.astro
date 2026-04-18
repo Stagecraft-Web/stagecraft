@@ -1,0 +1,14 @@
+---
+// Column — a single column within a Columns layout.
+// No props; simply wraps slot content.
+---
+
+<div class="column">
+  <slot />
+</div>
+
+<style>
+  .column {
+    min-width: 0;
+  }
+</style>

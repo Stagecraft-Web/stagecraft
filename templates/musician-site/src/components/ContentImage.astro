@@ -1,0 +1,25 @@
+---
+import { Image } from "astro:assets";
+import { resolveImage } from "../lib/resolve-image";
+
+interface Props {
+  src: string;
+  alt: string;
+}
+
+const { src, alt } = Astro.props;
+const resolved = resolveImage(src);
+---
+
+{resolved && (
+  <Image src={resolved} alt={alt} class="content-image" />
+)}
+
+<style>
+  .content-image {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    display: block;
+  }
+</style>

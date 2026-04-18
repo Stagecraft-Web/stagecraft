@@ -3,11 +3,12 @@ import {
   imageMetadataSchema,
   siteConfigSchema,
   themeSchema,
+  pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
   pressQuoteSchema,
   tourDateSchema,
-  navSchema,
+  navConfigSchema,
 } from "../schemas";
 
 describe("imageMetadataSchema", () => {
@@ -119,6 +120,26 @@ describe("themeSchema", () => {
   });
 });
 
+describe("pageFrontmatterSchema", () => {
+  it("accepts valid page frontmatter", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home" });
+    expect(result.title).toBe("Home");
+  });
+
+  it("rejects missing title", () => {
+    expect(() => pageFrontmatterSchema.parse({})).toThrow();
+  });
+
+  it("rejects empty title", () => {
+    expect(() => pageFrontmatterSchema.parse({ title: "" })).toThrow();
+  });
+
+  it("ignores extra fields", () => {
+    const result = pageFrontmatterSchema.parse({ title: "Home", extra: "field" });
+    expect(result.title).toBe("Home");
+  });
+});
+
 describe("releaseSchema", () => {
   const valid = {
     title: "Debut Album",
@@ -206,16 +227,25 @@ describe("tourDateSchema", () => {
   });
 });
 
-describe("navSchema", () => {
-  it("accepts valid nav items", () => {
-    const items = [
-      { label: "Home", href: "/" },
-      { label: "Music", href: "/music" },
-    ];
-    expect(navSchema.parse(items)).toEqual(items);
+describe("navConfigSchema", () => {
+  it("accepts valid nav config (array of slugs)", () => {
+    const config = { items: ["home", "about", "music"] };
+    expect(navConfigSchema.parse(config)).toEqual(config);
   });
 
-  it("rejects empty label", () => {
-    expect(() => navSchema.parse([{ label: "", href: "/" }])).toThrow();
+  it("accepts empty items array", () => {
+    expect(navConfigSchema.parse({ items: [] })).toEqual({ items: [] });
+  });
+
+  it("rejects missing items field", () => {
+    expect(() => navConfigSchema.parse({})).toThrow();
+  });
+
+  it("rejects empty slug strings", () => {
+    expect(() => navConfigSchema.parse({ items: ["home", ""] })).toThrow();
+  });
+
+  it("rejects flat array (must be wrapped in items)", () => {
+    expect(() => navConfigSchema.parse(["home", "about"])).toThrow();
   });
 });

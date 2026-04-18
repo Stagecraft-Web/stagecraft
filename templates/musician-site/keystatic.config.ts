@@ -4,6 +4,7 @@ import {
   ButtonPreview,
   ColumnPreview,
   ColumnsPreview,
+  ContactFormPreview,
   FullscreenSectionPreview,
   ImagePreview,
   PhotoGalleryPreview,
@@ -149,6 +150,7 @@ const contactFormBlock = block({
   label: "Contact Form",
   description: "Renders the contact form (name, email, subject, message).",
   schema: {},
+  ContentView: ContactFormPreview,
 });
 
 export default config({

@@ -7,26 +7,18 @@
  * @astrojs/markdoc and @keystatic/core expect — but keeping a thin shared type
  * here documents the contract and guards against typos across components.
  */
+import type { Schema } from "@markdoc/markdoc";
 import type { ContentComponent } from "@keystatic/core/content-components";
 
 /**
- * The shape of a markdoc tag definition, matching @astrojs/markdoc's
- * `defineMarkdocConfig` tags entries. We keep `render` as a string path
- * here — markdoc.config.ts wraps it with `component(...)` when assembling
- * the final config.
+ * A markdoc tag definition. We alias Markdoc's native `Schema` type rather
+ * than rolling our own narrower shape — this way new Schema fields Markdoc
+ * supports (matches, slots, validate, etc.) are available without updating
+ * this file. `Schema`'s second generic defaults to `string` which matches
+ * our convention of storing `render` as a path string that markdoc.config.ts
+ * wraps with `component(...)` when assembling the final config.
  */
-export type MarkdocTagDefinition = {
-  render: string;
-  selfClosing?: boolean;
-  attributes: Record<
-    string,
-    {
-      type: StringConstructor | NumberConstructor | BooleanConstructor;
-      required?: boolean;
-      default?: string | number | boolean;
-    }
-  >;
-};
+export type MarkdocTagDefinition = Schema;
 
 /**
  * A Keystatic content-component (either block or wrapper). The core library

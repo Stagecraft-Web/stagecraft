@@ -41,12 +41,25 @@ const resolved = resolveImage(image);
 <style>
   .fullscreen-section {
     position: relative;
-    width: 100%;
+    /* Break out of the page container to span the full viewport width. */
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    /* Always leave breathing room before the next content block. Adjacent
+       plain-text siblings have no top margin of their own, so the space
+       lives here rather than on siblings. */
+    margin-block-end: 3rem;
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+  }
+
+  /* When FullscreenSection is the first child of a Markdoc-rendered page
+     (wrapped in <article>), pull it up to absorb main's top padding so the
+     hero flushes against the header. */
+  :global(article) > .fullscreen-section:first-child {
+    margin-top: calc(-1 * var(--page-pad-y));
   }
 
   .fullscreen-bg {

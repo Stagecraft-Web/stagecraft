@@ -173,14 +173,14 @@ title: Press
 
 Introductory text for the press page.
 
-{% epk-download path="/downloads/epk.pdf" label="Download EPK" /%}
+{% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
 {% press-quotes /%}
 
 {% /section %}
 ```
 
-- The `{% epk-download %}` tag renders a download button. Remove the tag to hide it.
+- The `{% button %}` tag (with an EPK download URL) renders a download button. Remove the tag to hide it.
 - The `{% press-quotes %}` tag pulls in all quotes from the Press Quotes collection. Remove the tag to hide them.
 
 ### Music — `src/content/pages/music.mdoc`
@@ -248,7 +248,7 @@ title: Tour Schedule
 
 {% section title="Upcoming Shows" %}
 
-Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, epk-download, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
+Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
 
 {% /section %}
 ```
@@ -406,7 +406,6 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `Columns.astro` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
 | `Column.astro` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
 | `ContentImage.astro` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
-| `EpkDownload.astro` | EPK download button (Markdoc tag: `{% epk-download %}`) |
 | `ReleaseList.astro` | Music releases grid (Markdoc tag: `{% release-list %}`) |
 | `PressQuotes.astro` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
 | `PhotoGalleryBlock.astro` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |

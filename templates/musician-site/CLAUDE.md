@@ -79,7 +79,7 @@ Use this to find where any piece of content lives.
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
 | About page image + bio | `src/content/pages/about.mdoc` body → `{% section %}` + `{% columns %}` + `{% content-image %}` | — |
 | Music releases grid | `src/content/pages/music.mdoc` body → `{% release-list %}` tag | — |
-| Press EPK download link | `src/content/pages/press.mdoc` body → `{% epk-download %}` tag | — |
+| Press EPK download link | `src/content/pages/press.mdoc` body → `{% button %}` tag (with EPK file URL) | — |
 | Press quotes list | `src/content/pages/press.mdoc` body → `{% press-quotes %}` tag | — |
 | Photos gallery | `src/content/pages/photos.mdoc` body → `{% photo-gallery %}` tag | — |
 | Contact intro text | `src/content/pages/contact.mdoc` (body) | — |
@@ -129,7 +129,7 @@ src/content/
 
 src/content.config.ts   ← Astro content collection definitions (unified pages collection)
 keystatic.config.ts     ← Keystatic CMS config (singletons, collections, content components)
-markdoc.config.mjs      ← Markdoc custom tag definitions (section, fullscreen-section, button, columns, column, content-image, epk-download, release-list, press-quotes, photo-gallery, contact-form)
+markdoc.config.mjs      ← Markdoc custom tag definitions (section, fullscreen-section, button, columns, column, content-image, release-list, press-quotes, photo-gallery, contact-form)
 src/lib/
   schemas.ts            ← all Zod schemas (source of schema truth)
   content.ts            ← validated config loaders (getSiteConfig, buildNav, getTheme)
@@ -150,7 +150,7 @@ Do not place content files outside these locations.
 - **Content**: Astro content collections (`src/content.config.ts`). All pages share a unified `pages` collection with minimal frontmatter (`title` only). All page layout structure lives in the Markdoc body using layout tags (Section, FullscreenSection, Columns, Column) and content tags (ContentImage, Button, EPK links, release grids, photo galleries, contact forms). Collections in YAML, config in JSON. Queried via `getEntry()`/`getCollection()` from `astro:content`.
 - **Navigation**: The Navigation singleton (`nav.json`) is the single source of truth for both membership and order. It stores an ordered array of page slugs using Keystatic's relationship field (dropdown picker + drag-to-reorder). At build time, `buildNav()` resolves each slug to a label (from the page's title) and href. Slugs referencing deleted pages are silently dropped.
 - **Dynamic pages**: The `[...slug].astro` catch-all renders **all** pages as `<BaseLayout><Content /></BaseLayout>` with no conditional layout logic. Pages are fully self-contained: all layout structure (sections, columns, fullscreen areas) is defined in the `.mdoc` content files using Markdoc tags. The "home" page maps to `/` (slug: undefined).
-- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. **Layout tags**: `{% section %}` (Section.astro), `{% fullscreen-section %}` (FullscreenSection.astro), `{% columns %}` (Columns.astro), `{% column %}` (Column.astro). **Content tags**: `{% button %}` (Button.astro), `{% content-image %}` (ContentImage.astro), `{% epk-download %}` (EpkDownload.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
+- **Markdoc tags**: Custom tags defined in `markdoc.config.mjs` map to Astro components. **Layout tags**: `{% section %}` (Section.astro), `{% fullscreen-section %}` (FullscreenSection.astro), `{% columns %}` (Columns.astro), `{% column %}` (Column.astro). **Content tags**: `{% button %}` (Button.astro), `{% content-image %}` (ContentImage.astro), `{% release-list %}` (ReleaseList.astro), `{% press-quotes %}` (PressQuotes.astro), `{% photo-gallery %}` (PhotoGalleryBlock.astro), `{% contact-form %}` (ContactForm.astro). Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
 - **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
 - **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
@@ -233,11 +233,6 @@ Self-closing tag that renders an optimised image via `resolveImage()`.
 - Props: `src` (required, string path), `alt` (required)
 - Use inside `{% column %}` for image+text layouts
 
-### `EpkDownload.astro` (Markdoc tag: `{% epk-download %}`)
-Download button for EPK files.
-- Rendered by the `{% epk-download %}` Markdoc tag
-- Props: `path` (required), `label` (default: "Download EPK")
-
 ### `ReleaseList.astro` (Markdoc tag: `{% release-list %}`)
 Self-closing data-fetching tag that displays all music releases in a grid.
 - Fetches the `releases` collection internally — no props needed
@@ -277,7 +272,7 @@ Photo grid with lightbox support.
 - Use `FormGroup` for all form fields instead of raw `<input>`/`<label>`
 - Use `<Image>` from `astro:assets` in `.astro` components for all images
 - Use layout Markdoc tags (`{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`) to structure page layout in `.mdoc` content files
-- Use content Markdoc tags (`{% button %}`, `{% content-image %}`, `{% epk-download %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`) for page-specific content blocks
+- Use content Markdoc tags (`{% button %}`, `{% content-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`) for page-specific content blocks
 - Use `Image.tsx` only inside React components that need loading/error state (Lightbox)
 
 ### Styling in React components
@@ -310,7 +305,7 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 1. Create a Markdoc file (`.mdoc`) in `src/content/pages/` with required frontmatter: `title`.
 2. The `[...slug].astro` catch-all renders it automatically as `<BaseLayout><Content /></BaseLayout>`.
 3. Wrap all page content in `{% section title="Page Title" %}` (or `{% fullscreen-section %}` for hero-style pages). Pages are fully self-contained -- all layout structure lives in the `.mdoc` body.
-4. Use layout tags (`{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`) to structure the page and content tags (`{% button %}`, `{% content-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`, `{% epk-download %}`) for content blocks.
+4. Use layout tags (`{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`) to structure the page and content tags (`{% button %}`, `{% content-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`) for content blocks.
 5. To show the page in the nav, add it to the Navigation singleton in Keystatic (or add its slug to `nav.json` → `items` array).
 
 ---

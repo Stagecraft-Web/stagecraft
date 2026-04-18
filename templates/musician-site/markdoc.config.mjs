@@ -47,14 +47,6 @@ export default defineMarkdocConfig({
         alt: { type: String, required: true },
       },
     },
-    "epk-download": {
-      render: component("./src/components/EpkDownload.astro"),
-      selfClosing: true,
-      attributes: {
-        path: { type: String, required: true },
-        label: { type: String, default: "Download EPK" },
-      },
-    },
     "release-list": {
       render: component("./src/components/ReleaseList.astro"),
       selfClosing: true,

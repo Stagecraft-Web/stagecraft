@@ -1,9 +1,24 @@
 import { config, fields, collection, singleton } from "@keystatic/core";
 import { block, wrapper } from "@keystatic/core/content-components";
+import {
+  ButtonPreview,
+  ColumnPreview,
+  ColumnsPreview,
+  ContactFormPreview,
+  FullscreenSectionPreview,
+  ImagePreview,
+  PhotoGalleryPreview,
+  PressQuotesPreview,
+  ReleaseListPreview,
+} from "./src/components/keystatic-previews";
 
 // ---------------------------------------------------------------------------
 // Markdoc content components — these appear as insertable blocks in the
 // Keystatic Markdoc editor. Tag names here must match markdoc.config.mjs.
+//
+// Many blocks define a `ContentView` that renders a richer in-editor preview
+// (a real image thumbnail for images, a stock grid for release-list, etc.).
+// See src/components/keystatic-previews.tsx for the renderers.
 // ---------------------------------------------------------------------------
 
 const sectionWrapper = wrapper({
@@ -53,6 +68,7 @@ const fullscreenSectionWrapper = wrapper({
       publicPath: "../../assets/images/",
     }),
   },
+  ContentView: FullscreenSectionPreview,
 });
 
 const buttonBlock = block({
@@ -71,6 +87,7 @@ const buttonBlock = block({
     }),
     isExternal: fields.checkbox({ label: "Open in new tab" }),
   },
+  ContentView: ButtonPreview,
 });
 
 const columnsWrapper = wrapper({
@@ -83,12 +100,14 @@ const columnsWrapper = wrapper({
       defaultValue: "1-1",
     }),
   },
+  ContentView: ColumnsPreview,
 });
 
 const columnWrapper = wrapper({
   label: "Column",
   description: "A single column within a Columns layout.",
   schema: {},
+  ContentView: ColumnPreview,
 });
 
 const contentImageBlock = block({
@@ -103,38 +122,35 @@ const contentImageBlock = block({
     }),
     alt: fields.text({ label: "Alt Text", validation: { isRequired: true } }),
   },
-});
-
-const epkDownloadBlock = block({
-  label: "EPK Download",
-  schema: {
-    path: fields.text({ label: "File Path", validation: { isRequired: true } }),
-    label: fields.text({ label: "Button Label" }),
-  },
+  ContentView: ImagePreview,
 });
 
 const releaseListBlock = block({
   label: "Release List",
   description: "Displays all music releases in a grid.",
   schema: {},
+  ContentView: ReleaseListPreview,
 });
 
 const pressQuotesBlock = block({
   label: "Press Quotes",
   description: "Displays all press quotes from the Press Quotes collection.",
   schema: {},
+  ContentView: PressQuotesPreview,
 });
 
 const photoGalleryBlock = block({
   label: "Photo Gallery",
   description: "Displays all photos from the Photos collection with lightbox.",
   schema: {},
+  ContentView: PhotoGalleryPreview,
 });
 
 const contactFormBlock = block({
   label: "Contact Form",
   description: "Renders the contact form (name, email, subject, message).",
   schema: {},
+  ContentView: ContactFormPreview,
 });
 
 export default config({
@@ -221,7 +237,6 @@ export default config({
             columns: columnsWrapper,
             column: columnWrapper,
             "content-image": contentImageBlock,
-            "epk-download": epkDownloadBlock,
             "release-list": releaseListBlock,
             "press-quotes": pressQuotesBlock,
             "photo-gallery": photoGalleryBlock,

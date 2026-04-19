@@ -8,6 +8,12 @@ This document explains how to edit your musician website. You can either use the
 
 The site includes a visual content editor at `/keystatic`. Run the dev server and visit `http://localhost:4321/keystatic` to manage pages, releases, photos, press quotes, tour dates, and site settings through a web UI.
 
+**In production**, `/keystatic` requires GitHub OAuth — see
+[`docs/keystatic-github-setup.md`](docs/keystatic-github-setup.md) for the
+one-time setup (register a GitHub App, set Netlify env vars). Once
+configured, signed-in editors also see an **Appearance** sidebar on the
+live site (bottom-right corner) with live preview and a single-click save.
+
 ---
 
 ## Quick Start

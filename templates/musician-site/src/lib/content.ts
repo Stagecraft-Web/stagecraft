@@ -2,13 +2,16 @@ import { getCollection } from "astro:content";
 import siteConfigRaw from "../content/config/site.json";
 import navConfigRaw from "../content/config/nav.json";
 import themeConfigRaw from "../content/config/theme.json";
+import appearanceConfigRaw from "../content/config/appearance.json";
 import {
   siteConfigSchema,
   navConfigSchema,
   themeSchema,
+  appearanceSchema,
   type SiteConfig,
   type NavItem,
   type Theme,
+  type Appearance,
 } from "./schemas.js";
 
 // Runtime-validated accessors for config singletons.
@@ -48,4 +51,8 @@ export async function buildNav(): Promise<NavItem[]> {
 
 export function getTheme(): Theme {
   return themeSchema.parse(themeConfigRaw);
+}
+
+export function getAppearance(): Appearance {
+  return appearanceSchema.parse(appearanceConfigRaw);
 }

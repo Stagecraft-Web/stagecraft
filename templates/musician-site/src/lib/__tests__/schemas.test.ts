@@ -3,6 +3,7 @@ import {
   imageMetadataSchema,
   siteConfigSchema,
   themeSchema,
+  appearanceSchema,
   pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
@@ -117,6 +118,128 @@ describe("themeSchema", () => {
   it("rejects missing breakpoints", () => {
     const { breakpoints, ...noBreakpoints } = valid;
     expect(() => themeSchema.parse(noBreakpoints)).toThrow();
+  });
+});
+
+describe("appearanceSchema", () => {
+  const valid = {
+    colors: {
+      primary: "#1a1a2e",
+      secondary: "#e94560",
+      accent: "#0f3460",
+      background: "#fafafa",
+      surface: "#ffffff",
+      text: "#1a1a2e",
+      textMuted: "#6b7280",
+      border: "#e5e7eb",
+    },
+    typography: {
+      mode: "split" as const,
+      primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      heading: { discriminant: "serif" as const, value: "Merriweather" },
+      weights: {
+        body: 400,
+        bodyBold: 700,
+        h1: 700,
+        h2: 700,
+        h3: 700,
+        h4: 700,
+        h5: 600,
+        h6: 600,
+      },
+    },
+  };
+
+  it("accepts a valid appearance", () => {
+    const result = appearanceSchema.parse(valid);
+    expect(result.colors.primary).toBe("#1a1a2e");
+    expect(result.typography.mode).toBe("split");
+  });
+
+  it("transforms Keystatic's {discriminant, value} font shape into {category, family}", () => {
+    const result = appearanceSchema.parse(valid);
+    expect(result.typography.primary).toEqual({ category: "sans-serif", family: "Inter" });
+    expect(result.typography.heading).toEqual({ category: "serif", family: "Merriweather" });
+  });
+
+  it("coerces string weights (as Keystatic's select emits) into numbers", () => {
+    const withStringWeights = {
+      ...valid,
+      typography: {
+        ...valid.typography,
+        weights: {
+          body: "400",
+          bodyBold: "700",
+          h1: "700",
+          h2: "700",
+          h3: "700",
+          h4: "700",
+          h5: "600",
+          h6: "600",
+        },
+      },
+    };
+    const result = appearanceSchema.parse(withStringWeights);
+    expect(result.typography.weights.body).toBe(400);
+    expect(result.typography.weights.h1).toBe(700);
+  });
+
+  it("defaults mode to 'single' when omitted", () => {
+    const { mode, ...typographyNoMode } = valid.typography;
+    const result = appearanceSchema.parse({ ...valid, typography: typographyNoMode });
+    expect(result.typography.mode).toBe("single");
+  });
+
+  it("rejects weights outside the 100–900 range", () => {
+    const withBadWeight = {
+      ...valid,
+      typography: {
+        ...valid.typography,
+        weights: { ...valid.typography.weights, body: 50 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
+  });
+
+  it("rejects weights that aren't multiples of 100", () => {
+    const withBadWeight = {
+      ...valid,
+      typography: {
+        ...valid.typography,
+        weights: { ...valid.typography.weights, body: 450 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
+  });
+
+  it("rejects empty font family", () => {
+    const withEmptyFamily = {
+      ...valid,
+      typography: {
+        ...valid.typography,
+        primary: { discriminant: "sans-serif" as const, value: "" },
+      },
+    };
+    expect(() => appearanceSchema.parse(withEmptyFamily)).toThrow();
+  });
+
+  it("accepts 'custom' category with any family name", () => {
+    const withCustom = {
+      ...valid,
+      typography: {
+        ...valid.typography,
+        primary: { discriminant: "custom" as const, value: "My Brand Font" },
+      },
+    };
+    const result = appearanceSchema.parse(withCustom);
+    expect(result.typography.primary).toEqual({ category: "custom", family: "My Brand Font" });
+  });
+
+  it("rejects missing color fields", () => {
+    const { primary, ...partialColors } = valid.colors;
+    expect(() =>
+      appearanceSchema.parse({ ...valid, colors: partialColors })
+    ).toThrow();
   });
 });
 

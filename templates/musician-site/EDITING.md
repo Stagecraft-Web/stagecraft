@@ -31,7 +31,8 @@ src/content/
   config/
     site.json       ← Artist name, social links, contact email, copyright
     nav.json        ← Navigation menu items
-    theme.json      ← Colors, fonts, spacing
+    appearance.json ← Colors + typography (Google Fonts picker)
+    theme.json      ← Dev-level tokens (font-size scale, spacing, breakpoints)
   pages/
     home.mdoc       ← Homepage (fullscreen hero, CTA button)
     about.mdoc      ← Bio / about page (image + text layout)
@@ -83,11 +84,62 @@ An ordered array of page slugs. Add a slug to include the page in the nav; remov
 
 The Navigation singleton is the single source of truth for both nav membership and order. The nav label for each page comes from the page's `title` field.
 
-### Colors and fonts — `src/content/config/theme.json`
+### Appearance (colors + typography) — `src/content/config/appearance.json`
 
-Edit the `colors` object to change the palette, and `typography.headingFont` / `typography.bodyFont` for fonts.
+Edit this singleton in Keystatic (`/keystatic` → Appearance) or by hand. It's the
+source of truth for the site's palette and typography. The `<head>` of every
+page reads this and injects CSS custom properties, plus a Google Fonts
+`<link>` that requests **only the weights actually in use** (so the page stays
+light).
 
-After changing `theme.json`, update the matching CSS custom properties in `src/styles/global.css` to match.
+#### Typography
+
+- **Font Strategy**: pick "Single font for everything" or "Separate heading +
+  body fonts".
+- **Body / Primary Font**: category-first picker (Sans-serif, Serif,
+  Monospace, Display, Handwriting). Each category has a curated list of
+  popular Google Fonts. Pick **Custom** to type any family name from
+  [fonts.google.com](https://fonts.google.com) instead.
+- **Heading Font**: same picker, only used when Font Strategy is "Separate".
+- **Font Weights**: pick weights 100–900 per role (body, body-bold, h1–h6).
+  Only the selected weights are downloaded — unused weights aren't requested.
+  Some fonts don't ship every weight; check fonts.google.com if a weight
+  looks wrong after you pick it.
+
+Example `appearance.json` fragment:
+
+```json
+{
+  "typography": {
+    "mode": "split",
+    "primary": { "discriminant": "sans-serif", "value": "Inter" },
+    "heading": { "discriminant": "serif", "value": "Merriweather" },
+    "weights": {
+      "body": "400", "bodyBold": "700",
+      "h1": "700", "h2": "700", "h3": "700",
+      "h4": "700", "h5": "600", "h6": "600"
+    }
+  }
+}
+```
+
+The `{ discriminant, value }` shape is how Keystatic serialises its
+category-first picker. `discriminant` is the category; `value` is the
+chosen family name. Weights may be written as numbers (`400`) or strings
+(`"400"`) — both are accepted.
+
+#### Colors
+
+Edit the `colors` object. Any CSS color (`#ffffff`, `rgb(...)`, `rgba(...)`)
+is accepted. Field names:
+`primary`, `secondary`, `accent`, `background`, `surface`, `text`,
+`textMuted`, `border`.
+
+### Legacy design tokens — `src/content/config/theme.json`
+
+Contains font-size scale, spacing, breakpoints, and layout tokens not
+exposed in the CMS. These rarely change; edit the JSON directly and the
+matching CSS custom properties in `src/styles/global.css` if you need to.
 
 ---
 

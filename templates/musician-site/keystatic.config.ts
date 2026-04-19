@@ -1,5 +1,86 @@
 import { config, fields, collection, singleton } from "@keystatic/core";
 import { components as contentComponents } from "./src/content-components";
+import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
+
+// ---------------------------------------------------------------------------
+// Appearance singleton helpers
+//
+// A font picker is a conditional on category — pick "Sans-serif" and you get
+// a dropdown of sans-serif Google Fonts; pick "Custom" and you get a free-text
+// input so the user can name any family from fonts.google.com. Each category's
+// font list is sourced from `src/lib/google-fonts.ts` so the Keystatic picker
+// and the runtime Google Fonts URL builder share the same curated catalogue.
+// ---------------------------------------------------------------------------
+
+const toOptions = (families: { family: string }[]) =>
+  families.map((f) => ({ label: f.family, value: f.family }));
+
+const weightOptions = FONT_WEIGHTS.map((w) => ({ label: String(w), value: String(w) }));
+
+const fontPicker = (label: string, defaults: { category: string; family: string }) =>
+  fields.conditional(
+    fields.select({
+      label: `${label} — Category`,
+      description:
+        "Pick a category, then a font from the list. Use 'Custom' to enter any family name from fonts.google.com.",
+      options: [
+        { label: "Sans-serif", value: "sans-serif" },
+        { label: "Serif", value: "serif" },
+        { label: "Monospace", value: "monospace" },
+        { label: "Display", value: "display" },
+        { label: "Handwriting", value: "handwriting" },
+        { label: "Custom (any Google Font)", value: "custom" },
+      ],
+      defaultValue: defaults.category as
+        | "sans-serif"
+        | "serif"
+        | "monospace"
+        | "display"
+        | "handwriting"
+        | "custom",
+    }),
+    {
+      "sans-serif": fields.select({
+        label: `${label} — Font`,
+        options: toOptions(GOOGLE_FONTS["sans-serif"]),
+        defaultValue: defaults.category === "sans-serif" ? defaults.family : "Inter",
+      }),
+      serif: fields.select({
+        label: `${label} — Font`,
+        options: toOptions(GOOGLE_FONTS.serif),
+        defaultValue: defaults.category === "serif" ? defaults.family : "Merriweather",
+      }),
+      monospace: fields.select({
+        label: `${label} — Font`,
+        options: toOptions(GOOGLE_FONTS.monospace),
+        defaultValue: defaults.category === "monospace" ? defaults.family : "JetBrains Mono",
+      }),
+      display: fields.select({
+        label: `${label} — Font`,
+        options: toOptions(GOOGLE_FONTS.display),
+        defaultValue: defaults.category === "display" ? defaults.family : "Abril Fatface",
+      }),
+      handwriting: fields.select({
+        label: `${label} — Font`,
+        options: toOptions(GOOGLE_FONTS.handwriting),
+        defaultValue: defaults.category === "handwriting" ? defaults.family : "Caveat",
+      }),
+      custom: fields.text({
+        label: `${label} — Custom Font Name`,
+        description:
+          "Enter the family name exactly as it appears on fonts.google.com (e.g. 'Space Grotesk').",
+        defaultValue: defaults.category === "custom" ? defaults.family : "",
+      }),
+    },
+  );
+
+const weightField = (label: string, defaultValue: number) =>
+  fields.select({
+    label,
+    description: "Heavier weights look bolder; lighter weights look thinner.",
+    options: weightOptions,
+    defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
+  });
 
 // ---------------------------------------------------------------------------
 // Markdoc content components — these appear as insertable blocks in the
@@ -68,6 +149,86 @@ export default config({
             label: "Navigation Items",
             itemLabel: (props) => props.value ?? "Select a page",
           },
+        ),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Appearance — colors and typography (Google Fonts).
+    //
+    // Typography picker is category-first: choose Sans-serif/Serif/
+    // Monospace/Display/Handwriting to get a curated list, or choose
+    // "Custom" to type any family name from fonts.google.com.
+    //
+    // By default the same font is used site-wide. Switching "Font
+    // Strategy" to "Separate heading + body" activates the Heading
+    // font picker.
+    //
+    // Weight pickers exist per heading level and for body/body-bold,
+    // so the Google Fonts URL emitted at runtime requests ONLY the
+    // weights actually in use (keeps page weight small).
+    // -----------------------------------------------------------------
+
+    appearance: singleton({
+      label: "Appearance",
+      path: "src/content/config/appearance",
+      format: { data: "json" },
+      schema: {
+        colors: fields.object(
+          {
+            primary: fields.text({ label: "Primary (headings, logo)", defaultValue: "#1a1a2e" }),
+            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#e94560" }),
+            accent: fields.text({ label: "Accent", defaultValue: "#0f3460" }),
+            background: fields.text({ label: "Page Background", defaultValue: "#fafafa" }),
+            surface: fields.text({ label: "Surface (cards, panels)", defaultValue: "#ffffff" }),
+            text: fields.text({ label: "Body Text", defaultValue: "#1a1a2e" }),
+            textMuted: fields.text({ label: "Muted Text", defaultValue: "#6b7280" }),
+            border: fields.text({ label: "Borders & Dividers", defaultValue: "#e5e7eb" }),
+          },
+          {
+            label: "Colors",
+            description: "Hex (#ffffff) or rgb()/rgba() values. Preview on site after saving.",
+          },
+        ),
+        typography: fields.object(
+          {
+            mode: fields.select({
+              label: "Font Strategy",
+              description:
+                "Use a single font for the whole site, or a different font for headings.",
+              options: [
+                { label: "Single font for everything", value: "single" },
+                { label: "Separate heading + body fonts", value: "split" },
+              ],
+              defaultValue: "single",
+            }),
+            primary: fontPicker("Body / Primary Font", {
+              category: "sans-serif",
+              family: "Inter",
+            }),
+            heading: fontPicker("Heading Font (only used when Font Strategy is 'Separate')", {
+              category: "serif",
+              family: "Merriweather",
+            }),
+            weights: fields.object(
+              {
+                body: weightField("Body (normal)", 400),
+                bodyBold: weightField("Body (bold)", 700),
+                h1: weightField("Heading 1 (H1)", 700),
+                h2: weightField("Heading 2 (H2)", 700),
+                h3: weightField("Heading 3 (H3)", 700),
+                h4: weightField("Heading 4 (H4)", 700),
+                h5: weightField("Heading 5 (H5)", 600),
+                h6: weightField("Heading 6 (H6)", 600),
+              },
+              {
+                label: "Font Weights",
+                description:
+                  "Pick a weight per typography role. Only the weights chosen here are actually downloaded — unused weights aren't requested. Some fonts don't ship every weight; check on fonts.google.com if a weight looks wrong.",
+              },
+            ),
+          },
+          { label: "Typography" },
         ),
       },
     }),

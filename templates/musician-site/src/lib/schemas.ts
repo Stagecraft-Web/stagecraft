@@ -48,6 +48,89 @@ export const navItemSchema = z.object({
   href: z.string().min(1),
 });
 
+// ============================================================
+// Appearance — the user-editable subset of theme (colors + typography).
+//
+// Stored in `src/content/config/appearance.json` and exposed as the
+// "Appearance" singleton in Keystatic. BaseLayout reads this to build
+// the Google Fonts <link> (requesting only the exact weights in use)
+// and to inject CSS custom properties for colors / font stacks.
+//
+// The older `theme.json` remains for dev-level tokens (font sizes,
+// spacing, breakpoints) that are not exposed in the CMS.
+// ============================================================
+
+export const FONT_CATEGORIES = [
+  "sans-serif",
+  "serif",
+  "monospace",
+  "display",
+  "handwriting",
+  "custom",
+] as const;
+
+const fontCategoryEnum = z.enum(FONT_CATEGORIES);
+export type FontCategory = (typeof FONT_CATEGORIES)[number];
+
+// Keystatic `fields.conditional` serialises as { discriminant, value }.
+// We validate that shape and transform it into { category, family } for
+// downstream code, so the loader returns a clean, stable shape even as
+// the Keystatic representation evolves.
+const fontSelectionSchema = z
+  .object({
+    discriminant: fontCategoryEnum,
+    value: z.string().min(1, "Font family is required"),
+  })
+  .transform((input) => ({
+    category: input.discriminant,
+    family: input.value,
+  }));
+
+// Keystatic `fields.select` stores values as strings ("400" rather than 400),
+// so coerce before validating. This also means a JSON author can write either
+// 400 or "400" and both will work.
+const fontWeightSchema = z.coerce
+  .number()
+  .int()
+  .min(100)
+  .max(900)
+  .refine((w) => w % 100 === 0, { message: "Weight must be a multiple of 100 (100–900)" });
+
+export const appearanceSchema = z.object({
+  colors: z.object({
+    primary: z.string().min(1),
+    secondary: z.string().min(1),
+    accent: z.string().min(1),
+    background: z.string().min(1),
+    surface: z.string().min(1),
+    text: z.string().min(1),
+    textMuted: z.string().min(1),
+    border: z.string().min(1),
+  }),
+  typography: z.object({
+    // "single" → primary is used for everything.
+    // "split"  → heading uses `heading`, everything else uses `primary`.
+    mode: z.enum(["single", "split"]).default("single"),
+    primary: fontSelectionSchema,
+    // Always present in the stored config so the JSON shape stays stable.
+    // Only actually applied when `mode` is "split".
+    heading: fontSelectionSchema,
+    weights: z.object({
+      body: fontWeightSchema.default(400),
+      bodyBold: fontWeightSchema.default(700),
+      h1: fontWeightSchema.default(700),
+      h2: fontWeightSchema.default(700),
+      h3: fontWeightSchema.default(700),
+      h4: fontWeightSchema.default(700),
+      h5: fontWeightSchema.default(600),
+      h6: fontWeightSchema.default(600),
+    }),
+  }),
+});
+
+export type Appearance = z.infer<typeof appearanceSchema>;
+export type FontSelection = Appearance["typography"]["primary"];
+
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),
   colors: z.record(z.string()),

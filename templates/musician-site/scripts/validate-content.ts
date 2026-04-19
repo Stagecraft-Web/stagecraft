@@ -6,6 +6,7 @@ import {
   siteConfigSchema,
   navConfigSchema,
   themeSchema,
+  appearanceSchema,
   pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
@@ -69,6 +70,7 @@ function requireFile(filePath: string) {
 requireFile(path.join(ROOT, "src/content/config/site.json"));
 requireFile(path.join(ROOT, "src/content/config/nav.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
+requireFile(path.join(ROOT, "src/content/config/appearance.json"));
 
 // Page content files — dynamically scan all .mdoc files in pages directory
 const pagesDir = path.join(ROOT, "src/content/pages");
@@ -112,6 +114,7 @@ function validatePageFrontmatter(filePath: string) {
 validateJson(path.join(ROOT, "src/content/config/site.json"), siteConfigSchema);
 validateJson(path.join(ROOT, "src/content/config/nav.json"), navConfigSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
+validateJson(path.join(ROOT, "src/content/config/appearance.json"), appearanceSchema);
 
 // ============================================================
 // Validate collections (YAML, one file per entry)

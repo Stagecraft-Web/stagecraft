@@ -2,8 +2,12 @@
 import "../styles/global.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
-import { getSiteConfig } from "../lib/content";
-import { getTheme } from "../lib/content";
+import { getSiteConfig, getTheme, getAppearance } from "../lib/content";
+import {
+  appearanceToFontRequests,
+  buildGoogleFontsUrl,
+  buildFontStack,
+} from "../lib/google-fonts";
 
 interface Props {
   title?: string;
@@ -12,11 +16,26 @@ interface Props {
 
 const site = getSiteConfig();
 const theme = getTheme();
+const appearance = getAppearance();
 const { title, description } = Astro.props;
 const pageTitle = title ? `${title} — ${site.artistName}` : site.siteTitle;
 const pageDescription = description ?? site.siteDescription;
 
 const colorMode = theme.colorMode ?? "light";
+
+// Build the Google Fonts stylesheet URL with only the exact weights that
+// will actually be used (keeps page weight small). When mode === "single"
+// or both families happen to match, this collapses into a single request.
+const fontsUrl = buildGoogleFontsUrl(appearanceToFontRequests(appearance));
+
+// Derived font stacks used in the CSS-variable injection below.
+const bodyStack = buildFontStack(appearance.typography.primary.family, appearance.typography.primary.category);
+const headingStack =
+  appearance.typography.mode === "split"
+    ? buildFontStack(appearance.typography.heading.family, appearance.typography.heading.category)
+    : bodyStack;
+
+const { colors, typography } = appearance;
 ---
 
 <!doctype html>
@@ -27,6 +46,45 @@ const colorMode = theme.colorMode ?? "light";
     <meta name="description" content={pageDescription} />
     <title>{pageTitle}</title>
     <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" />
+
+    {/* Google Fonts — preconnect then fetch. Only the exact weights
+        in use (see appearance.json → typography.weights) are requested. */}
+    {fontsUrl && (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href={fontsUrl} />
+      </>
+    )}
+
+    {/* Appearance CSS variables — override the defaults in global.css.
+        Colors + font stacks come from appearance.json (editable in Keystatic). */}
+    <style
+      is:inline
+      set:html={`:root {
+        --color-primary: ${colors.primary};
+        --color-secondary: ${colors.secondary};
+        --color-accent: ${colors.accent};
+        --color-bg: ${colors.background};
+        --color-surface: ${colors.surface};
+        --color-text: ${colors.text};
+        --color-text-muted: ${colors.textMuted};
+        --color-border: ${colors.border};
+
+        --font-body: ${bodyStack};
+        --font-heading: ${headingStack};
+
+        --font-weight-body: ${typography.weights.body};
+        --font-weight-body-bold: ${typography.weights.bodyBold};
+        --font-weight-h1: ${typography.weights.h1};
+        --font-weight-h2: ${typography.weights.h2};
+        --font-weight-h3: ${typography.weights.h3};
+        --font-weight-h4: ${typography.weights.h4};
+        --font-weight-h5: ${typography.weights.h5};
+        --font-weight-h6: ${typography.weights.h6};
+      }`}
+    />
+
     {/* Inline script to set data-theme before first paint, preventing flash */}
     <script is:inline define:vars={{ colorMode }}>
       (function() {

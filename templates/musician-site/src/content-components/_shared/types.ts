@@ -26,3 +26,24 @@ export type MarkdocTagDefinition = Schema;
  * a clearer name so component files read as `KeystaticContentComponent`.
  */
 export type KeystaticContentComponent = ContentComponent;
+
+// ---------------------------------------------------------------------------
+// Shared attribute enums
+//
+// These literal unions are mirrored by `matches: [...]` arrays in each
+// component's markdoc schema and `options: [...]` arrays in its keystatic
+// schema. The cross-schema consistency test in
+// _shared/schema-consistency.test.ts asserts the two sets stay in sync.
+//
+// To add a new value: extend the union here, add it to both schemas, then
+// run `npm run sync:markdoc-config`.
+// ---------------------------------------------------------------------------
+
+/** Heading level for `{% section %}` and `{% fullscreen-section %}` titles. */
+export type HeadingLevel = "h1" | "h2" | "h3" | "h4";
+
+/** Visual variant for `{% button %}`. */
+export type ButtonVariant = "primary" | "outline";
+
+/** Column-track ratio string for `{% columns %}` (dash-separated `fr` units). */
+export type ColumnsLayout = "1-1" | "1-2" | "2-1" | "1-1-1";

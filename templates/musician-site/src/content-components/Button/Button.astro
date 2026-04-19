@@ -1,9 +1,11 @@
 ---
+import type { ButtonVariant } from "../_shared/types";
+
 interface Props {
   /** Renders as <a> when provided, <button> otherwise */
   href?: string;
   /** Visual variant */
-  variant?: "primary" | "outline";
+  variant?: ButtonVariant;
   /** For icon-only buttons — required when no visible text */
   ariaLabel?: string;
   /** HTML button type (ignored when href is set) */

@@ -8,14 +8,14 @@ export default {
     "section": {
       attributes: {
         "title": { type: String },
-        "headingLevel": { type: String, default: "h2" },
+        "headingLevel": { type: String, default: "h2", matches: ["h1","h2","h3","h4"] },
         "isTitleHidden": { type: Boolean, default: false },
       },
     },
     "fullscreen-section": {
       attributes: {
         "title": { type: String },
-        "headingLevel": { type: String, default: "h2" },
+        "headingLevel": { type: String, default: "h2", matches: ["h1","h2","h3","h4"] },
         "isTitleHidden": { type: Boolean, default: false },
         "image": { type: String },
       },
@@ -25,13 +25,13 @@ export default {
       attributes: {
         "label": { type: String, required: true },
         "href": { type: String },
-        "variant": { type: String, default: "primary" },
+        "variant": { type: String, default: "primary", matches: ["primary","outline"] },
         "isExternal": { type: Boolean, default: false },
       },
     },
     "columns": {
       attributes: {
-        "layout": { type: String, default: "1-1" },
+        "layout": { type: String, default: "1-1", matches: ["1-1","1-2","2-1","1-1-1"] },
       },
     },
     "column": {},

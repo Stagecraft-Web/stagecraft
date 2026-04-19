@@ -160,6 +160,50 @@ describe("content-component schema consistency", () => {
         expect(mismatches, `${entry.tagName}: ${mismatches.join("; ")}`).toEqual([]);
       });
 
+      it("keystatic select options align with markdoc matches", () => {
+        // When a keystatic field is a `select` (i.e. exposes an `options`
+        // array), the corresponding markdoc attribute must declare the same
+        // allowed values via `matches: [...]`. This locks both ends of the
+        // bridge to the same enum so a value valid in the admin UI is also
+        // valid at build time, and vice versa.
+        const mismatches: string[] = [];
+        for (const key of keystaticKeys) {
+          if (exemptKeys.has(key)) continue;
+          if (!markdocKeys.has(key)) continue;
+          const kField = keystaticFields[key];
+          if (!Array.isArray(kField.options)) continue;
+
+          const keystaticValues = kField.options.map((o) => o.value).sort();
+          const markdocAttr = markdocAttrs[key];
+          const markdocMatches = markdocAttr?.matches;
+
+          if (!Array.isArray(markdocMatches)) {
+            mismatches.push(
+              `${key}: keystatic is select(${keystaticValues.join("|")}) but markdoc has no \`matches\` array`,
+            );
+            continue;
+          }
+
+          // Markdoc's `matches` typing allows non-string entries (regex, etc.)
+          // but for select-backed enums we expect string literals only.
+          const markdocValues = [...markdocMatches]
+            .map((v) => (typeof v === "string" ? v : String(v)))
+            .sort();
+          if (
+            keystaticValues.length !== markdocValues.length ||
+            keystaticValues.some((v, i) => v !== markdocValues[i])
+          ) {
+            mismatches.push(
+              `${key}: keystatic options [${keystaticValues.join(", ")}] != markdoc matches [${markdocValues.join(", ")}]`,
+            );
+          }
+        }
+        expect(
+          mismatches,
+          `${entry.tagName}: ${mismatches.join("; ")}`,
+        ).toEqual([]);
+      });
+
       it("defaults match when both declare them", () => {
         for (const key of keystaticKeys) {
           if (exemptKeys.has(key)) continue;

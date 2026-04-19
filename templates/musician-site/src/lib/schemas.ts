@@ -72,14 +72,34 @@ export const FONT_CATEGORIES = [
 const fontCategoryEnum = z.enum(FONT_CATEGORIES);
 export type FontCategory = (typeof FONT_CATEGORIES)[number];
 
+// Google Fonts family names: start with a capital, then letters / digits /
+// spaces only. Catches typos like "space grotesk" or trailing punctuation
+// that would otherwise hit the Google Fonts server as a 404.
+const GOOGLE_FONT_NAME_PATTERN = /^[A-Z][A-Za-z0-9]*(?: [A-Za-z0-9][A-Za-z0-9]*)*$/;
+
 // Keystatic `fields.conditional` serialises as { discriminant, value }.
 // We validate that shape and transform it into { category, family } for
 // downstream code, so the loader returns a clean, stable shape even as
 // the Keystatic representation evolves.
+//
+// When discriminant === "custom", the value is a free-text family name
+// and we apply the Google Fonts pattern check. When discriminant is a
+// curated category, the value comes from a select of known families, so
+// format checks aren't needed (any non-empty string is fine).
 const fontSelectionSchema = z
   .object({
     discriminant: fontCategoryEnum,
     value: z.string().min(1, "Font family is required"),
+  })
+  .superRefine((input, ctx) => {
+    if (input.discriminant === "custom" && !GOOGLE_FONT_NAME_PATTERN.test(input.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["value"],
+        message:
+          "Custom font name must match Google Fonts format: start with a capital letter, contain only letters / digits / spaces (e.g. 'Space Grotesk', 'IBM Plex Sans').",
+      });
+    }
   })
   .transform((input) => ({
     category: input.discriminant,
@@ -96,37 +116,61 @@ const fontWeightSchema = z.coerce
   .max(900)
   .refine((w) => w % 100 === 0, { message: "Weight must be a multiple of 100 (100–900)" });
 
-export const appearanceSchema = z.object({
-  colors: z.object({
-    primary: z.string().min(1),
-    secondary: z.string().min(1),
-    accent: z.string().min(1),
-    background: z.string().min(1),
-    surface: z.string().min(1),
-    text: z.string().min(1),
-    textMuted: z.string().min(1),
-    border: z.string().min(1),
-  }),
-  typography: z.object({
-    // "single" → primary is used for everything.
-    // "split"  → heading uses `heading`, everything else uses `primary`.
-    mode: z.enum(["single", "split"]).default("single"),
-    primary: fontSelectionSchema,
-    // Always present in the stored config so the JSON shape stays stable.
-    // Only actually applied when `mode` is "split".
-    heading: fontSelectionSchema,
-    weights: z.object({
-      body: fontWeightSchema.default(400),
-      bodyBold: fontWeightSchema.default(700),
-      h1: fontWeightSchema.default(700),
-      h2: fontWeightSchema.default(700),
-      h3: fontWeightSchema.default(700),
-      h4: fontWeightSchema.default(700),
-      h5: fontWeightSchema.default(600),
-      h6: fontWeightSchema.default(600),
-    }),
-  }),
+// Heading font is stored as a Keystatic conditional keyed on mode:
+//   - "single" → no heading-specific font; body font is used for everything
+//   - "split"  → value is the heading FontSelection
+// We validate that discriminated union and transform it into a flat
+// { mode, heading } pair so downstream code doesn't need to unwrap Keystatic
+// internals.
+const headingSelectionSchema = z
+  .discriminatedUnion("discriminant", [
+    z.object({ discriminant: z.literal("single"), value: z.null() }),
+    z.object({ discriminant: z.literal("split"), value: fontSelectionSchema }),
+  ])
+  .transform((input) =>
+    input.discriminant === "single"
+      ? { mode: "single" as const, heading: null }
+      : { mode: "split" as const, heading: input.value },
+  );
+
+const weightsSchema = z.object({
+  body: fontWeightSchema.default(400),
+  bodyBold: fontWeightSchema.default(700),
+  h1: fontWeightSchema.default(700),
+  h2: fontWeightSchema.default(700),
+  h3: fontWeightSchema.default(700),
+  h4: fontWeightSchema.default(700),
+  h5: fontWeightSchema.default(600),
+  h6: fontWeightSchema.default(600),
 });
+
+export const appearanceSchema = z
+  .object({
+    colors: z.object({
+      primary: z.string().min(1),
+      secondary: z.string().min(1),
+      accent: z.string().min(1),
+      background: z.string().min(1),
+      surface: z.string().min(1),
+      text: z.string().min(1),
+      textMuted: z.string().min(1),
+      border: z.string().min(1),
+    }),
+    typography: z.object({
+      primary: fontSelectionSchema,
+      heading: headingSelectionSchema,
+      weights: weightsSchema,
+    }),
+  })
+  .transform((input) => ({
+    colors: input.colors,
+    typography: {
+      primary: input.typography.primary,
+      mode: input.typography.heading.mode,
+      heading: input.typography.heading.heading,
+      weights: input.typography.weights,
+    },
+  }));
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];

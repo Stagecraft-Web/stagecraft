@@ -185,7 +185,8 @@ interface AppearanceLike {
   typography: {
     mode: "single" | "split";
     primary: { family: string };
-    heading: { family: string };
+    /** `null` when mode === "single". */
+    heading: { family: string } | null;
     weights: {
       body: number;
       bodyBold: number;
@@ -206,8 +207,8 @@ export function appearanceToFontRequests(
   const headingWeights = [weights.h1, weights.h2, weights.h3, weights.h4, weights.h5, weights.h6];
   const bodyWeights = [weights.body, weights.bodyBold];
 
-  // In "single" mode, everything uses the primary family.
-  if (mode === "single") {
+  // Single mode (or split with no heading somehow) → one family, all weights.
+  if (mode === "single" || !heading) {
     return [
       {
         family: primary.family,
@@ -216,8 +217,7 @@ export function appearanceToFontRequests(
     ];
   }
 
-  // In "split" mode, heading uses its own family. But if both happen to
-  // pick the same family, collapse them into one request with combined weights.
+  // Split mode but both picks resolved to the same family → collapse.
   if (primary.family === heading.family) {
     return [
       {

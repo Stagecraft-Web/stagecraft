@@ -29,10 +29,16 @@ const colorMode = theme.colorMode ?? "light";
 const fontsUrl = buildGoogleFontsUrl(appearanceToFontRequests(appearance));
 
 // Derived font stacks used in the CSS-variable injection below.
-const bodyStack = buildFontStack(appearance.typography.primary.family, appearance.typography.primary.category);
+const bodyStack = buildFontStack(
+  appearance.typography.primary.family,
+  appearance.typography.primary.category,
+);
 const headingStack =
-  appearance.typography.mode === "split"
-    ? buildFontStack(appearance.typography.heading.family, appearance.typography.heading.category)
+  appearance.typography.mode === "split" && appearance.typography.heading
+    ? buildFontStack(
+        appearance.typography.heading.family,
+        appearance.typography.heading.category,
+      )
     : bodyStack;
 
 const { colors, typography } = appearance;

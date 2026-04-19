@@ -106,14 +106,16 @@ light).
   Some fonts don't ship every weight; check fonts.google.com if a weight
   looks wrong after you pick it.
 
-Example `appearance.json` fragment:
+Example `appearance.json` (split mode — separate heading font):
 
 ```json
 {
   "typography": {
-    "mode": "split",
     "primary": { "discriminant": "sans-serif", "value": "Inter" },
-    "heading": { "discriminant": "serif", "value": "Merriweather" },
+    "heading": {
+      "discriminant": "split",
+      "value": { "discriminant": "serif", "value": "Merriweather" }
+    },
     "weights": {
       "body": "400", "bodyBold": "700",
       "h1": "700", "h2": "700", "h3": "700",
@@ -123,10 +125,36 @@ Example `appearance.json` fragment:
 }
 ```
 
+Single mode (one font everywhere):
+
+```json
+{
+  "typography": {
+    "primary": { "discriminant": "sans-serif", "value": "Inter" },
+    "heading": { "discriminant": "single", "value": null },
+    "weights": { ... }
+  }
+}
+```
+
 The `{ discriminant, value }` shape is how Keystatic serialises its
-category-first picker. `discriminant` is the category; `value` is the
-chosen family name. Weights may be written as numbers (`400`) or strings
+conditional fields. For the font picker, `discriminant` is the category
+and `value` is the family. For the heading picker, `discriminant` is the
+mode (`"single"` or `"split"`) and `value` is the nested heading font
+config (or `null`). Weights may be written as numbers (`400`) or strings
 (`"400"`) — both are accepted.
+
+#### Custom font validation
+
+Choosing the "Custom" category lets you type any family name from
+fonts.google.com. Two validations apply:
+
+1. **Format check** (always on, runs at build / content validation):
+   name must start with a capital, contain only letters / digits / spaces.
+2. **Network check** (runs in `npm run validate:content`): pings
+   `fonts.googleapis.com` to confirm the family actually resolves. A 400
+   response (unknown family) fails validation. Network failures / offline
+   dev produce a warning and skip — they don't block the build.
 
 #### Colors
 

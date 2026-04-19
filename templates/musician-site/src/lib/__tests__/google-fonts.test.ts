@@ -91,12 +91,12 @@ describe("appearanceToFontRequests", () => {
     h6: 500,
   };
 
-  it("returns a single request when mode is 'single'", () => {
+  it("returns a single request when mode is 'single' (heading is null)", () => {
     const requests = appearanceToFontRequests({
       typography: {
         mode: "single",
         primary: { family: "Inter" },
-        heading: { family: "Merriweather" }, // ignored
+        heading: null,
         weights,
       },
     });

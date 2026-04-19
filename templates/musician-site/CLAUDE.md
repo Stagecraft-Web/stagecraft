@@ -181,6 +181,13 @@ Token values: `src/content/config/appearance.json` (colors + typography, CMS-edi
 
 `src/lib/google-fonts.ts` is the single source of the curated font catalogue (per category) and the URL builder. Both the Keystatic picker (`keystatic.config.ts`) and the runtime request (`BaseLayout.astro` via `appearanceToFontRequests` + `buildGoogleFontsUrl`) consume from it — add a font once, it shows up in both. `buildGoogleFontsUrl` dedupes weights, collapses matching-family split-mode configs into a single request, and skips families with no weights.
 
+The Appearance schema nests two Keystatic `fields.conditional`s:
+
+- Outer `heading` conditional — discriminant is `"single"` or `"split"`. When `"single"` the heading font picker is hidden entirely; when `"split"` it reveals a full font picker. The Zod schema transforms this into a flat `{ mode, heading }` pair (heading is `null` in single mode).
+- Inner `primary` / `heading.value` — each is a category-first font picker (Sans-serif / Serif / Monospace / Display / Handwriting / Custom). Choosing "Custom" reveals a free-text input for any Google Fonts family.
+
+Custom font names get two layers of validation: a format regex in `appearanceSchema` (starts with capital, letters/digits/spaces only), and a network check in `scripts/validate-content.ts` that pings `fonts.googleapis.com/css2` (400 = unknown family → error; network failure → warning, doesn't block).
+
 ---
 
 ## Component Library

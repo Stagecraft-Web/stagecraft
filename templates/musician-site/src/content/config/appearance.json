@@ -10,14 +10,16 @@
     "border": "#e5e7eb"
   },
   "typography": {
-    "mode": "split",
     "primary": {
       "discriminant": "sans-serif",
       "value": "Inter"
     },
     "heading": {
-      "discriminant": "serif",
-      "value": "Merriweather"
+      "discriminant": "split",
+      "value": {
+        "discriminant": "serif",
+        "value": "Merriweather"
+      }
     },
     "weights": {
       "body": "400",

@@ -23,7 +23,8 @@
    Design Tokens (CSS Custom Properties)
    ============================================================ */
 :root {
-  /* Colors */
+  /* Colors (defaults — overridden per-page by BaseLayout's inline <style>
+     which reads from appearance.json). */
   --color-primary: #1a1a2e;
   --color-secondary: #e94560;
   --color-accent: #0f3460;
@@ -37,9 +38,19 @@
   --color-overlay: rgba(0, 0, 0, 0.9);
   --color-overlay-light: rgba(255, 255, 255, 0.15);
 
-  /* Typography — Fonts */
+  /* Typography — Fonts (defaults, overridden by BaseLayout from appearance.json). */
   --font-heading: "Georgia", serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Per-role font weights (defaults, overridden by BaseLayout from appearance.json). */
+  --font-weight-body: 400;
+  --font-weight-body-bold: 700;
+  --font-weight-h1: 700;
+  --font-weight-h2: 700;
+  --font-weight-h3: 700;
+  --font-weight-h4: 700;
+  --font-weight-h5: 600;
+  --font-weight-h6: 600;
 
   /* Typography — Font Sizes (8-step scale, monotonically increasing) */
   --font-size-xs: 0.75rem;
@@ -99,11 +110,15 @@
 html {
   font-family: var(--font-body);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-body);
   color: var(--color-text);
   background: var(--color-bg);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+}
+
+strong, b {
+  font-weight: var(--font-weight-body-bold);
 }
 
 body {
@@ -132,17 +147,16 @@ a:hover {
    ============================================================ */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: var(--font-weight-bold);
   line-height: 1.2;
   color: var(--color-primary);
 }
 
-h1 { font-size: var(--font-size-4xl); margin-bottom: 0.75rem; }
-h2 { font-size: var(--font-size-3xl); margin-bottom: 0.625rem; }
-h3 { font-size: var(--font-size-2xl); margin-bottom: 0.5rem; }
-h4 { font-size: var(--font-size-xl); margin-bottom: 0.5rem; }
-h5 { font-size: var(--font-size-lg); margin-bottom: 0.375rem; }
-h6 { font-size: var(--font-size-base); margin-bottom: 0.375rem; }
+h1 { font-size: var(--font-size-4xl); margin-bottom: 0.75rem; font-weight: var(--font-weight-h1); }
+h2 { font-size: var(--font-size-3xl); margin-bottom: 0.625rem; font-weight: var(--font-weight-h2); }
+h3 { font-size: var(--font-size-2xl); margin-bottom: 0.5rem; font-weight: var(--font-weight-h3); }
+h4 { font-size: var(--font-size-xl); margin-bottom: 0.5rem; font-weight: var(--font-weight-h4); }
+h5 { font-size: var(--font-size-lg); margin-bottom: 0.375rem; font-weight: var(--font-weight-h5); }
+h6 { font-size: var(--font-size-base); margin-bottom: 0.375rem; font-weight: var(--font-weight-h6); }
 
 p {
   margin-bottom: 1rem;

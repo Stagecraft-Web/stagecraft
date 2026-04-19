@@ -3,6 +3,7 @@ import {
   imageMetadataSchema,
   siteConfigSchema,
   themeSchema,
+  appearanceSchema,
   pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
@@ -117,6 +118,174 @@ describe("themeSchema", () => {
   it("rejects missing breakpoints", () => {
     const { breakpoints, ...noBreakpoints } = valid;
     expect(() => themeSchema.parse(noBreakpoints)).toThrow();
+  });
+});
+
+describe("appearanceSchema", () => {
+  const validColors = {
+    primary: "#1a1a2e",
+    secondary: "#e94560",
+    accent: "#0f3460",
+    background: "#fafafa",
+    surface: "#ffffff",
+    text: "#1a1a2e",
+    textMuted: "#6b7280",
+    border: "#e5e7eb",
+  };
+
+  const validWeights = {
+    body: 400,
+    bodyBold: 700,
+    h1: 700,
+    h2: 700,
+    h3: 700,
+    h4: 700,
+    h5: 600,
+    h6: 600,
+  };
+
+  const splitInput = {
+    colors: validColors,
+    typography: {
+      primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      heading: {
+        discriminant: "split" as const,
+        value: { discriminant: "serif" as const, value: "Merriweather" },
+      },
+      weights: validWeights,
+    },
+  };
+
+  const singleInput = {
+    colors: validColors,
+    typography: {
+      primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      heading: { discriminant: "single" as const, value: null },
+      weights: validWeights,
+    },
+  };
+
+  it("accepts a valid split-mode appearance", () => {
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.colors.primary).toBe("#1a1a2e");
+    expect(result.typography.mode).toBe("split");
+    expect(result.typography.heading).toEqual({ category: "serif", family: "Merriweather" });
+  });
+
+  it("accepts a valid single-mode appearance (heading is null)", () => {
+    const result = appearanceSchema.parse(singleInput);
+    expect(result.typography.mode).toBe("single");
+    expect(result.typography.heading).toBeNull();
+  });
+
+  it("transforms Keystatic's {discriminant, value} font shape into {category, family}", () => {
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.typography.primary).toEqual({ category: "sans-serif", family: "Inter" });
+    expect(result.typography.heading).toEqual({ category: "serif", family: "Merriweather" });
+  });
+
+  it("coerces string weights (as Keystatic's select emits) into numbers", () => {
+    const withStringWeights = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        weights: {
+          body: "400",
+          bodyBold: "700",
+          h1: "700",
+          h2: "700",
+          h3: "700",
+          h4: "700",
+          h5: "600",
+          h6: "600",
+        },
+      },
+    };
+    const result = appearanceSchema.parse(withStringWeights);
+    expect(result.typography.weights.body).toBe(400);
+    expect(result.typography.weights.h1).toBe(700);
+  });
+
+  it("rejects weights outside the 100–900 range", () => {
+    const withBadWeight = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        weights: { ...validWeights, body: 50 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
+  });
+
+  it("rejects weights that aren't multiples of 100", () => {
+    const withBadWeight = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        weights: { ...validWeights, body: 450 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
+  });
+
+  it("rejects empty font family", () => {
+    const withEmptyFamily = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        primary: { discriminant: "sans-serif" as const, value: "" },
+      },
+    };
+    expect(() => appearanceSchema.parse(withEmptyFamily)).toThrow();
+  });
+
+  it("accepts 'custom' category with a well-formed family name", () => {
+    const withCustom = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        primary: { discriminant: "custom" as const, value: "Space Grotesk" },
+      },
+    };
+    const result = appearanceSchema.parse(withCustom);
+    expect(result.typography.primary).toEqual({ category: "custom", family: "Space Grotesk" });
+  });
+
+  it("rejects custom font names that are lowercase (would 404 on Google Fonts)", () => {
+    const withBadCustom = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        primary: { discriminant: "custom" as const, value: "space grotesk" },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadCustom)).toThrow();
+  });
+
+  it("rejects custom font names with invalid characters", () => {
+    const withBadCustom = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        primary: { discriminant: "custom" as const, value: "Space-Grotesk!" },
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadCustom)).toThrow();
+  });
+
+  it("does not apply the format regex to curated categories", () => {
+    // Curated families come from a select list, so "Inter" (which lacks a
+    // second word but is still valid) should parse fine even though the
+    // custom-only regex check wouldn't affect it either.
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.typography.primary.family).toBe("Inter");
+  });
+
+  it("rejects missing color fields", () => {
+    const { primary, ...partialColors } = validColors;
+    expect(() =>
+      appearanceSchema.parse({ ...splitInput, colors: partialColors })
+    ).toThrow();
   });
 });
 

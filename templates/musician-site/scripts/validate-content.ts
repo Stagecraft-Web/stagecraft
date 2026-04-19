@@ -6,6 +6,7 @@ import {
   siteConfigSchema,
   navConfigSchema,
   themeSchema,
+  appearanceSchema,
   pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
@@ -69,6 +70,7 @@ function requireFile(filePath: string) {
 requireFile(path.join(ROOT, "src/content/config/site.json"));
 requireFile(path.join(ROOT, "src/content/config/nav.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
+requireFile(path.join(ROOT, "src/content/config/appearance.json"));
 
 // Page content files — dynamically scan all .mdoc files in pages directory
 const pagesDir = path.join(ROOT, "src/content/pages");
@@ -112,6 +114,73 @@ function validatePageFrontmatter(filePath: string) {
 validateJson(path.join(ROOT, "src/content/config/site.json"), siteConfigSchema);
 validateJson(path.join(ROOT, "src/content/config/nav.json"), navConfigSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
+validateJson(path.join(ROOT, "src/content/config/appearance.json"), appearanceSchema);
+
+// ============================================================
+// Custom font name network check
+// ============================================================
+//
+// When the Appearance singleton uses a "custom" font category, the family
+// name is a free-text input. Format validation (in appearanceSchema) catches
+// obvious typos, but only a real Google Fonts lookup can confirm the name
+// actually resolves. We ping the public css2 endpoint — it returns HTTP 400
+// with "family '…' not supported" for unknown names, 200 for known ones.
+// No API key required.
+//
+// The check is best-effort: network failures / timeouts issue a warning
+// (so offline dev still works) rather than a hard error.
+
+const NETWORK_TIMEOUT_MS = 5000;
+
+async function checkGoogleFontExists(family: string): Promise<{ ok: true } | { ok: false; reason: string } | { ok: null; reason: string }> {
+  const url = `https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, "+")}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (res.ok) return { ok: true };
+    return {
+      ok: false,
+      reason: `Google Fonts returned ${res.status} — the family name doesn't resolve on fonts.google.com.`,
+    };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    // Distinguish network failure from real validation failure so offline dev
+    // still passes (it just skips with a warning).
+    return {
+      ok: null,
+      reason: `Couldn't reach fonts.googleapis.com (${message}). Skipping.`,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function validateCustomFonts() {
+  const appearancePath = path.join(ROOT, "src/content/config/appearance.json");
+  if (!fs.existsSync(appearancePath)) return;
+
+  const rel = path.relative(ROOT, appearancePath);
+  const raw = JSON.parse(fs.readFileSync(appearancePath, "utf-8"));
+  const parsed = appearanceSchema.safeParse(raw);
+  if (!parsed.success) return; // Already reported by validateJson above.
+
+  const { primary, heading } = parsed.data.typography;
+  const customFonts: Array<{ role: string; family: string }> = [];
+  if (primary.category === "custom") customFonts.push({ role: "typography.primary", family: primary.family });
+  if (heading && heading.category === "custom") {
+    customFonts.push({ role: "typography.heading", family: heading.family });
+  }
+
+  for (const { role, family } of customFonts) {
+    const result = await checkGoogleFontExists(family);
+    if (result.ok === true) continue;
+    if (result.ok === false) errors.push(`${rel}: ${role}: "${family}" — ${result.reason}`);
+    else warnings.push(`${rel}: ${role}: "${family}" — ${result.reason}`);
+  }
+}
+
+await validateCustomFonts();
 
 // ============================================================
 // Validate collections (YAML, one file per entry)

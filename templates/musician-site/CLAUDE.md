@@ -73,7 +73,8 @@ Use this to find where any piece of content lives.
 | Contact email | `src/content/config/site.json` → `contactEmail` | `siteConfigSchema` |
 | Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
 | Navigation order + labels | `src/content/config/nav.json` → `items` | `navConfigSchema` |
-| Colors, fonts, spacing, breakpoints | `src/content/config/theme.json` | `themeSchema` |
+| Colors + typography (Google Fonts) | `src/content/config/appearance.json` | `appearanceSchema` |
+| Font-size scale, spacing, breakpoints (dev-level) | `src/content/config/theme.json` | `themeSchema` |
 | Any page title | `src/content/pages/*.mdoc` | `pageFrontmatterSchema` |
 | Homepage hero (fullscreen section, CTA) | `src/content/pages/home.mdoc` body → `{% fullscreen-section %}` + `{% button %}` | — |
 | Homepage intro text (below hero) | `src/content/pages/home.mdoc` (body) | — |
@@ -112,7 +113,8 @@ src/content/
   config/
     site.json         ← singleton: site identity and social links
     nav.json          ← singleton: navigation menu
-    theme.json        ← singleton: design tokens
+    appearance.json   ← singleton: colors + typography (Keystatic "Appearance")
+    theme.json        ← singleton: dev-level design tokens
   pages/
     home.mdoc         ← singleton: homepage content
     about.mdoc        ← singleton: about/bio page
@@ -155,7 +157,7 @@ Do not place content files outside these locations.
 - **Dynamic pages**: The `[...slug].astro` catch-all renders **all** pages as `<BaseLayout><Content /></BaseLayout>` with no conditional layout logic. Pages are fully self-contained: all layout structure (sections, columns, fullscreen areas) is defined in the `.mdoc` content files using Markdoc tags. The "home" page maps to `/` (slug: undefined).
 - **Markdoc tags**: Custom tags are colocated per component under `src/content-components/<Name>/`. Each folder exports a `markdoc` tag def and (for blocks that need an in-editor preview) a `keystatic` block/wrapper, both consumed by thin aggregators `markdoc.config.ts` and `keystatic.config.ts`. **Layout tags**: `{% section %}`, `{% fullscreen-section %}`, `{% columns %}`, `{% column %}`. **Content tags**: `{% button %}`, `{% content-image %}`, `{% release-list %}`, `{% press-quotes %}`, `{% photo-gallery %}`, `{% contact-form %}`. Image tags use `resolveImage()` for build-time optimization. Data-fetching tags (release-list, press-quotes, photo-gallery) query their collections internally.
 - **CMS**: Keystatic (`keystatic.config.ts`) provides a web-based admin UI at `/keystatic`. Uses `local` storage mode (writes directly to the filesystem). Manages all page singletons, site config, and collections.
-- **Styling**: CSS custom properties (design tokens) from `src/styles/global.css`. Token values come from `src/content/config/theme.json`.
+- **Styling**: CSS custom properties (design tokens) from `src/styles/global.css` provide defaults. BaseLayout reads `src/content/config/appearance.json` (colors + typography) and injects overrides via an inline `<style>` block in `<head>`, plus a Google Fonts `<link>` that requests only the weights actually in use.
 - **Images**: Images in `src/assets/images/`, processed by Astro's asset pipeline at build time (format conversion, content-hashed URLs, automatic dimensions). Referenced via relative paths from content files. Components use Astro's `<Image>` from `astro:assets`.
 
 ---
@@ -173,7 +175,18 @@ All visual values (colors, fonts, spacing) must use CSS custom properties. Never
 | Layout | `--max-content`, `--max-text`, `--radius` | |
 | Breakpoints | `--breakpoint-*` | Reference only — use literal values in `@media` with a comment |
 
-Token values: `src/content/config/theme.json` → `src/styles/global.css`
+Token values: `src/content/config/appearance.json` (colors + typography, CMS-editable) → injected via `BaseLayout.astro` → consumed by `src/styles/global.css`. Remaining tokens (font-size scale, spacing, breakpoints) live in `src/content/config/theme.json` and are not exposed in the CMS.
+
+### Google Fonts
+
+`src/lib/google-fonts.ts` is the single source of the curated font catalogue (per category) and the URL builder. Both the Keystatic picker (`keystatic.config.ts`) and the runtime request (`BaseLayout.astro` via `appearanceToFontRequests` + `buildGoogleFontsUrl`) consume from it — add a font once, it shows up in both. `buildGoogleFontsUrl` dedupes weights, collapses matching-family split-mode configs into a single request, and skips families with no weights.
+
+The Appearance schema nests two Keystatic `fields.conditional`s:
+
+- Outer `heading` conditional — discriminant is `"single"` or `"split"`. When `"single"` the heading font picker is hidden entirely; when `"split"` it reveals a full font picker. The Zod schema transforms this into a flat `{ mode, heading }` pair (heading is `null` in single mode).
+- Inner `primary` / `heading.value` — each is a category-first font picker (Sans-serif / Serif / Monospace / Display / Handwriting / Custom). Choosing "Custom" reveals a free-text input for any Google Fonts family.
+
+Custom font names get two layers of validation: a format regex in `appearanceSchema` (starts with capital, letters/digits/spaces only), and a network check in `scripts/validate-content.ts` that pings `fonts.googleapis.com/css2` (400 = unknown family → error; network failure → warning, doesn't block).
 
 ---
 

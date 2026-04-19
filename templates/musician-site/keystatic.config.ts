@@ -108,8 +108,30 @@ const pageContentComponents = Object.fromEntries(
   contentComponents.map(({ tagName, keystatic }) => [tagName, keystatic]),
 );
 
+// Storage mode is environment-driven so a single config serves both dev and
+// prod:
+//   - Unset (or "local")  → filesystem writes, no auth. Use `npm run dev`.
+//   - "github"            → writes commit to GitHub via the user's OAuth
+//                           token. Required env vars on the deploy:
+//                             PUBLIC_KEYSTATIC_STORAGE=github
+//                             PUBLIC_KEYSTATIC_REPO=owner/repo
+//                             KEYSTATIC_GITHUB_CLIENT_ID=…
+//                             KEYSTATIC_GITHUB_CLIENT_SECRET=…
+//                             KEYSTATIC_SECRET=…            # any random 32+ bytes
+//                           See docs/keystatic-github-setup.md for the
+//                           GitHub App walkthrough.
+//
+// The sidebar on the public site uses the GitHub access token Keystatic sets
+// as a cookie during sign-in, so the storage choice here gates whether the
+// sidebar even renders in production.
+const storageMode = import.meta.env.PUBLIC_KEYSTATIC_STORAGE === "github" ? "github" : "local";
+const githubRepo = import.meta.env.PUBLIC_KEYSTATIC_REPO ?? "owner/repo";
+
 export default config({
-  storage: { kind: "local" },
+  storage:
+    storageMode === "github"
+      ? { kind: "github", repo: githubRepo as `${string}/${string}` }
+      : { kind: "local" },
 
   singletons: {
     // -----------------------------------------------------------------

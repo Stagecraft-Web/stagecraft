@@ -2,6 +2,8 @@
 import "../styles/global.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
+import { AppearanceSidebar } from "../components/appearance-sidebar/AppearanceSidebar";
+import type { SidebarConfig } from "../components/appearance-sidebar/types";
 import { getSiteConfig, getTheme, getAppearance } from "../lib/content";
 import {
   appearanceToFontRequests,
@@ -42,6 +44,35 @@ const headingStack =
     : bodyStack;
 
 const { colors, typography } = appearance;
+
+// Configuration the in-page sidebar needs on mount. Read from env at build
+// time and passed as plain props so the client bundle doesn't need to query
+// anything on startup.
+//
+// `saveMode` is the combined signal the sidebar branches on:
+//   - "github-graphql" → Keystatic is in GitHub mode; sidebar commits via
+//                        GitHub GraphQL using the user's OAuth cookie.
+//                        Works in both dev and prod.
+//   - "local-api"      → Dev build with Keystatic in local mode; sidebar
+//                        POSTs to /api/stagecraft/appearance which writes
+//                        appearance.json to disk. Dev only — the API route
+//                        404s in production builds.
+//   - "disabled"       → Prod build with local storage (invalid combo;
+//                        writes would be lost). Sidebar hides itself.
+const storageMode = import.meta.env.PUBLIC_KEYSTATIC_STORAGE === "github" ? "github" : "local";
+const saveMode: SidebarConfig["saveMode"] =
+  storageMode === "github"
+    ? "github-graphql"
+    : import.meta.env.DEV
+      ? "local-api"
+      : "disabled";
+
+const sidebarConfig: SidebarConfig = {
+  repo: import.meta.env.PUBLIC_KEYSTATIC_REPO ?? "owner/repo",
+  storageMode,
+  saveMode,
+  appearancePath: "src/content/config/appearance.json",
+};
 ---
 
 <!doctype html>
@@ -111,6 +142,19 @@ const { colors, typography } = appearance;
       <slot />
     </main>
     <Footer />
+
+    {/* Stagecraft Appearance sidebar — included whenever it has a viable
+        save path (GitHub in prod, local API in dev). Hidden in the
+        "disabled" case (prod + local storage). In GitHub mode the sidebar
+        itself gates on the Keystatic auth cookie before rendering anything
+        more than a "Sign in to edit" link. */}
+    {sidebarConfig.saveMode !== "disabled" && (
+      <AppearanceSidebar
+        client:only="react"
+        initialState={appearance}
+        config={sidebarConfig}
+      />
+    )}
 
     <style>
       /* Default page container — every page gets sensible horizontal margins

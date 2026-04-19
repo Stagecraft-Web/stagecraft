@@ -87,14 +87,19 @@ commit mutation. Nothing new is stored on our side.
 
 ## Development
 
-For local dev (`npm run dev`), you can leave `PUBLIC_KEYSTATIC_STORAGE`
-unset. Keystatic defaults to `local` mode (filesystem reads and writes,
-no auth) and the sidebar hides itself.
+The sidebar works in local dev regardless of storage mode — the save path
+switches automatically:
 
-To exercise the sidebar locally against a real GitHub repo, set the
-same env vars in a `.env.local` and run `npm run dev`. You'll also need
-to add `http://localhost:4321/api/keystatic/github/oauth/callback` as an
-**additional** callback URL on the GitHub App.
+| Env config | Storage | Sidebar save path |
+|---|---|---|
+| Dev, `PUBLIC_KEYSTATIC_STORAGE` unset | Local filesystem | Dev-only Astro route writes `appearance.json` to disk; Vite HMRs the page. No auth. |
+| Dev, `PUBLIC_KEYSTATIC_STORAGE=github` | GitHub via Keystatic OAuth | Same GitHub-GraphQL path as production. Requires the GitHub App's callback URL to also include `http://localhost:4321/api/keystatic/github/oauth/callback`. |
+| Prod (Netlify), `PUBLIC_KEYSTATIC_STORAGE=github` | GitHub | GitHub-GraphQL commit to the selected branch. The full production experience. |
+| Prod, `PUBLIC_KEYSTATIC_STORAGE` unset or `local` | *invalid* | Sidebar hides itself — filesystem writes would be lost on Netlify's ephemeral functions. |
+
+The dev-only save endpoint lives at `src/pages/api/stagecraft/appearance.ts`
+and 404s in production builds, so there's no risk of it being reachable
+without auth in a real deploy.
 
 ## Troubleshooting
 

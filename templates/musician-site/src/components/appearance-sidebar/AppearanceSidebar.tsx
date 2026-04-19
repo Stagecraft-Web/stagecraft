@@ -16,6 +16,20 @@ import { buildCommitMessage, serializeAppearanceForKeystatic } from "./serialize
 import type { AppearanceState, SaveStatus, SidebarConfig } from "./types";
 import styles from "./AppearanceSidebar.module.css";
 
+/** Call the local-dev save endpoint. Used when saveMode === "local-api".
+ *  The endpoint writes appearance.json to disk and Vite picks up the change. */
+async function saveToLocalApi(draft: AppearanceState): Promise<void> {
+  const res = await fetch("/api/stagecraft/appearance", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: serializeAppearanceForKeystatic(draft),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Save failed (HTTP ${res.status})`);
+  }
+}
+
 interface Props {
   initialState: AppearanceState;
   config: SidebarConfig;
@@ -55,7 +69,7 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
   }, [draft]);
 
   useEffect(() => {
-    if (!token || config.storageMode !== "github") return;
+    if (!token || config.saveMode !== "github-graphql") return;
     let cancelled = false;
     (async () => {
       try {
@@ -76,7 +90,7 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
     return () => {
       cancelled = true;
     };
-  }, [token, owner, repoName, config.storageMode]);
+  }, [token, owner, repoName, config.saveMode]);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(committed),
@@ -97,8 +111,25 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
   }, [committed]);
 
   const handleSave = useCallback(async () => {
-    if (!token || !branch) return;
     setSaveStatus({ kind: "saving" });
+
+    // --- Local save path: just POST to the dev-only Astro endpoint. No
+    //     branch, no auth, no commit message — Vite picks up the file
+    //     change and HMRs the page.
+    if (config.saveMode === "local-api") {
+      try {
+        await saveToLocalApi(draft);
+        setCommitted(draft);
+        setSaveStatus({ kind: "saved", commitUrl: null });
+      } catch (e) {
+        setSaveStatus({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+      }
+      return;
+    }
+
+    // --- GitHub GraphQL save path: commit to the selected branch using the
+    //     token Keystatic stored in a cookie, handle expired-token refresh.
+    if (!token || !branch) return;
 
     const runCommit = async (activeToken: string) => {
       const oid = await getBranchHeadOid(activeToken, owner, repoName, branch);
@@ -148,14 +179,14 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
   // Render
   // ==========================================================================
 
-  // Don't render anything in local mode — the sidebar is only useful against
-  // a GitHub-backed Keystatic. In dev, use Keystatic's admin UI at /keystatic.
-  if (config.storageMode !== "github") return null;
+  // `disabled` means: prod build + local storage mode. Saving can't work
+  // (Netlify functions have an ephemeral filesystem), so hide the sidebar.
+  if (config.saveMode === "disabled") return null;
 
-  // Unauthenticated: show a small "sign in" pill. Clicking it routes the
-  // user through Keystatic's OAuth (Keystatic's /keystatic route does this
-  // for us).
-  if (!token) {
+  // GitHub mode needs a Keystatic cookie. Show only a sign-in pill until the
+  // user authenticates via /keystatic. Local mode has no auth at all — the
+  // dev server is assumed to be running on the editor's own machine.
+  if (config.saveMode === "github-graphql" && !token) {
     return (
       <div className={styles.signInFab}>
         <a href="/keystatic" className={styles.signInLink}>
@@ -164,6 +195,8 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
       </div>
     );
   }
+
+  const isGitHub = config.saveMode === "github-graphql";
 
   return (
     <>
@@ -194,36 +227,46 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
           </button>
         </header>
 
-        {repoInfoError && (
+        {isGitHub && repoInfoError && (
           <div className={styles.errorBanner} role="alert">
             Couldn't load branches: {repoInfoError}
           </div>
         )}
 
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="stagecraft-branch">
-            Editing on branch
-          </label>
-          <select
-            id="stagecraft-branch"
-            className={styles.select}
-            value={branch ?? ""}
-            onChange={(e) => setBranch(e.target.value)}
-            disabled={branches.length === 0}
-          >
-            {branches.length === 0 && <option>Loading…</option>}
-            {branches.map((b) => (
-              <option key={b.name} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-          <p className={styles.hint}>
-            Commits land on this branch. Use{" "}
-            <a href={`/keystatic/branch/${branch ?? "main"}`}>Keystatic</a> to create a new branch
-            or open a pull request.
-          </p>
-        </div>
+        {isGitHub ? (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="stagecraft-branch">
+              Editing on branch
+            </label>
+            <select
+              id="stagecraft-branch"
+              className={styles.select}
+              value={branch ?? ""}
+              onChange={(e) => setBranch(e.target.value)}
+              disabled={branches.length === 0}
+            >
+              {branches.length === 0 && <option>Loading…</option>}
+              {branches.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <p className={styles.hint}>
+              Commits land on this branch. Use{" "}
+              <a href={`/keystatic/branch/${branch ?? "main"}`}>Keystatic</a> to create a new branch
+              or open a pull request.
+            </p>
+          </div>
+        ) : (
+          <div className={styles.field}>
+            <p className={styles.hint}>
+              <strong>Local dev mode.</strong> Saves write directly to{" "}
+              <code>{config.appearancePath}</code>; Vite picks up the change and refreshes the
+              page. In production this sidebar commits to GitHub instead.
+            </p>
+          </div>
+        )}
 
         <section className={styles.section} aria-labelledby="stagecraft-colors">
           <h3 id="stagecraft-colors" className={styles.sectionTitle}>
@@ -268,7 +311,13 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
               type="button"
               className={styles.primaryButton}
               onClick={handleSave}
-              disabled={!dirty || saveStatus.kind === "saving" || !branch}
+              disabled={
+                !dirty ||
+                saveStatus.kind === "saving" ||
+                // Only github mode needs a branch selected; local mode has
+                // no such dependency.
+                (isGitHub && !branch)
+              }
             >
               {saveStatus.kind === "saving" ? "Saving…" : "Save"}
             </button>

@@ -1,15 +1,20 @@
 import type { Appearance } from "../../lib/schemas";
 
 // The sidebar's runtime "configuration" — values baked into the page at
-// build time and serialised into a <script type="application/json"> tag in
-// <head> so the client can hydrate without round-tripping the server.
+// build time and passed as React props from BaseLayout.
 export interface SidebarConfig {
-  /** GitHub repo in "owner/repo" form. Target of all commits. */
+  /** GitHub repo in "owner/repo" form. Used only in "github" save mode. */
   repo: string;
-  /** Storage mode from env; sidebar is only useful in "github" mode. */
+  /** Keystatic storage mode from env. Influences the default save path. */
   storageMode: "local" | "github";
-  /** Path in the repo to write on save. */
+  /** Path (in the repo or filesystem) that appearance.json lives at. */
   appearancePath: string;
+  /** Save path the sidebar should use.
+   *   - "github-graphql" → commit via GitHub GraphQL (prod or dev w/ github mode)
+   *   - "local-api"      → POST to the dev-only /api/stagecraft/appearance endpoint
+   *   - "disabled"       → hide the sidebar entirely (e.g. prod + local storage)
+   *  Computed in BaseLayout from storageMode + import.meta.env.DEV. */
+  saveMode: "github-graphql" | "local-api" | "disabled";
 }
 
 // The initial appearance state embedded in the page, post-validation (i.e. the

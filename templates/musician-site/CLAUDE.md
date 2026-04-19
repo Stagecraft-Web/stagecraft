@@ -186,7 +186,10 @@ Token values: `src/content/config/appearance.json` (colors + typography, CMS-edi
 `src/components/appearance-sidebar/` is a React drawer that renders on the public site for authenticated editors. It lets them edit colors + typography with live CSS-variable preview and commits `appearance.json` directly to GitHub via the `createCommitOnBranch` GraphQL mutation.
 
 - **Auth**: reads Keystatic's non-httpOnly `keystatic-gh-access-token` cookie. No cookie → only a small "Sign in to edit" link renders (redirects to `/keystatic` for OAuth). No Stagecraft-side token storage.
-- **Storage mode gate**: only renders when `PUBLIC_KEYSTATIC_STORAGE=github`. In local dev it hides itself; use Keystatic's admin UI instead.
+- **Dual save path** via `saveMode` in `SidebarConfig`:
+  - `github-graphql` — prod or dev with `PUBLIC_KEYSTATIC_STORAGE=github`; commits via GitHub GraphQL using the user's cookie.
+  - `local-api` — dev with local storage; POSTs to `src/pages/api/stagecraft/appearance.ts` which writes the file to disk. The endpoint 404s in production builds (`import.meta.env.DEV` check), so it can't be reached from a real deploy.
+  - `disabled` — prod + local storage (invalid combo, writes would be lost on Netlify's ephemeral filesystem); sidebar hides itself.
 - **Branch**: the sidebar exposes a branch selector fetched via GitHub GraphQL. Commits target the selected branch — same branch Keystatic would target if the user were editing in its UI. Users open PRs via Keystatic's own "create PR" flow.
 - **`live-preview.ts`**: pure functions that write CSS variables on `:root` and inject/update a Google Fonts `<link>` in `<head>`. No React, fully unit-testable with a stub DOM.
 - **`serialize.ts`**: projects the runtime `Appearance` shape back into Keystatic's on-disk `{discriminant, value}` JSON so commits round-trip cleanly. Also builds the commit message by diffing the pre-edit and post-edit states.

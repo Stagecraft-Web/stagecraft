@@ -47,11 +47,30 @@ const { colors, typography } = appearance;
 
 // Configuration the in-page sidebar needs on mount. Read from env at build
 // time and passed as plain props so the client bundle doesn't need to query
-// anything on startup. `storageMode === "github"` gates whether the sidebar
-// renders its full editing UI vs. hides itself entirely.
+// anything on startup.
+//
+// `saveMode` is the combined signal the sidebar branches on:
+//   - "github-graphql" → Keystatic is in GitHub mode; sidebar commits via
+//                        GitHub GraphQL using the user's OAuth cookie.
+//                        Works in both dev and prod.
+//   - "local-api"      → Dev build with Keystatic in local mode; sidebar
+//                        POSTs to /api/stagecraft/appearance which writes
+//                        appearance.json to disk. Dev only — the API route
+//                        404s in production builds.
+//   - "disabled"       → Prod build with local storage (invalid combo;
+//                        writes would be lost). Sidebar hides itself.
+const storageMode = import.meta.env.PUBLIC_KEYSTATIC_STORAGE === "github" ? "github" : "local";
+const saveMode: SidebarConfig["saveMode"] =
+  storageMode === "github"
+    ? "github-graphql"
+    : import.meta.env.DEV
+      ? "local-api"
+      : "disabled";
+
 const sidebarConfig: SidebarConfig = {
   repo: import.meta.env.PUBLIC_KEYSTATIC_REPO ?? "owner/repo",
-  storageMode: import.meta.env.PUBLIC_KEYSTATIC_STORAGE === "github" ? "github" : "local",
+  storageMode,
+  saveMode,
   appearancePath: "src/content/config/appearance.json",
 };
 ---
@@ -124,11 +143,12 @@ const sidebarConfig: SidebarConfig = {
     </main>
     <Footer />
 
-    {/* Stagecraft Appearance sidebar — loaded only when Keystatic is in
-        GitHub mode. Renders only for authenticated editors (checks for the
-        keystatic-gh-access-token cookie client-side). The JS bundle is
-        served on every page but does nothing for ordinary visitors. */}
-    {sidebarConfig.storageMode === "github" && (
+    {/* Stagecraft Appearance sidebar — included whenever it has a viable
+        save path (GitHub in prod, local API in dev). Hidden in the
+        "disabled" case (prod + local storage). In GitHub mode the sidebar
+        itself gates on the Keystatic auth cookie before rendering anything
+        more than a "Sign in to edit" link. */}
+    {sidebarConfig.saveMode !== "disabled" && (
       <AppearanceSidebar
         client:only="react"
         initialState={appearance}

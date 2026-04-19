@@ -8,10 +8,11 @@ import {
   previewTextMuted,
 } from "../_shared/previewTokens";
 import { PlaceholderImage } from "../_shared/previewChrome";
+import type { HeadingLevel } from "../_shared/types";
 
 type FullscreenSectionValue = {
   title: string;
-  headingLevel: "h1" | "h2" | "h3" | "h4";
+  headingLevel: HeadingLevel;
   isTitleHidden: boolean;
   image: KeystaticImageBlob;
 };

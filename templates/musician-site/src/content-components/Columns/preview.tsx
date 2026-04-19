@@ -5,8 +5,9 @@ import {
   previewBgMuted,
   previewRadius,
 } from "../_shared/previewTokens";
+import type { ColumnsLayout } from "../_shared/types";
 
-type ColumnsValue = { layout: string };
+type ColumnsValue = { layout: ColumnsLayout };
 
 export function ColumnsPreview({
   value,

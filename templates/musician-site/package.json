@@ -6,6 +6,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "predev": "npm run sync:markdoc-config",
     "dev": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
@@ -14,8 +15,10 @@
     "typecheck": "astro check",
     "test:smoke": "playwright test",
     "validate:content": "tsx scripts/validate-content.ts",
+    "sync:markdoc-config": "tsx scripts/sync-markdoc-config.ts",
+    "check:markdoc-config": "tsx scripts/sync-markdoc-config.ts --check",
     "test": "vitest run",
-    "validate": "npm run validate:content && npm run lint && npm run typecheck && npm run build"
+    "validate": "npm run validate:content && npm run check:markdoc-config && npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.0",

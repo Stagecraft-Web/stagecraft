@@ -1,13 +1,19 @@
 import { fields } from "@keystatic/core";
 import { wrapper } from "@keystatic/core/content-components";
-import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import type {
+  MarkdocTagDefinition,
+  KeystaticContentComponent,
+  HeadingLevel,
+} from "../_shared/types";
 import { FullscreenSectionPreview } from "./preview";
+
+const HEADING_LEVELS: readonly HeadingLevel[] = ["h1", "h2", "h3", "h4"];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/FullscreenSection/FullscreenSection.astro",
   attributes: {
     title: { type: String },
-    headingLevel: { type: String, default: "h2" },
+    headingLevel: { type: String, default: "h2", matches: [...HEADING_LEVELS] },
     isTitleHidden: { type: Boolean, default: false },
     image: { type: String },
   },

@@ -15,10 +15,15 @@ import { components } from "./src/content-components";
 // ---------------------------------------------------------------------------
 
 const tags = Object.fromEntries(
-  components.map(({ tagName, markdoc }) => [
-    tagName,
-    { ...markdoc, render: component(markdoc.render) },
-  ]),
+  components.map(({ tagName, markdoc }) => {
+    // `markdoc.render` is typed optional on Markdoc's Schema, but by our
+    // convention every content-component declares it. Fail loudly here if a
+    // component ever drops it.
+    if (!markdoc.render) {
+      throw new Error(`Content-component "${tagName}" is missing markdoc.render`);
+    }
+    return [tagName, { ...markdoc, render: component(markdoc.render) }];
+  }),
 );
 
 export default defineMarkdocConfig({ tags });

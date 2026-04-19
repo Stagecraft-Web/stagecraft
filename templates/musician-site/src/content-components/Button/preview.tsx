@@ -5,11 +5,12 @@ import {
   previewText,
   previewTextMuted,
 } from "../_shared/previewTokens";
+import type { ButtonVariant } from "../_shared/types";
 
 type ButtonValue = {
   label: string;
   href: string;
-  variant: "primary" | "outline";
+  variant: ButtonVariant;
   isExternal: boolean;
 };
 

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import yaml from "yaml";
+import Markdoc from "@markdoc/markdoc";
 import {
   siteConfigSchema,
   navConfigSchema,
@@ -12,6 +13,7 @@ import {
   pressQuoteSchema,
   tourDateSchema,
 } from "../src/lib/schemas.js";
+import { components as contentComponents } from "../src/content-components/index.js";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 let errors: string[] = [];
@@ -130,6 +132,56 @@ validateCollection("photos", photoSchema);
 validateCollection("videos", videoSchema);
 validateCollection("pressQuotes", pressQuoteSchema);
 validateCollection("tourDates", tourDateSchema);
+
+// ============================================================
+// Validate .mdoc files with Markdoc's structural validator
+// ============================================================
+//
+// astro.config.mjs' markdoc.config.ts wraps each tag's `render` path with
+// `component(...)` so Astro can resolve it at build time. For structural
+// validation we don't need a real render target — we just need the tags'
+// attribute schemas so Markdoc.validate can check attribute names, types,
+// and required fields. So we build the validator config from the raw
+// content-components registry rather than importing markdoc.config.ts
+// (which would pull in Astro's `component()` helper, producing an opaque
+// ComponentConfig sentinel that Markdoc.validate doesn't understand).
+//
+// This catches: unknown tag names, missing required attributes, unknown
+// attribute names, and attribute type mismatches — exactly the classes of
+// error that otherwise surface only at `astro build` time.
+
+function validateMdocFiles(dir: string) {
+  if (!fs.existsSync(dir)) return;
+
+  const markdocValidatorConfig = {
+    tags: Object.fromEntries(
+      contentComponents.map(({ tagName, markdoc }) => [tagName, markdoc]),
+    ),
+  };
+
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".mdoc"))) {
+    const filePath = path.join(dir, file);
+    const rel = path.relative(ROOT, filePath);
+    try {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const ast = Markdoc.parse(raw);
+      const validationErrors = Markdoc.validate(ast, markdocValidatorConfig);
+      for (const err of validationErrors) {
+        // Only surface warning+ severities; Markdoc emits `debug`/`info` for
+        // things the author can't act on (e.g. function calls in attributes).
+        if (err.error.level === "debug" || err.error.level === "info") continue;
+        const line = err.location?.start?.line;
+        const loc = line !== undefined ? `:${line + 1}` : "";
+        errors.push(`${rel}${loc}: ${err.error.message}`);
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      errors.push(`${rel}: ${message}`);
+    }
+  }
+}
+
+validateMdocFiles(pagesDir);
 
 // ============================================================
 // Report

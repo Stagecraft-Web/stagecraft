@@ -1,7 +1,9 @@
 ---
+import type { HeadingLevel } from "../_shared/types";
+
 interface Props {
   title?: string;
-  headingLevel?: "h1" | "h2" | "h3" | "h4";
+  headingLevel?: HeadingLevel;
   isTitleHidden?: boolean;
 }
 

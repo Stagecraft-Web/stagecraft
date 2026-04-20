@@ -94,6 +94,25 @@ const tourDates = defineCollection({
   }),
 });
 
+// Store items. Mirrors the `releases` collection shape (yaml-per-file with an
+// optional image metadata block) but adds a purchase status + buy URL so the
+// `store-items` block can render a styled merch/album grid.
+const storeItems = defineCollection({
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/storeItems" }),
+  schema: (ctx) =>
+    z.object({
+      title: z.string().min(1),
+      format: z.enum(["album", "ep", "single", "merch"]),
+      price: z.number().nonnegative(),
+      currency: z.string().length(3).default("USD"),
+      image: imageMetadataSchema(ctx).optional(),
+      description: z.string().optional(),
+      buyUrl: z.url(),
+      status: z.enum(["available", "sold-out", "preorder"]).default("available"),
+      order: z.number().int().optional(),
+    }),
+});
+
 // ---------------------------------------------------------------------------
 // Posts — `.mdoc` collection with rich body + frontmatter.
 //
@@ -134,4 +153,5 @@ export const collections = {
   pressQuotes,
   tourDates,
   posts,
+  storeItems,
 };

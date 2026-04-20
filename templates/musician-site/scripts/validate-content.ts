@@ -14,6 +14,7 @@ import {
   pressQuoteSchema,
   tourDateSchema,
   postFrontmatterSchema,
+  storeItemSchema,
 } from "../src/lib/schemas.js";
 import { components as contentComponents } from "../src/content-components/index.js";
 
@@ -202,6 +203,7 @@ validateCollection("photos", photoSchema);
 validateCollection("videos", videoSchema);
 validateCollection("pressQuotes", pressQuoteSchema);
 validateCollection("tourDates", tourDateSchema);
+validateCollection("storeItems", storeItemSchema);
 
 // ============================================================
 // Validate posts — .mdoc frontmatter + body in one pass

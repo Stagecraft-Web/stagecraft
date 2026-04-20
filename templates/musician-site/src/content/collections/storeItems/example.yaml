@@ -1,0 +1,12 @@
+title: Example Album
+format: album
+price: 20
+currency: USD
+image:
+  src: ../../../assets/images/store/example-album.svg
+  alt: Example Album cover
+  usageSlot: release-cover
+description: A short blurb shown under the title. Mention multiple formats (CD, vinyl, digital) here if the buy link covers them all.
+buyUrl: "https://example.bandcamp.com/album/example"
+status: available
+order: 1

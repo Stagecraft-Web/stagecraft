@@ -317,6 +317,52 @@ export const postFrontmatterSchema = z.object({
 });
 
 // ============================================================
+// Store items — merch, album sales, digital downloads for purchase.
+// Structurally analogous to releases, but with a Buy URL and purchase
+// status (available / sold-out / preorder). Rendered via the
+// `store-items` block.
+//
+// This file is the single source of truth for every store-related enum
+// (formats, statuses, list filters, list layouts). All other modules —
+// `src/content-components/StoreItemList/schema.ts`, the Astro renderer,
+// `_shared/types.ts`, etc. — import from here rather than redeclaring.
+// ============================================================
+
+// Format is a coarse category the artist assigns to each item. Earlier
+// revisions enumerated every physical/digital variant (album-cd, album-
+// vinyl, ep-digital, …); the product decision is to keep it coarse and
+// let the artist explain "multiple formats available" in the description.
+export const STORE_ITEM_FORMATS = ["album", "ep", "single", "merch"] as const;
+export type StoreItemFormat = (typeof STORE_ITEM_FORMATS)[number];
+
+export const STORE_ITEM_STATUSES = ["available", "sold-out", "preorder"] as const;
+export type StoreItemStatus = (typeof STORE_ITEM_STATUSES)[number];
+
+// Filter + layout enums for the `store-items` markdoc tag. Kept here (rather
+// than in the component's schema.ts) so the StoreItemList renderer and any
+// future consumers can import them from a single location.
+export const STORE_ITEM_LIST_FILTERS = ["all", "available", "preorder"] as const;
+export type StoreItemListFilter = (typeof STORE_ITEM_LIST_FILTERS)[number];
+
+export const STORE_ITEM_LIST_LAYOUTS = ["grid", "list"] as const;
+export type StoreItemListLayout = (typeof STORE_ITEM_LIST_LAYOUTS)[number];
+
+// Price is a numeric amount; currency is a separate ISO 4217 code with a
+// USD default. Rendering uses `Intl.NumberFormat` to produce a locale-
+// aware, currency-correct display string.
+export const storeItemSchema = z.object({
+  title: z.string().min(1),
+  format: z.enum(STORE_ITEM_FORMATS),
+  price: z.number().nonnegative(),
+  currency: z.string().length(3).default("USD"),
+  image: imageMetadataSchema.optional(),
+  description: z.string().optional(),
+  buyUrl: z.string().url(),
+  status: z.enum(STORE_ITEM_STATUSES).default("available"),
+  order: z.number().int().optional(),
+});
+
+// ============================================================
 // Exported TypeScript types (derived from schemas)
 // ============================================================
 
@@ -333,3 +379,4 @@ export type Video = z.infer<typeof videoSchema>;
 export type PressQuote = z.infer<typeof pressQuoteSchema>;
 export type TourDate = z.infer<typeof tourDateSchema>;
 export type PostFrontmatter = z.infer<typeof postFrontmatterSchema>;
+export type StoreItem = z.infer<typeof storeItemSchema>;

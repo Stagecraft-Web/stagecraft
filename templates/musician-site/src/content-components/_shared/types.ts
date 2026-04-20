@@ -50,3 +50,9 @@ export type ColumnsLayout = "1-1" | "1-2" | "2-1" | "1-1-1";
 
 /** Filter mode for `{% tour-dates-list %}`. */
 export type TourDatesFilter = "upcoming" | "all";
+
+/** Filter mode for `{% store-items %}`. */
+export type StoreItemFilter = "all" | "available" | "preorder";
+
+/** Layout mode for `{% store-items %}`. */
+export type StoreItemLayout = "grid" | "list";

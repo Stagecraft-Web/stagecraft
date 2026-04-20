@@ -82,5 +82,13 @@ export default {
         "title": { type: String },
       },
     },
+    "posts-list": {
+      selfClosing: true,
+      attributes: {
+        "limit": { type: Number },
+        "category": { type: String, default: "all", matches: ["all","news","blog","update","press","release"] },
+        "layout": { type: String, default: "grid", matches: ["grid","list"] },
+      },
+    },
   },
 };

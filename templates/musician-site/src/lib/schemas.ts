@@ -252,6 +252,43 @@ export const tourDateSchema = z.object({
 });
 
 // ============================================================
+// Posts / news
+//
+// Unlike the yaml-backed collections above, posts are `.mdoc` files
+// with rich bodies (frontmatter + markdoc body). The frontmatter is
+// validated against postFrontmatterSchema; the body is Markdoc and
+// can embed the same content-components that regular pages do.
+//
+// POST_CATEGORIES is shared between the frontmatter schema and the
+// `posts-list` markdoc tag's category filter. Adding a category here
+// automatically makes it available everywhere that uses the constant.
+// ============================================================
+
+export const POST_CATEGORIES = [
+  "news",
+  "blog",
+  "update",
+  "press",
+  "release",
+] as const;
+export type PostCategory = (typeof POST_CATEGORIES)[number];
+
+export const POST_STATUSES = ["draft", "published"] as const;
+export type PostStatus = (typeof POST_STATUSES)[number];
+
+export const postFrontmatterSchema = z.object({
+  title: z.string().min(1),
+  publishedDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be an ISO date (YYYY-MM-DD)"),
+  featuredImage: imageMetadataSchema.optional(),
+  excerpt: z.string().max(300).optional(),
+  category: z.enum(POST_CATEGORIES).default("news"),
+  externalUrl: z.string().url().optional(),
+  status: z.enum(POST_STATUSES).default("published"),
+});
+
+// ============================================================
 // Exported TypeScript types (derived from schemas)
 // ============================================================
 
@@ -266,3 +303,4 @@ export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;
 export type PressQuote = z.infer<typeof pressQuoteSchema>;
 export type TourDate = z.infer<typeof tourDateSchema>;
+export type PostFrontmatter = z.infer<typeof postFrontmatterSchema>;

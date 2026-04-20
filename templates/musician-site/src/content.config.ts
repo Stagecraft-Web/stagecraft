@@ -95,6 +95,34 @@ const tourDates = defineCollection({
 });
 
 // ---------------------------------------------------------------------------
+// Posts — `.mdoc` collection with rich body + frontmatter.
+//
+// The shape here mirrors `postFrontmatterSchema` in src/lib/schemas.ts, which
+// is used by the validate-content script (zod v3). Keeping the two in sync is
+// required — the schema-consistency test covers markdoc↔keystatic parity, but
+// not this one. If POST_CATEGORIES changes in schemas.ts, update the enum
+// here too.
+// ---------------------------------------------------------------------------
+
+const posts = defineCollection({
+  loader: glob({ pattern: "**/*.mdoc", base: "./src/content/collections/posts" }),
+  schema: (ctx) =>
+    z.object({
+      title: z.string().min(1),
+      publishedDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be an ISO date (YYYY-MM-DD)"),
+      featuredImage: imageMetadataSchema(ctx).optional(),
+      excerpt: z.string().max(300).optional(),
+      category: z
+        .enum(["news", "blog", "update", "press", "release"])
+        .default("news"),
+      externalUrl: z.url().optional(),
+      status: z.enum(["draft", "published"]).default("published"),
+    }),
+});
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -105,4 +133,5 @@ export const collections = {
   videos,
   pressQuotes,
   tourDates,
+  posts,
 };

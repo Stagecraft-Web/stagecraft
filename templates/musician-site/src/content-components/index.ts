@@ -31,6 +31,7 @@ export * as VideoGallery from "./VideoGallery";
 export * as TourDatesList from "./TourDatesList";
 export * as ContactForm from "./ContactForm";
 export * as Embed from "./Embed";
+export * as PostsList from "./PostsList";
 
 import * as Section from "./Section";
 import * as FullscreenSection from "./FullscreenSection";
@@ -46,6 +47,7 @@ import * as VideoGallery from "./VideoGallery";
 import * as TourDatesList from "./TourDatesList";
 import * as ContactForm from "./ContactForm";
 import * as Embed from "./Embed";
+import * as PostsList from "./PostsList";
 
 /**
  * Ordered list of every content-component. The order affects nothing at
@@ -67,4 +69,5 @@ export const components = [
   TourDatesList,
   ContactForm,
   Embed,
+  PostsList,
 ] as const;

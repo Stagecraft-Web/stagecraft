@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
 import AssetManager from "@/components/AssetManager";
 import Input from "@/components/Input";
-import Textarea from "@/components/Textarea";
-import type { FailureCategory } from "@stagecraft/shared";
 
 type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived";
-type BlueprintType = "solo-artist" | "band" | "composer-educator" | "epk-focused" | "tour-focused";
 type JobType = "create_site" | "edit_site" | "migrate_site" | "repair_site" | "deploy_config";
 type JobStatus = "queued" | "running" | "completed" | "failed" | "awaiting_review" | "canceled";
-type ChangeRequestStatus =
-  | "pending"
-  | "in_progress"
-  | "ready_for_review"
-  | "approved"
-  | "rejected"
-  | "discarded";
 
 interface MigrationReportItem {
   label: string;
@@ -62,7 +52,7 @@ interface Site {
   name: string;
   slug: string;
   status: SiteStatus;
-  blueprintType: BlueprintType;
+  blueprintType: string;
   githubRepoOwner?: string;
   githubRepoName?: string;
   netlifySiteId?: string;
@@ -72,46 +62,6 @@ interface Site {
   jobs: SiteJob[];
 }
 
-interface CRJob {
-  id: string;
-  status: JobStatus;
-  failureCategory?: FailureCategory | null;
-  errorMessage?: string;
-  repairAttempts?: number;
-}
-
-interface ChangeRequest {
-  id: string;
-  requestText: string;
-  classifiedMode?: string;
-  branchName?: string;
-  prNumber?: number;
-  previewUrl?: string;
-  summary?: string;
-  status: ChangeRequestStatus;
-  failureCategory?: FailureCategory | null;
-  createdAt: string;
-  job?: CRJob | null;
-}
-
-const CR_STATUS_LABEL: Record<ChangeRequestStatus, string> = {
-  pending: "Pending",
-  in_progress: "In Progress",
-  ready_for_review: "Ready for Review",
-  approved: "Approved",
-  rejected: "Rejected",
-  discarded: "Discarded",
-};
-
-const CR_STATUS_COLOR: Record<ChangeRequestStatus, string> = {
-  pending: "var(--color-text-muted)",
-  in_progress: "var(--color-warning)",
-  ready_for_review: "var(--color-info)",
-  approved: "var(--color-success)",
-  rejected: "var(--color-error)",
-  discarded: "var(--color-text-faint)",
-};
-
 export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
@@ -120,23 +70,6 @@ export default function SiteDetailPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
-
-  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
-  const [editRequestText, setEditRequestText] = useState("");
-  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [editRequestError, setEditRequestError] = useState("");
-
-  const fetchChangeRequests = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/sites/${siteId}/change-requests`);
-      if (res.ok) {
-        const data = await res.json();
-        setChangeRequests(data.changeRequests ?? []);
-      }
-    } catch {
-      // Non-fatal — CR list will just be empty
-    }
-  }, [siteId]);
 
   useEffect(() => {
     let active = true;
@@ -163,9 +96,7 @@ export default function SiteDetailPage() {
     }
 
     fetchSite();
-    fetchChangeRequests();
 
-    // Poll while site is still creating
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/sites/${siteId}`);
@@ -187,18 +118,7 @@ export default function SiteDetailPage() {
       active = false;
       clearInterval(interval);
     };
-  }, [siteId, fetchChangeRequests]);
-
-  // Poll change requests while any are in_progress or pending
-  useEffect(() => {
-    const hasActiveRequests = changeRequests.some(
-      (cr) => cr.status === "pending" || cr.status === "in_progress"
-    );
-    if (!hasActiveRequests) return;
-
-    const interval = setInterval(fetchChangeRequests, 4000);
-    return () => clearInterval(interval);
-  }, [changeRequests, fetchChangeRequests]);
+  }, [siteId]);
 
   if (isLoading) {
     return (
@@ -263,70 +183,12 @@ export default function SiteDetailPage() {
     }
   }
 
-  async function handleSubmitEditRequest() {
-    if (!editRequestText.trim()) return;
-    setIsSubmittingRequest(true);
-    setEditRequestError("");
-    try {
-      const res = await fetch(`/api/sites/${siteId}/change-requests`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestText: editRequestText.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setEditRequestText("");
-        setChangeRequests((prev) => [data.changeRequest, ...prev]);
-      } else {
-        setEditRequestError(data.error || "Failed to submit request");
-      }
-    } catch {
-      setEditRequestError("Failed to submit request");
-    } finally {
-      setIsSubmittingRequest(false);
-    }
-  }
-
-  async function handleRetryCR(crId: string) {
-    try {
-      const res = await fetch(`/api/sites/${siteId}/change-requests/${crId}/retry`, { method: "POST" });
-      if (res.ok) {
-        setChangeRequests((prev) =>
-          prev.map((cr) =>
-            cr.id === crId
-              ? { ...cr, status: "in_progress" as ChangeRequestStatus, job: cr.job ? { ...cr.job, status: "queued", failureCategory: null } : cr.job }
-              : cr
-          )
-        );
-      }
-    } catch {
-      // Non-fatal — user can retry again
-    }
-  }
-
-  async function handleDiscardCR(crId: string) {
-    if (!confirm("Discard this change request?")) return;
-    try {
-      const res = await fetch(`/api/sites/${siteId}/change-requests/${crId}/discard`, { method: "POST" });
-      if (res.ok) {
-        setChangeRequests((prev) =>
-          prev.map((cr) =>
-            cr.id === crId ? { ...cr, status: "discarded" as ChangeRequestStatus } : cr
-          )
-        );
-      }
-    } catch {
-      // Non-fatal
-    }
-  }
-
   const latestJob = site.jobs[0];
   const isCreating = site.status === "creating";
   const isError = site.status === "error" || site.status === "deploy_failed";
   const isArchived = site.status === "archived";
   const isActive = site.status === "active";
 
-  // Migration report — shown when a completed migrate_site job has a report in resultPayload
   const migrationJob = site.jobs.find((j) => j.type === "migrate_site" && j.status === "completed");
   const migrationReport = migrationJob?.resultPayload?.report ?? null;
   const githubUrl = site.githubRepoOwner && site.githubRepoName
@@ -382,10 +244,6 @@ export default function SiteDetailPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <tbody>
             <tr>
-              <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Blueprint</td>
-              <td style={{ padding: "0.5rem" }}>{site.blueprintType}</td>
-            </tr>
-            <tr>
               <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Status</td>
               <td style={{ padding: "0.5rem" }}>{site.status}</td>
             </tr>
@@ -417,25 +275,21 @@ export default function SiteDetailPage() {
         </table>
       </section>
 
-      {/* Migration report — shown after a successful migrate_site job */}
       {migrationReport && (
         <section style={{ marginTop: "2rem" }}>
           <h2>Migration Report</h2>
 
-          {/* Summary */}
           <ul style={{ paddingLeft: "1.25rem", margin: "0 0 1rem" }}>
             {migrationReport.summary.map((line, i) => (
               <li key={i} style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.25rem" }}>{line}</li>
             ))}
           </ul>
 
-          {/* Confidence */}
           <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginBottom: "1rem" }}>
             Overall import confidence: <strong>{Math.round(migrationReport.overallConfidence * 100)}%</strong>
-            {" "}— higher means more content was accurately mapped.
+            {" "}&mdash; higher means more content was accurately mapped.
           </p>
 
-          {/* Imported */}
           {migrationReport.importedItems.length > 0 && (
             <div style={{ marginBottom: "1rem" }}>
               <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-success)" }}>
@@ -452,7 +306,6 @@ export default function SiteDetailPage() {
             </div>
           )}
 
-          {/* Manual review */}
           {migrationReport.manualReviewItems.length > 0 && (
             <div style={{ marginBottom: "1rem" }}>
               <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-warning)" }}>
@@ -469,7 +322,6 @@ export default function SiteDetailPage() {
             </div>
           )}
 
-          {/* Skipped */}
           {migrationReport.skippedItems.length > 0 && (
             <div>
               <h3 style={{ fontSize: "var(--font-size-sm)", marginBottom: "0.5rem", color: "var(--color-text-muted)" }}>
@@ -488,110 +340,7 @@ export default function SiteDetailPage() {
         </section>
       )}
 
-      {/* Edit request form — only for active sites */}
-      {isActive && (
-        <section style={{ marginTop: "2rem" }}>
-          <h2>Request a Change</h2>
-          <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0, marginBottom: "0.75rem" }}>
-            Describe what you&rsquo;d like to change in plain language. The AI will make the edit, open a PR, and show you a preview to approve.
-          </p>
-          <Textarea
-            id="edit-request"
-            label="What would you like to change?"
-            value={editRequestText}
-            onChange={setEditRequestText}
-            placeholder="e.g. Update my bio to mention the new album, or Change the nav link order so Tour Dates comes first"
-          />
-          {editRequestError && (
-            <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0.5rem" }}>
-              {editRequestError}
-            </p>
-          )}
-          <div style={{ marginTop: "0.5rem" }}>
-            <Button
-              onClick={handleSubmitEditRequest}
-              isDisabled={isSubmittingRequest || !editRequestText.trim()}
-            >
-              {isSubmittingRequest ? "Submitting..." : "Submit Change Request"}
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {/* Asset management — only for active sites */}
       {isActive && <AssetManager siteId={siteId} />}
-
-      {/* Change request history */}
-      {changeRequests.length > 0 && (
-        <section style={{ marginTop: "2rem" }}>
-          <h2>Change Requests</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {changeRequests.map((cr) => (
-              <li
-                key={cr.id}
-                style={{
-                  padding: "0.875rem",
-                  border: `1px solid var(--color-border)`,
-                  borderRadius: "var(--radius-lg)",
-                  marginBottom: "0.625rem",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                  <p style={{ margin: 0, fontSize: "var(--font-size-sm)", flex: 1 }}>
-                    {cr.requestText.length > 120
-                      ? `${cr.requestText.slice(0, 120)}…`
-                      : cr.requestText}
-                  </p>
-                  <span style={{
-                    fontSize: "var(--font-size-xs)",
-                    fontWeight: "var(--font-weight-semibold)",
-                    color: CR_STATUS_COLOR[cr.status],
-                    whiteSpace: "nowrap",
-                  }}>
-                    {CR_STATUS_LABEL[cr.status]}
-                  </span>
-                </div>
-                {cr.classifiedMode && (
-                  <p style={{ margin: "0.25rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>
-                    {cr.classifiedMode.replace(/_/g, " ")}
-                  </p>
-                )}
-                {cr.status === "ready_for_review" && (
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <Button
-                      href={`/sites/${siteId}/change-requests/${cr.id}`}
-                      size="sm"
-                    >
-                      Review &rarr;
-                    </Button>
-                  </div>
-                )}
-                {(cr.status === "pending" || cr.status === "in_progress") && (
-                  <p style={{ margin: "0.375rem 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-                    Working on it…
-                  </p>
-                )}
-                {cr.job?.status === "failed" && cr.status !== "discarded" && (
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <p style={{ margin: "0 0 0.375rem", fontSize: "var(--font-size-xs)", color: "var(--color-error)" }}>
-                      Failed
-                      {cr.job.errorMessage ? `: ${cr.job.errorMessage}` : ""}
-                    </p>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <Button size="sm" onClick={() => handleRetryCR(cr.id)}>
-                        Retry
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDiscardCR(cr.id)}>
-                        Discard
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {site.jobs.length > 0 && (
         <section style={{ marginTop: "1.5rem" }}>
@@ -610,7 +359,6 @@ export default function SiteDetailPage() {
         </section>
       )}
 
-      {/* Archive / Unarchive */}
       {(site.status === "active" || isArchived) && (
         <section style={{ marginTop: "2rem" }}>
           <Button
@@ -630,7 +378,6 @@ export default function SiteDetailPage() {
         </section>
       )}
 
-      {/* Delete — requires typing site name */}
       <section style={{ marginTop: "3rem", borderTop: `1px solid var(--color-border)`, paddingTop: "1.5rem" }}>
         <h2 style={{ color: "var(--color-error)" }}>Danger Zone</h2>
         <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>

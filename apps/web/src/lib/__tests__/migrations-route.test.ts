@@ -1,7 +1,7 @@
 /**
  * Tests for POST /api/migrations
  *
- * Validates input checking, blueprint validation, integration guards,
+ * Validates input checking, integration guards,
  * slug uniqueness, and successful job creation.
  */
 
@@ -21,11 +21,7 @@ vi.mock("next/server", () => ({
   },
 }));
 
-// @stagecraft/shared: provide real implementations (workspace packages may not be linked)
-const VALID_BLUEPRINTS = ["solo-artist", "band", "composer-educator", "epk-focused", "tour-focused"];
 vi.mock("@stagecraft/shared", () => ({
-  BLUEPRINT_VALUES: VALID_BLUEPRINTS,
-  isBlueprintType: (v: string) => VALID_BLUEPRINTS.includes(v),
   isValidHttpUrl: (raw: string) => {
     try {
       const p = new URL(raw);
@@ -92,7 +88,7 @@ describe("POST /api/migrations", () => {
   it("returns 401 when not authenticated", async () => {
     mockSession.mockResolvedValue(null);
     const { POST } = await import("../../app/api/migrations/route");
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType: "solo-artist" }));
+    const res = await POST(makeRequest({ url: "https://example.com", name: "Test" }));
     expect(res.status).toBe(401);
   });
 
@@ -100,10 +96,10 @@ describe("POST /api/migrations", () => {
     authedSession();
     const { POST } = await import("../../app/api/migrations/route");
 
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test" }));
+    const res = await POST(makeRequest({ url: "https://example.com" }));
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
-    expect(body.error).toMatch(/blueprintType/);
+    expect(body.error).toMatch(/name/i);
   });
 
   it("returns 400 when url is not a valid http/https URL", async () => {
@@ -111,21 +107,10 @@ describe("POST /api/migrations", () => {
     withIntegrations();
     const { POST } = await import("../../app/api/migrations/route");
 
-    const res = await POST(makeRequest({ url: "ftp://bad.com", name: "Test", blueprintType: "solo-artist" }));
+    const res = await POST(makeRequest({ url: "ftp://bad.com", name: "Test" }));
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
     expect(body.error).toMatch(/url/i);
-  });
-
-  it("returns 400 when blueprintType is invalid", async () => {
-    authedSession();
-    withIntegrations();
-    const { POST } = await import("../../app/api/migrations/route");
-
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType: "invalid-type" }));
-    expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
-    expect(body.error).toMatch(/blueprint/i);
   });
 
   it("returns 400 when GitHub is not connected", async () => {
@@ -133,7 +118,7 @@ describe("POST /api/migrations", () => {
     withIntegrations(false, true);
     const { POST } = await import("../../app/api/migrations/route");
 
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType: "solo-artist" }));
+    const res = await POST(makeRequest({ url: "https://example.com", name: "Test" }));
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
     expect(body.error).toMatch(/GitHub/i);
@@ -144,7 +129,7 @@ describe("POST /api/migrations", () => {
     withIntegrations(true, false);
     const { POST } = await import("../../app/api/migrations/route");
 
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType: "solo-artist" }));
+    const res = await POST(makeRequest({ url: "https://example.com", name: "Test" }));
     expect(res.status).toBe(400);
     const body = await res.json() as { error: string };
     expect(body.error).toMatch(/Netlify/i);
@@ -156,7 +141,7 @@ describe("POST /api/migrations", () => {
     mockFindUniqueSite.mockResolvedValue({ id: "existing" });
     const { POST } = await import("../../app/api/migrations/route");
 
-    const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType: "solo-artist" }));
+    const res = await POST(makeRequest({ url: "https://example.com", name: "Test" }));
     expect(res.status).toBe(409);
   });
 
@@ -168,30 +153,10 @@ describe("POST /api/migrations", () => {
     const res = await POST(makeRequest({
       url: "https://sarahchenmusic.com",
       name: "Sarah Chen Music",
-      blueprintType: "solo-artist",
     }));
     expect(res.status).toBe(201);
     const body = await res.json() as { site: unknown; jobId: string };
     expect(body.jobId).toBe("job-1");
     expect(body.site).toBeDefined();
-  });
-
-  it("accepts all valid blueprint types", async () => {
-    authedSession();
-    withIntegrations();
-    const { POST } = await import("../../app/api/migrations/route");
-
-    const validTypes = ["solo-artist", "band", "composer-educator", "epk-focused", "tour-focused"];
-    for (const blueprintType of validTypes) {
-      vi.clearAllMocks();
-      authedSession();
-      withIntegrations();
-      mockFindUniqueSite.mockResolvedValue(null);
-      mockCreateSite.mockResolvedValue({ id: "site-1" });
-      mockCreateJob.mockResolvedValue({ id: "job-1" });
-
-      const res = await POST(makeRequest({ url: "https://example.com", name: "Test", blueprintType }));
-      expect(res.status).toBe(201);
-    }
   });
 });

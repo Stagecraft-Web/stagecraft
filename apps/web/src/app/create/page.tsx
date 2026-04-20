@@ -5,50 +5,81 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 
-const BLUEPRINTS = [
-  { value: "solo-artist", label: "Solo Artist", description: "For solo musicians, singer-songwriters, and solo performers" },
-  { value: "band", label: "Band / Ensemble", description: "For bands, ensembles, and musical groups" },
-  { value: "composer-educator", label: "Composer / Educator", description: "For composers, music teachers, and academics" },
-  { value: "epk-focused", label: "EPK / Press Kit", description: "Emphasis on press materials, bio, and booking info" },
-  { value: "tour-focused", label: "Tour Focused", description: "Emphasis on tour dates, venues, and live performance" },
-];
-
-type Step = "blueprint" | "details" | "creating";
+type Mode = "choose" | "scratch" | "recreate" | "creating";
 
 export default function CreateSitePage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("blueprint");
-  const [blueprintType, setBlueprintType] = useState("");
+  const [mode, setMode] = useState<Mode>("choose");
   const [siteName, setSiteName] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  async function handleCreate() {
+  async function handleCreateFromScratch() {
     setError("");
     setIsCreating(true);
-    setStep("creating");
+    setMode("creating");
 
     try {
       const res = await fetch("/api/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: siteName, blueprintType }),
+        body: JSON.stringify({ name: siteName.trim() }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error ?? "Failed to create site");
-        setStep("details");
+        setMode("scratch");
         setIsCreating(false);
         return;
       }
 
-      // Redirect to site detail page to watch progress
       router.push(`/sites/${data.site.id}`);
     } catch {
       setError("Something went wrong. Please try again.");
-      setStep("details");
+      setMode("scratch");
+      setIsCreating(false);
+    }
+  }
+
+  async function handleRecreate() {
+    setError("");
+
+    try {
+      new URL(sourceUrl.trim());
+    } catch {
+      setError("Please enter a valid URL starting with http:// or https://");
+      return;
+    }
+
+    setIsCreating(true);
+    setMode("creating");
+
+    try {
+      const res = await fetch("/api/migrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: sourceUrl.trim(),
+          name: siteName.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Failed to start site creation");
+        setMode("recreate");
+        setIsCreating(false);
+        return;
+      }
+
+      router.push(`/sites/${data.site.id}`);
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setMode("recreate");
       setIsCreating(false);
     }
   }
@@ -64,41 +95,40 @@ export default function CreateSitePage() {
         </div>
       )}
 
-      {step === "blueprint" && (
+      {mode === "choose" && (
         <section>
-          <h2>Choose a blueprint</h2>
+          <p style={{ color: "var(--color-text-muted)", marginBottom: "1.5rem" }}>
+            How would you like to get started?
+          </p>
           <div style={{ display: "grid", gap: "0.75rem" }}>
-            {BLUEPRINTS.map((bp) => (
-              <Button
-                key={bp.value}
-                variant="card"
-                isSelected={blueprintType === bp.value}
-                onClick={() => {
-                  setBlueprintType(bp.value);
-                  setStep("details");
-                }}
-              >
-                <strong>{bp.label}</strong>
-                <br />
-                <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{bp.description}</span>
-              </Button>
-            ))}
+            <Button
+              variant="card"
+              onClick={() => setMode("scratch")}
+            >
+              <strong>Start from scratch</strong>
+              <br />
+              <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
+                Create a blank musician site with placeholder content you can customize.
+              </span>
+            </Button>
+            <Button
+              variant="card"
+              onClick={() => setMode("recreate")}
+            >
+              <strong>Recreate from an existing site</strong>
+              <br />
+              <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
+                Enter a URL and we&rsquo;ll extract the content and build a new site from it.
+              </span>
+            </Button>
           </div>
         </section>
       )}
 
-      {step === "details" && (
+      {mode === "scratch" && (
         <section>
-          <h2>Site details</h2>
-          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
-            Blueprint: <strong>{BLUEPRINTS.find((b) => b.value === blueprintType)?.label}</strong>
-            {" "}
-            <Button variant="ghost" onClick={() => setStep("blueprint")}>
-              Change
-            </Button>
-          </p>
-
-          <div style={{ marginTop: "1rem" }}>
+          <h2>Start from scratch</h2>
+          <div style={{ marginTop: "0.75rem" }}>
             <Input
               id="site-name"
               label="Artist / Site name"
@@ -107,19 +137,62 @@ export default function CreateSitePage() {
               placeholder="e.g. Sarah Chen Music"
             />
           </div>
-
-          <div style={{ marginTop: "1.25rem" }}>
-            <Button onClick={handleCreate} isDisabled={!siteName.trim() || isCreating}>
+          <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem" }}>
+            <Button onClick={handleCreateFromScratch} isDisabled={!siteName.trim() || isCreating}>
               Create site
+            </Button>
+            <Button variant="ghost" onClick={() => { setMode("choose"); setError(""); }}>
+              &larr; Back
             </Button>
           </div>
         </section>
       )}
 
-      {step === "creating" && (
+      {mode === "recreate" && (
+        <section>
+          <h2>Recreate from an existing site</h2>
+          <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginTop: 0, marginBottom: "1rem" }}>
+            We&rsquo;ll crawl the site, extract the content, and build a new Stagecraft site from it.
+          </p>
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <Input
+              id="source-url"
+              label="Existing website URL"
+              value={sourceUrl}
+              onChange={setSourceUrl}
+              placeholder="https://www.yoursite.com"
+            />
+            <Input
+              id="site-name-recreate"
+              label="Artist / Site name"
+              value={siteName}
+              onChange={setSiteName}
+              placeholder="e.g. Sarah Chen Music"
+            />
+          </div>
+          <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.75rem" }}>
+            <Button
+              onClick={handleRecreate}
+              isDisabled={!siteName.trim() || !sourceUrl.trim() || isCreating}
+            >
+              Create site
+            </Button>
+            <Button variant="ghost" onClick={() => { setMode("choose"); setError(""); }}>
+              &larr; Back
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {mode === "creating" && (
         <section style={{ textAlign: "center", padding: "2.5rem" }}>
-          <p style={{ fontSize: "var(--font-size-lg)" }}>Creating your site...</p>
-          <p style={{ color: "var(--color-text-muted)" }}>Setting up GitHub repo, pushing template, and configuring Netlify.</p>
+          <p style={{ fontSize: "var(--font-size-lg)" }}>Creating your site&hellip;</p>
+          <p style={{ color: "var(--color-text-muted)" }}>
+            Setting up GitHub repo, building your site, and configuring Netlify.
+          </p>
+          <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-faint)" }}>
+            This may take a minute. You&rsquo;ll be redirected when it&rsquo;s ready.
+          </p>
         </section>
       )}
     </main>

@@ -1,0 +1,118 @@
+---
+// Markdoc block — embeds a single external media player inline in a page.
+// Switches on `service` to construct the correct iframe URL and frame size.
+//
+// The `id` attribute may be a raw service ID OR a full URL; resolveMediaEmbed
+// extracts the canonical ID either way. If the input is unparsable we render
+// a small inline error rather than an empty/broken iframe so editors see the
+// problem in preview.
+import { resolveMediaEmbed, type MediaEmbedService } from "./toEmbedUrl";
+
+interface Props {
+  service: MediaEmbedService;
+  id: string;
+  title?: string;
+}
+
+const { service, id, title } = Astro.props;
+const resolved = resolveMediaEmbed(service, id);
+const iframeTitle = title || `${resolved.serviceLabel} embed`;
+
+// Spotify and Bandcamp use fixed-height "card" players; YouTube and Vimeo
+// use a 16:9 aspect-ratio container that scales with width. Picking the
+// strategy here (rather than passing both through CSS vars) keeps the
+// markup consistent with each service's recommended embed sizing.
+const isFixedHeightPlayer =
+  service === "spotify-album" || service === "bandcamp-album";
+
+// Fixed pixel heights match each service's standard embed:
+//   - Spotify album player (with tracklist): 380px
+//   - Bandcamp "size=large + artwork=small" layout: 120px
+const fixedHeight = service === "spotify-album" ? 380 : 120;
+---
+
+{
+  resolved.embedUrl ? (
+    isFixedHeightPlayer ? (
+      <div class="media-embed media-embed--fixed">
+        <iframe
+          src={resolved.embedUrl}
+          title={iframeTitle}
+          loading="lazy"
+          width="100%"
+          height={fixedHeight}
+          style={`--media-embed-height: ${fixedHeight}px;`}
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          allowfullscreen
+        />
+      </div>
+    ) : (
+      <div
+        class="media-embed media-embed--responsive"
+        style={`--media-embed-aspect: ${resolved.aspectRatio};`}
+      >
+        <iframe
+          src={resolved.embedUrl}
+          title={iframeTitle}
+          loading="lazy"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          allowfullscreen
+        />
+      </div>
+    )
+  ) : (
+    <div class="media-embed media-embed--error" role="note">
+      <strong>Media embed:</strong> couldn't parse a {resolved.serviceLabel} ID
+      from <code>{id}</code>.
+    </div>
+  )
+}
+
+<style>
+  .media-embed {
+    margin-block: 1.5rem;
+  }
+
+  .media-embed--responsive {
+    position: relative;
+    width: 100%;
+    aspect-ratio: var(--media-embed-aspect, 16 / 9);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+
+  .media-embed--responsive iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .media-embed--fixed {
+    width: 100%;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .media-embed--fixed iframe {
+    display: block;
+    width: 100%;
+    height: var(--media-embed-height, 380px);
+    border: 0;
+  }
+
+  .media-embed--error {
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--color-text-muted, #999);
+    border-radius: var(--radius);
+    color: var(--color-text-muted, #666);
+    font-size: var(--font-size-sm, 0.875rem);
+  }
+
+  .media-embed--error code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 0.85em;
+  }
+</style>

@@ -54,5 +54,13 @@ export default {
     "contact-form": {
       selfClosing: true,
     },
+    "media-embed": {
+      selfClosing: true,
+      attributes: {
+        "service": { type: String, required: true, matches: ["spotify-album","bandcamp-album","youtube-video","vimeo-video"] },
+        "id": { type: String, required: true },
+        "title": { type: String },
+      },
+    },
   },
 };

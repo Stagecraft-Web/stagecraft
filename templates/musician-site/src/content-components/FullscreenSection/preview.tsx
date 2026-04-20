@@ -10,11 +10,18 @@ import {
 import { PlaceholderImage } from "../_shared/previewChrome";
 import type { HeadingLevel } from "../_shared/types";
 
+/**
+ * `fields.file` (used for the optional background video) returns the same
+ * `{ data, extension, filename } | null` blob shape that `fields.image`
+ * does, so we reuse `KeystaticImageBlob` as the type. Only `filename` is
+ * read here — we don't try to play the video in the preview.
+ */
 type FullscreenSectionValue = {
   title: string;
   headingLevel: HeadingLevel;
   isTitleHidden: boolean;
   image: KeystaticImageBlob;
+  video: KeystaticImageBlob;
 };
 
 export function FullscreenSectionPreview({
@@ -24,9 +31,10 @@ export function FullscreenSectionPreview({
   value: FullscreenSectionValue;
   children: ReactNode;
 }): ReactNode {
-  const { title, image, isTitleHidden } = value;
+  const { title, image, video, isTitleHidden } = value;
   const imageUrl = useBlobObjectUrl(image);
   const hasImage = imageUrl !== null;
+  const hasVideo = video !== null;
 
   return (
     <div
@@ -85,6 +93,30 @@ export function FullscreenSectionPreview({
       >
         Fullscreen Section
       </div>
+      {hasVideo && (
+        <div
+          title={`Video background: ${video.filename}`}
+          style={{
+            position: "absolute",
+            top: "0.5rem",
+            right: "0.5rem",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.25rem",
+            padding: "0.125rem 0.5rem",
+            background: "rgba(0, 0, 0, 0.65)",
+            color: "#ffffff",
+            fontSize: "0.6875rem",
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            borderRadius: "3px",
+          }}
+        >
+          <VideoIcon />
+          Video BG
+        </div>
+      )}
       <div
         style={{
           position: "relative",
@@ -109,5 +141,24 @@ export function FullscreenSectionPreview({
         <div>{children}</div>
       </div>
     </div>
+  );
+}
+
+function VideoIcon(): ReactNode {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
   );
 }

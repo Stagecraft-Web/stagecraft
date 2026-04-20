@@ -55,6 +55,7 @@ const baseAppearance: AppearanceState = {
     primary: "#111",
     secondary: "#222",
     accent: "#333",
+    linkColor: "#333",
     background: "#fff",
     surface: "#fafafa",
     text: "#000",
@@ -113,6 +114,14 @@ describe("applyCssVariables", () => {
     expect(stub.style["--font-weight-body"]).toBe("400");
     expect(stub.style["--font-weight-h2"]).toBe("600");
     expect(stub.style["--font-weight-h6"]).toBe("500");
+  });
+
+  it("writes --color-link (5a)", () => {
+    applyCssVariables(stub.doc.documentElement, {
+      ...baseAppearance,
+      colors: { ...baseAppearance.colors, linkColor: "#ff00aa" },
+    });
+    expect(stub.style["--color-link"]).toBe("#ff00aa");
   });
 });
 

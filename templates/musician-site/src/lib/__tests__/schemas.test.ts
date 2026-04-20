@@ -65,6 +65,42 @@ describe("siteConfigSchema", () => {
   it("rejects invalid email", () => {
     expect(() => siteConfigSchema.parse({ ...valid, contactEmail: "not-email" })).toThrow();
   });
+
+  // ---- Wordmark (5b replacement) -----------------------------------------
+  it("parses without a wordmark (optional field)", () => {
+    const result = siteConfigSchema.parse(valid);
+    expect(result.wordmark).toBeUndefined();
+  });
+
+  it("accepts a valid wordmark (src + alt)", () => {
+    const withWordmark = {
+      ...valid,
+      wordmark: { src: "../../assets/images/wordmark.svg", alt: "Jane Doe" },
+    };
+    const result = siteConfigSchema.parse(withWordmark);
+    expect(result.wordmark).toEqual({
+      src: "../../assets/images/wordmark.svg",
+      alt: "Jane Doe",
+    });
+  });
+
+  it("rejects a wordmark with an empty src", () => {
+    expect(() =>
+      siteConfigSchema.parse({
+        ...valid,
+        wordmark: { src: "", alt: "Jane Doe" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a wordmark with an empty alt (screen-reader requirement)", () => {
+    expect(() =>
+      siteConfigSchema.parse({
+        ...valid,
+        wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
+      }),
+    ).toThrow();
+  });
 });
 
 describe("themeSchema", () => {
@@ -286,6 +322,30 @@ describe("appearanceSchema", () => {
     expect(() =>
       appearanceSchema.parse({ ...splitInput, colors: partialColors })
     ).toThrow();
+  });
+
+  // ---- 5a: linkColor fallback ---------------------------------------------
+  it("falls back to accent when linkColor is unset (field missing)", () => {
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.colors.linkColor).toBe(validColors.accent);
+  });
+
+  it("falls back to accent when linkColor is an empty string", () => {
+    const withBlankLink = {
+      ...splitInput,
+      colors: { ...validColors, linkColor: "" },
+    };
+    const result = appearanceSchema.parse(withBlankLink);
+    expect(result.colors.linkColor).toBe(validColors.accent);
+  });
+
+  it("preserves an explicit linkColor when set", () => {
+    const withLink = {
+      ...splitInput,
+      colors: { ...validColors, linkColor: "#ff00aa" },
+    };
+    const result = appearanceSchema.parse(withLink);
+    expect(result.colors.linkColor).toBe("#ff00aa");
   });
 });
 

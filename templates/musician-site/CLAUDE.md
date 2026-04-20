@@ -353,6 +353,34 @@ CSS custom properties cannot be used in `@media` queries. Use literal pixel valu
 
 ---
 
+## Seed Example Conventions
+
+Every seed example in `src/content/collections/<name>/` must populate every
+required field with either a real value or a sensible placeholder. The
+purpose: when an author clones this template and opens the admin for the
+first time, they see concrete, valid examples — they don't discover required
+fields through build errors.
+
+Rules:
+
+1. **Every required schema field is present in every seed file.** Optional
+   fields can be omitted; required fields never are.
+2. **Prefer empty strings over absent keys** for optional fields you want to
+   surface in the Keystatic UI as an obvious "fill this in" slot (common for
+   `ticketUrl`, `url`, `credit`).
+3. **When adding a new required field to a collection's schema, update the
+   seed example in the same commit.** Otherwise `npm run validate:content`
+   fails for anyone who pulls the change.
+4. **Status-like enums must always be set explicitly.** Don't rely on
+   defaults; write the value out (e.g. `status: upcoming` on a tour date)
+   so readers of the seed see the shape.
+
+`npm run validate:content` enforces this loosely — it runs on every build
+and CI job and fails the moment a required field is missing from any seed
+or authored file.
+
+---
+
 ## API Routes
 
 ### `POST /api/contact`

@@ -1,14 +1,35 @@
 ---
+import { Image } from "astro:assets";
 import { buildNav, getSiteConfig } from "../lib/content";
+import { resolveImage } from "../lib/resolve-image";
 
 const nav = await buildNav();
 const site = getSiteConfig();
 const currentPath = Astro.url.pathname;
+
+// Resolve the wordmark image path (e.g. "../../assets/images/wordmark.svg")
+// into an Astro ImageMetadata object so Astro's <Image> can optimise it.
+// If the author hasn't set a wordmark, or the file no longer exists, we
+// fall through to the artist-name text below — safe default.
+const wordmarkImage = site.wordmark ? resolveImage(site.wordmark.src) : undefined;
+const hasWordmark = Boolean(site.wordmark && wordmarkImage);
 ---
 
 <header class="site-header">
   <div class="container header-inner">
-    <a href="/" class="site-logo">{site.artistName}</a>
+    <a href="/" class="site-logo" aria-label={site.artistName}>
+      {hasWordmark && site.wordmark && wordmarkImage ? (
+        <Image
+          src={wordmarkImage}
+          alt={site.wordmark.alt}
+          class="site-wordmark"
+          height={40}
+          widths={[40, 80]}
+        />
+      ) : (
+        <span class="site-title">{site.artistName}</span>
+      )}
+    </a>
     <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
       <span class="nav-toggle-bar"></span>
       <span class="nav-toggle-bar"></span>
@@ -61,11 +82,26 @@ const currentPath = Astro.url.pathname;
   }
 
   .site-logo {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .site-title {
     font-family: var(--font-heading);
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
-    text-decoration: none;
+  }
+
+  /* Wordmark renders at a fixed max-height so authored logos (which vary
+     wildly in native dimensions) slot into the header at a predictable
+     size regardless of the source file. Width is auto so the aspect ratio
+     is preserved. */
+  .site-wordmark {
+    max-height: 2.25rem;
+    width: auto;
+    display: block;
   }
 
   .main-nav ul {

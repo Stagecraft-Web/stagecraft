@@ -3,6 +3,7 @@
     "primary": "#1a1a2e",
     "secondary": "#e94560",
     "accent": "#0f3460",
+    "linkColor": "",
     "background": "#fafafa",
     "surface": "#ffffff",
     "text": "#1a1a2e",

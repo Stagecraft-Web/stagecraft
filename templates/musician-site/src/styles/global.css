@@ -45,6 +45,10 @@
     --color-primary: #1a1a2e;
     --color-secondary: #e94560;
     --color-accent: #0f3460;
+    /* --color-link: authors can set `colors.linkColor` in appearance.json to
+       decouple link color from the accent/CTA color. When unset, the schema
+       transform resolves it to `--color-accent`, so this default matches. */
+    --color-link: #0f3460;
     --color-bg: #fafafa;
     --color-surface: #ffffff;
     --color-white: #ffffff;
@@ -111,6 +115,9 @@
   --color-primary: #e2e8f0;
   --color-secondary: #f87171;
   --color-accent: #60a5fa;
+  /* Dark-mode link fallback matches the dark accent. BaseLayout's inline
+     <style> writes the authored value over this for sites that set one. */
+  --color-link: #60a5fa;
   --color-bg: #0f172a;
   --color-surface: #1e293b;
   --color-text: #e2e8f0;
@@ -153,7 +160,7 @@ img {
 }
 
 a {
-  color: var(--color-secondary);
+  color: var(--color-link);
   text-decoration: none;
 }
 

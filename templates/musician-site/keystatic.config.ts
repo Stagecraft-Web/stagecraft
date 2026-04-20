@@ -143,6 +143,35 @@ export default config({
       format: { data: "json" },
       schema: {
         artistName: fields.text({ label: "Artist Name", validation: { isRequired: true } }),
+        // Optional brand wordmark image. When set, the Header renders this
+        // image in place of the artist-name text. All other uses of
+        // artistName (document <title>, meta tags, footer) are unaffected —
+        // the wordmark only replaces the visible brand mark in the header.
+        //
+        // Directory is `src/assets/images/` (top-level, not a collection
+        // subfolder) because the wordmark is a site-wide brand asset rather
+        // than content belonging to a single release/photo/etc. publicPath
+        // walks back two levels from site.json's location
+        // (src/content/config/) to reach src/assets/images/.
+        wordmark: fields.object(
+          {
+            src: fields.image({
+              label: "Wordmark Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Describes the wordmark for screen readers. Usually just the artist name.",
+            }),
+          },
+          {
+            label: "Wordmark",
+            description:
+              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
+          },
+        ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(
@@ -212,6 +241,15 @@ export default config({
             primary: fields.text({ label: "Primary (headings, logo)", defaultValue: "#1a1a2e" }),
             secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#e94560" }),
             accent: fields.text({ label: "Accent", defaultValue: "#0f3460" }),
+            // Optional — leave blank to reuse Accent. Authors who want links to
+            // read differently from the main accent/CTA color (e.g. a subdued
+            // link color on a bold accent palette) set this explicitly.
+            linkColor: fields.text({
+              label: "Link color (optional)",
+              description:
+                "Distinct color for inline text links. Leave blank to use Accent.",
+              defaultValue: "",
+            }),
             background: fields.text({ label: "Page background", defaultValue: "#fafafa" }),
             surface: fields.text({ label: "Surface (cards, panels)", defaultValue: "#ffffff" }),
             text: fields.text({ label: "Body text", defaultValue: "#1a1a2e" }),

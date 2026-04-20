@@ -24,8 +24,21 @@ export const imageMetadataSchema = z.object({
 // Config singletons
 // ============================================================
 
+// Brand wordmark image. When set, the header renders this image in place of
+// the artist-name text. Shape is intentionally minimal — we only need src +
+// alt. Optional because most sites are fine with plain text.
+//
+// `alt` is required when present: the image replaces the visible artist name
+// for sighted users, and screen readers depend on it to know who the site
+// belongs to.
+export const wordmarkSchema = z.object({
+  src: z.string().min(1),
+  alt: z.string().min(1),
+});
+
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
+  wordmark: wordmarkSchema.optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
@@ -150,6 +163,13 @@ export const appearanceSchema = z
       primary: z.string().min(1),
       secondary: z.string().min(1),
       accent: z.string().min(1),
+      // Optional distinct link color. When unset (missing or empty string),
+      // the transform below falls back to `accent`, so downstream code can
+      // always read `colors.linkColor` without a null check. Keystatic stores
+      // empty text inputs as `""`, so we accept both `undefined` and `""` as
+      // "unset." Sites that want links to read differently from the accent/CTA
+      // color (e.g. a Pumpkin Bread–style wordmark site) set this explicitly.
+      linkColor: z.string().optional(),
       background: z.string().min(1),
       surface: z.string().min(1),
       text: z.string().min(1),
@@ -163,7 +183,15 @@ export const appearanceSchema = z
     }),
   })
   .transform((input) => ({
-    colors: input.colors,
+    colors: {
+      ...input.colors,
+      // Unset linkColor (missing OR empty string) inherits from accent, so
+      // downstream emitters and the sidebar never have to branch on null.
+      linkColor:
+        input.colors.linkColor && input.colors.linkColor.length > 0
+          ? input.colors.linkColor
+          : input.colors.accent,
+    },
     typography: {
       primary: input.typography.primary,
       mode: input.typography.heading.mode,
@@ -294,6 +322,7 @@ export const postFrontmatterSchema = z.object({
 
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
+export type Wordmark = z.infer<typeof wordmarkSchema>;
 export type NavConfig = z.infer<typeof navConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;

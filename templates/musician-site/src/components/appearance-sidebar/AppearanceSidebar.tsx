@@ -342,6 +342,11 @@ function ColorFields({ draft, onChange }: FieldProps) {
     { key: "primary", label: "Primary" },
     { key: "secondary", label: "Secondary" },
     { key: "accent", label: "Accent" },
+    // Link color is always present in the post-transform state — it either
+    // holds the user's explicit override or the fallback to Accent. Render it
+    // as a regular editable field; the serialize step decides whether to
+    // persist an override or leave linkColor blank in appearance.json.
+    { key: "linkColor", label: "Link color" },
     { key: "background", label: "Background" },
     { key: "surface", label: "Surface" },
     { key: "text", label: "Body text" },

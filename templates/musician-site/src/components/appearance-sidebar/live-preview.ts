@@ -31,6 +31,7 @@ export function applyCssVariables(root: HTMLElement, appearance: AppearanceState
     "--color-primary": colors.primary,
     "--color-secondary": colors.secondary,
     "--color-accent": colors.accent,
+    "--color-link": colors.linkColor,
     "--color-bg": colors.background,
     "--color-surface": colors.surface,
     "--color-text": colors.text,

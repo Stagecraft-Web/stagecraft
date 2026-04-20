@@ -8,6 +8,10 @@ const splitState: AppearanceState = {
     primary: "#1a1a2e",
     secondary: "#e94560",
     accent: "#0f3460",
+    // In the post-transform runtime state, linkColor is never null — it's
+    // either the user's override or the fallback to accent. Round-trip tests
+    // below verify this relationship survives serialize → parse.
+    linkColor: "#0f3460",
     background: "#fafafa",
     surface: "#ffffff",
     text: "#1a1a2e",

@@ -28,8 +28,27 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
       }
     : { discriminant: "single" as const, value: null };
 
+  // linkColor is optional on the schema; we compare against accent to decide
+  // whether the user set one distinctly. If they match, omit the field so
+  // round-tripped appearance.json stays minimal (matches what Keystatic's
+  // empty-text-input semantics produce on a fresh save).
+  const linkColorOut =
+    state.colors.linkColor && state.colors.linkColor !== state.colors.accent
+      ? state.colors.linkColor
+      : "";
+
   const payload = {
-    colors: state.colors,
+    colors: {
+      primary: state.colors.primary,
+      secondary: state.colors.secondary,
+      accent: state.colors.accent,
+      linkColor: linkColorOut,
+      background: state.colors.background,
+      surface: state.colors.surface,
+      text: state.colors.text,
+      textMuted: state.colors.textMuted,
+      border: state.colors.border,
+    },
     typography: {
       primary: {
         discriminant: state.typography.primary.category,
@@ -76,6 +95,7 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
     primary: "primary color",
     secondary: "secondary color",
     accent: "accent color",
+    linkColor: "link color",
     background: "background color",
     surface: "surface color",
     text: "text color",

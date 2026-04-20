@@ -18,6 +18,7 @@ export default {
         "headingLevel": { type: String, default: "h2", matches: ["h1","h2","h3","h4"] },
         "isTitleHidden": { type: Boolean, default: false },
         "image": { type: String },
+        "video": { type: String },
       },
     },
     "button": {

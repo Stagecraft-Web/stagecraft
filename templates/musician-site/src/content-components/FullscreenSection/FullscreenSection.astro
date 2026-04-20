@@ -1,6 +1,7 @@
 ---
-import { Image } from "astro:assets";
+import { Image, getImage } from "astro:assets";
 import { resolveImage } from "../../lib/resolve-image";
+import { resolveVideo } from "../../lib/resolve-video";
 import type { HeadingLevel } from "../_shared/types";
 
 interface Props {
@@ -9,16 +10,39 @@ interface Props {
   isTitleHidden?: boolean;
   /** Relative path to a background image in src/assets/images/ */
   image?: string;
+  /**
+   * Optional relative path to a background video in src/assets/videos/.
+   * When set, the video autoplays/loops as the section background and the
+   * `image` is used as the poster + fallback for browsers that block
+   * autoplay or for users with `prefers-reduced-motion: reduce`.
+   */
+  video?: string;
 }
 
-const { title, headingLevel = "h2", isTitleHidden = false, image } = Astro.props;
+const { title, headingLevel = "h2", isTitleHidden = false, image, video } = Astro.props;
 const Heading = headingLevel;
-const resolved = resolveImage(image);
+const resolvedImage = resolveImage(image);
+const resolvedVideo = resolveVideo(video);
+const hasVideo = resolvedVideo !== undefined;
+
+// `<video poster>` only takes a URL — get a single processed image we can
+// reuse as the poster string. Falling back to the resolved image src keeps
+// the build cheap when no extra processing is configured.
+let posterUrl: string | undefined;
+if (hasVideo && resolvedImage) {
+  const processed = await getImage({ src: resolvedImage });
+  posterUrl = processed.src;
+}
 ---
 
 <section class="fullscreen-section">
-  {resolved ? (
-    <Image src={resolved} alt="" class="fullscreen-bg" loading="eager" />
+  {resolvedImage ? (
+    <Image
+      src={resolvedImage}
+      alt=""
+      class:list={["fullscreen-bg", hasVideo && "fullscreen-bg--poster"]}
+      loading="eager"
+    />
   ) : (
     <div class="fullscreen-placeholder">
       <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -27,6 +51,20 @@ const resolved = resolveImage(image);
         <circle cx="8.5" cy="8.5" r="1.5" />
       </svg>
     </div>
+  )}
+  {hasVideo && (
+    <video
+      class="fullscreen-video"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      poster={posterUrl}
+      aria-hidden="true"
+    >
+      <source src={resolvedVideo.src} type={resolvedVideo.type} />
+    </video>
   )}
   <div class="fullscreen-overlay" />
   <div class="fullscreen-content container">
@@ -70,6 +108,34 @@ const resolved = resolveImage(image);
     height: 100%;
     object-fit: cover;
     z-index: 0;
+  }
+
+  /* Background video covers the section the same way the image does and
+     sits one z-layer above the poster image so it visually replaces it
+     once playback starts. */
+  .fullscreen-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    /* Promote to its own compositor layer to avoid jank during scroll. */
+    will-change: transform;
+  }
+
+  /* When a video is present the image is the poster/fallback only — keep
+     it visible underneath so it shows during load and on autoplay-block. */
+  .fullscreen-bg--poster {
+    z-index: 0;
+  }
+
+  /* Reduced-motion users get the still poster image only. Hide the video
+     element entirely so the browser doesn't even fetch the rest of it. */
+  @media (prefers-reduced-motion: reduce) {
+    .fullscreen-video {
+      display: none;
+    }
   }
 
   .fullscreen-placeholder {

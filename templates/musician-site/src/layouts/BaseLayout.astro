@@ -14,12 +14,15 @@ import {
 interface Props {
   title?: string;
   description?: string;
+  /** When true, hide the site header and footer. Used for splash / landing
+   *  pages that display a full-bleed hero and a single "enter site" link. */
+  isSplashPage?: boolean;
 }
 
 const site = getSiteConfig();
 const theme = getTheme();
 const appearance = getAppearance();
-const { title, description } = Astro.props;
+const { title, description, isSplashPage = false } = Astro.props;
 const pageTitle = title ? `${title} — ${site.artistName}` : site.siteTitle;
 const pageDescription = description ?? site.siteDescription;
 
@@ -137,12 +140,12 @@ const sidebarConfig: SidebarConfig = {
       })();
     </script>
   </head>
-  <body>
-    <Header />
+  <body class:list={[{ "is-splash-page": isSplashPage }]}>
+    {!isSplashPage && <Header />}
     <main id="main-content">
       <slot />
     </main>
-    <Footer />
+    {!isSplashPage && <Footer />}
 
     {/* Stagecraft Appearance sidebar — included whenever it has a viable
         save path (GitHub in prod, local API in dev). Hidden in the
@@ -167,6 +170,14 @@ const sidebarConfig: SidebarConfig = {
         margin-inline: auto;
         padding-inline: 1.5rem;
         padding-block: var(--page-pad-y);
+      }
+
+      /* Splash pages render without header/footer. Drop main's padding and
+         max-width so a FullscreenSection (or similar full-bleed content)
+         fills the viewport edge-to-edge without needing the breakout hack. */
+      body.is-splash-page main {
+        max-width: none;
+        padding: 0;
       }
     </style>
     {colorMode === "light" && (

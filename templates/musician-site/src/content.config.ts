@@ -34,6 +34,11 @@ const pages = defineCollection({
   loader: glob({ pattern: "*.mdoc", base: "./src/content/pages" }),
   schema: z.object({
     title: z.string().min(1),
+    // When true, the page renders without the site header or footer — used
+    // for splash / landing pages that display a full-bleed hero and a single
+    // "enter site" link. Pair with a `{% fullscreen-section %}` + `{% button %}`
+    // in the body for the classic splash layout.
+    isSplashPage: z.boolean().optional(),
   }),
 });
 

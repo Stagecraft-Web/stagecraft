@@ -42,6 +42,16 @@ export default {
         "alt": { type: String, required: true },
       },
     },
+    "video": {
+      selfClosing: true,
+      attributes: {
+        "slug": { type: String },
+        "url": { type: String },
+        "type": { type: String, matches: ["youtube","vimeo"] },
+        "title": { type: String },
+        "caption": { type: String },
+      },
+    },
     "release-list": {
       selfClosing: true,
     },
@@ -50,6 +60,15 @@ export default {
     },
     "photo-gallery": {
       selfClosing: true,
+    },
+    "video-gallery": {
+      selfClosing: true,
+    },
+    "tour-dates": {
+      selfClosing: true,
+      attributes: {
+        "filter": { type: String, default: "upcoming", matches: ["upcoming","all"] },
+      },
     },
     "contact-form": {
       selfClosing: true,

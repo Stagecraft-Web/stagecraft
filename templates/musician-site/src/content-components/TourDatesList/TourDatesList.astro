@@ -1,0 +1,194 @@
+---
+// Markdoc block — reads the `tourDates` collection and renders a list of
+// dated entries with venue, city, optional ticket button, and a status
+// badge for sold-out / canceled shows.
+//
+// `filter` defaults to "upcoming" — past shows are hidden unless the author
+// opts into "all" (e.g. an "Archive" page).
+import { getCollection } from "astro:content";
+import Button from "../Button/Button.astro";
+import type { TourDatesFilter } from "../_shared/types";
+import type { TourDate } from "../../lib/schemas";
+
+interface Props {
+  filter?: TourDatesFilter;
+}
+
+const { filter = "upcoming" } = Astro.props;
+
+const tourDateEntries = await getCollection("tourDates");
+const allDates: TourDate[] = tourDateEntries.map((e) => e.data);
+
+const visibleDates =
+  filter === "upcoming"
+    ? allDates.filter((d) => d.status === "upcoming" || d.status === "sold_out")
+    : allDates;
+
+// Sort by date ascending (chronological). Date strings are ISO-style
+// ("2026-05-15") so lexicographic sort matches calendar order.
+visibleDates.sort((a, b) => a.date.localeCompare(b.date));
+
+// Best-effort human-friendly date format. Renders server-side with the
+// site's default locale so output is deterministic.
+function formatDate(iso: string): { weekday: string; monthDay: string; year: string } {
+  // Append a noon-UTC time so the parsed Date doesn't shift across DST/local
+  // timezones — the ISO date is the author's intent, not a UTC instant.
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.valueOf())) {
+    return { weekday: "", monthDay: iso, year: "" };
+  }
+  return {
+    weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
+    monthDay: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    year: d.getFullYear().toString(),
+  };
+}
+
+const hasDates = visibleDates.length > 0;
+---
+
+{hasDates ? (
+  <ul class="tour-dates-list">
+    {visibleDates.map((tourDate) => {
+      const dateParts = formatDate(tourDate.date);
+      const isSoldOut = tourDate.status === "sold_out";
+      const isCanceled = tourDate.status === "canceled";
+      const isPast = tourDate.status === "past";
+      const hasTicketLink = !!tourDate.ticketUrl && tourDate.status === "upcoming";
+      return (
+        <li class:list={["tour-date", { "is-canceled": isCanceled, "is-past": isPast }]}>
+          <div class="tour-date-when">
+            <span class="tour-date-weekday">{dateParts.weekday}</span>
+            <span class="tour-date-monthday">{dateParts.monthDay}</span>
+            <span class="tour-date-year">{dateParts.year}</span>
+          </div>
+          <div class="tour-date-where">
+            <div class="tour-date-venue">{tourDate.venue}</div>
+            <div class="tour-date-city">{tourDate.city}</div>
+          </div>
+          <div class="tour-date-action">
+            {hasTicketLink && (
+              <Button
+                href={tourDate.ticketUrl}
+                variant="primary"
+                isExternal
+                label="Tickets"
+              />
+            )}
+            {isSoldOut && <span class="tour-date-badge is-sold-out">Sold Out</span>}
+            {isCanceled && <span class="tour-date-badge is-canceled-badge">Canceled</span>}
+            {isPast && <span class="tour-date-badge is-past-badge">Past</span>}
+          </div>
+        </li>
+      );
+    })}
+  </ul>
+) : (
+  <p class="tour-dates-empty">No upcoming shows. Check back soon.</p>
+)}
+
+<style>
+  .tour-dates-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .tour-date {
+    display: grid;
+    grid-template-columns: minmax(5rem, auto) 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  .tour-date.is-canceled,
+  .tour-date.is-past {
+    opacity: 0.65;
+  }
+
+  .tour-date.is-canceled .tour-date-venue,
+  .tour-date.is-canceled .tour-date-city {
+    text-decoration: line-through;
+  }
+
+  .tour-date-when {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+
+  .tour-date-weekday {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .tour-date-monthday {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .tour-date-year {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  .tour-date-venue {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .tour-date-city {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: 0.125rem;
+  }
+
+  .tour-date-action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .tour-date-badge {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: var(--radius);
+    color: var(--color-text-muted);
+    background: transparent;
+    border: 1px solid var(--color-border);
+  }
+
+  .tour-date-badge.is-sold-out {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .tour-dates-empty {
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+
+  @media (max-width: 600px) {
+    .tour-date {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    .tour-date-action {
+      justify-content: flex-start;
+    }
+  }
+</style>

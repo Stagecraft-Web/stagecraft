@@ -47,3 +47,6 @@ export type ButtonVariant = "primary" | "outline";
 
 /** Column-track ratio string for `{% columns %}` (dash-separated `fr` units). */
 export type ColumnsLayout = "1-1" | "1-2" | "2-1" | "1-1-1";
+
+/** Filter mode for `{% tour-dates-list %}`. */
+export type TourDatesFilter = "upcoming" | "all";

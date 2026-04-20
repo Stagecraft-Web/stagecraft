@@ -23,9 +23,12 @@ export * as Button from "./Button";
 export * as Columns from "./Columns";
 export * as Column from "./Column";
 export * as Image from "./Image";
+export * as Video from "./Video";
 export * as ReleaseList from "./ReleaseList";
 export * as PressQuotes from "./PressQuotes";
 export * as PhotoGallery from "./PhotoGallery";
+export * as VideoGallery from "./VideoGallery";
+export * as TourDatesList from "./TourDatesList";
 export * as ContactForm from "./ContactForm";
 
 import * as Section from "./Section";
@@ -34,9 +37,12 @@ import * as Button from "./Button";
 import * as Columns from "./Columns";
 import * as Column from "./Column";
 import * as Image from "./Image";
+import * as Video from "./Video";
 import * as ReleaseList from "./ReleaseList";
 import * as PressQuotes from "./PressQuotes";
 import * as PhotoGallery from "./PhotoGallery";
+import * as VideoGallery from "./VideoGallery";
+import * as TourDatesList from "./TourDatesList";
 import * as ContactForm from "./ContactForm";
 
 /**
@@ -51,8 +57,11 @@ export const components = [
   Columns,
   Column,
   Image,
+  Video,
   ReleaseList,
   PressQuotes,
   PhotoGallery,
+  VideoGallery,
+  TourDatesList,
   ContactForm,
 ] as const;

@@ -13,6 +13,7 @@ import {
   videoSchema,
   pressQuoteSchema,
   tourDateSchema,
+  postFrontmatterSchema,
 } from "../src/lib/schemas.js";
 import { components as contentComponents } from "../src/content-components/index.js";
 
@@ -203,6 +204,42 @@ validateCollection("pressQuotes", pressQuoteSchema);
 validateCollection("tourDates", tourDateSchema);
 
 // ============================================================
+// Validate posts — .mdoc frontmatter + body in one pass
+// ============================================================
+//
+// Posts are the only collection with rich bodies, so we fall through to the
+// generic frontmatter + markdoc validator. The markdoc body pass is shared
+// with the pages loop below (validateMdocFiles).
+
+function validatePostFrontmatter(filePath: string) {
+  const rel = path.relative(ROOT, filePath);
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) {
+      errors.push(`${rel}: missing frontmatter block`);
+      return;
+    }
+    const data = yaml.parse(fmMatch[1]);
+    const result = postFrontmatterSchema.safeParse(data);
+    if (!result.success) {
+      result.error.issues.forEach((issue: any) => {
+        errors.push(`${rel}: ${issue.path.join(".")}: ${issue.message}`);
+      });
+    }
+  } catch (e: any) {
+    errors.push(`${rel}: ${e.message}`);
+  }
+}
+
+const postsDir = path.join(collectionsDir, "posts");
+if (fs.existsSync(postsDir)) {
+  for (const file of fs.readdirSync(postsDir).filter((f) => f.endsWith(".mdoc"))) {
+    validatePostFrontmatter(path.join(postsDir, file));
+  }
+}
+
+// ============================================================
 // Validate .mdoc files with Markdoc's structural validator
 // ============================================================
 //
@@ -251,6 +288,7 @@ function validateMdocFiles(dir: string) {
 }
 
 validateMdocFiles(pagesDir);
+validateMdocFiles(postsDir);
 
 // ============================================================
 // Report

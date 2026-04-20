@@ -1,6 +1,7 @@
 import { config, fields, collection, singleton } from "@keystatic/core";
-import { components as contentComponents } from "./src/content-components";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
+import { pageContentComponents } from "./src/lib/keystatic-blocks";
+import { POST_CATEGORIES, POST_STATUSES } from "./src/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Appearance singleton helpers
@@ -100,13 +101,11 @@ const weightField = (label: string, defaultValue: number) =>
 //
 // Each entry in `contentComponents` exports both a `keystatic` block/wrapper
 // (consumed here) and a `markdoc` tag def (consumed by markdoc.config.ts),
-// colocated with its renderer in src/content-components/<Name>/. Add new
-// components there — no edits needed in this file.
+// colocated with its renderer in src/content-components/<Name>/. The aggregated
+// `pageContentComponents` map lives in src/lib/keystatic-blocks.ts so both
+// pages AND other rich-body collections (e.g. posts) can reuse it — add new
+// components in src/content-components/ and they'll appear everywhere.
 // ---------------------------------------------------------------------------
-
-const pageContentComponents = Object.fromEntries(
-  contentComponents.map(({ tagName, keystatic }) => [tagName, keystatic]),
-);
 
 // Storage mode is environment-driven so a single config serves both dev and
 // prod:
@@ -465,6 +464,71 @@ export default config({
             { label: "Past", value: "past" },
           ],
           defaultValue: "upcoming",
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Posts / news — one `.mdoc` file per post with a rich Markdoc body.
+    //
+    // The body reuses `pageContentComponents` so posts can embed the
+    // same blocks pages do (image, button, embed, …). The dynamic route
+    // at src/pages/news/[slug].astro filters to status="published";
+    // drafts become 404s in production builds but are visible in dev.
+    // -----------------------------------------------------------------
+
+    posts: collection({
+      label: "Posts",
+      slugField: "title",
+      path: "src/content/collections/posts/*",
+      format: { contentField: "content" },
+      schema: {
+        title: fields.slug({ name: { label: "Title", validation: { isRequired: true } } }),
+        publishedDate: fields.date({ label: "Published Date", validation: { isRequired: true } }),
+        category: fields.select({
+          label: "Category",
+          options: POST_CATEGORIES.map((c) => ({
+            label: c.charAt(0).toUpperCase() + c.slice(1),
+            value: c,
+          })) as [{ label: string; value: (typeof POST_CATEGORIES)[number] }, ...{ label: string; value: (typeof POST_CATEGORIES)[number] }[]],
+          defaultValue: "news",
+        }),
+        featuredImage: fields.object(
+          {
+            src: fields.image({
+              label: "Image",
+              directory: "src/assets/images/posts",
+              publicPath: "../../../assets/images/posts/",
+            }),
+            alt: fields.text({ label: "Alt text" }),
+            caption: fields.text({ label: "Caption" }),
+            credit: fields.text({ label: "Credit" }),
+          },
+          { label: "Featured image (optional)" },
+        ),
+        excerpt: fields.text({
+          label: "Excerpt",
+          description:
+            "Short summary shown on post cards and in list previews. Max 300 characters.",
+          multiline: true,
+          validation: { length: { max: 300 } },
+        }),
+        externalUrl: fields.url({
+          label: "External URL (optional)",
+          description:
+            "If set, post cards link to this URL instead of the internal /news/[slug] page.",
+        }),
+        status: fields.select({
+          label: "Status",
+          options: POST_STATUSES.map((s) => ({
+            label: s.charAt(0).toUpperCase() + s.slice(1),
+            value: s,
+          })) as [{ label: string; value: (typeof POST_STATUSES)[number] }, ...{ label: string; value: (typeof POST_STATUSES)[number] }[]],
+          defaultValue: "published",
+        }),
+        content: fields.markdoc({
+          label: "Content",
+          components: pageContentComponents,
         }),
       },
     }),

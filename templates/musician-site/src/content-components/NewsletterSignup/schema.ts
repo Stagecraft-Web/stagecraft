@@ -1,6 +1,13 @@
 import { fields } from "@keystatic/core";
 import { block } from "@keystatic/core/content-components";
-import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import type {
+  MarkdocTagDefinition,
+  KeystaticContentComponent,
+} from "../_shared/types";
+import {
+  NEWSLETTER_SERVICES,
+  NEWSLETTER_SERVICE_LABELS,
+} from "../_shared/types";
 import { NewsletterSignupPreview } from "./preview";
 
 /**
@@ -18,22 +25,13 @@ import { NewsletterSignupPreview } from "./preview";
  * explicitly pick a target — silently defaulting to one service would mask
  * a misconfigured action URL.
  */
-const SERVICES = ["mailchimp", "convertkit", "buttondown", "generic"] as const;
 
 /**
- * Newsletter provider. Every value here must be covered in both the
- * markdoc `matches` array below and the Keystatic select options, and in
- * the `serviceFieldNames` / rendering branches in NewsletterSignup.astro.
- * The cross-schema consistency test enforces the first two.
+ * Re-export from `_shared/types` so sibling modules
+ * (`NewsletterSignup.astro`, `preview.tsx`) can keep importing from
+ * `./schema` without knowing the canonical location moved.
  */
-export type NewsletterService = (typeof SERVICES)[number];
-
-const SERVICE_OPTIONS: ReadonlyArray<{ label: string; value: NewsletterService }> = [
-  { label: "Mailchimp", value: "mailchimp" },
-  { label: "ConvertKit", value: "convertkit" },
-  { label: "Buttondown", value: "buttondown" },
-  { label: "Generic (custom endpoint)", value: "generic" },
-];
+export type NewsletterService = (typeof NEWSLETTER_SERVICES)[number];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/NewsletterSignup/NewsletterSignup.astro",
@@ -42,7 +40,7 @@ export const markdoc: MarkdocTagDefinition = {
     service: {
       type: String,
       required: true,
-      matches: [...SERVICES],
+      matches: NEWSLETTER_SERVICES as unknown as string[],
     },
     actionUrl: {
       type: String,
@@ -75,7 +73,13 @@ export const keystatic: KeystaticContentComponent = block({
     service: fields.select({
       label: "Service",
       description: "Which newsletter provider receives the POST.",
-      options: SERVICE_OPTIONS.map((o) => ({ label: o.label, value: o.value })),
+      options: NEWSLETTER_SERVICES.map((v) => ({
+        label: NEWSLETTER_SERVICE_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: NewsletterService },
+        ...{ label: string; value: NewsletterService }[],
+      ],
       defaultValue: "generic",
     }),
     actionUrl: fields.url({

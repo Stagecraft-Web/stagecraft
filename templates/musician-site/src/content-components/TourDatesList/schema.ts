@@ -3,11 +3,12 @@ import { block } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
-  TourDatesFilter,
+} from "../_shared/types";
+import {
+  TOUR_DATES_FILTERS,
+  TOUR_DATES_FILTER_LABELS,
 } from "../_shared/types";
 import { TourDatesListPreview } from "./preview";
-
-const TOUR_DATES_FILTERS: readonly TourDatesFilter[] = ["upcoming", "all"];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/TourDatesList/TourDatesList.astro",
@@ -16,7 +17,7 @@ export const markdoc: MarkdocTagDefinition = {
     filter: {
       type: String,
       default: "upcoming",
-      matches: [...TOUR_DATES_FILTERS],
+      matches: TOUR_DATES_FILTERS as unknown as string[],
     },
   },
 };
@@ -29,9 +30,12 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Filter",
       description:
         "Upcoming shows only (hides past/canceled), or all shows (e.g. for an archive page).",
-      options: [
-        { label: "Upcoming only", value: "upcoming" },
-        { label: "All dates", value: "all" },
+      options: TOUR_DATES_FILTERS.map((v) => ({
+        label: TOUR_DATES_FILTER_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: (typeof TOUR_DATES_FILTERS)[number] },
+        ...{ label: string; value: (typeof TOUR_DATES_FILTERS)[number] }[],
       ],
       defaultValue: "upcoming",
     }),

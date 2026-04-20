@@ -3,11 +3,9 @@ import { block } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
-  ButtonVariant,
 } from "../_shared/types";
+import { BUTTON_VARIANTS, BUTTON_VARIANT_LABELS } from "../_shared/types";
 import { ButtonPreview } from "./preview";
-
-const BUTTON_VARIANTS: readonly ButtonVariant[] = ["primary", "outline"];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/Button/Button.astro",
@@ -15,7 +13,11 @@ export const markdoc: MarkdocTagDefinition = {
   attributes: {
     label: { type: String, required: true },
     href: { type: String },
-    variant: { type: String, default: "primary", matches: [...BUTTON_VARIANTS] },
+    variant: {
+      type: String,
+      default: "primary",
+      matches: BUTTON_VARIANTS as unknown as string[],
+    },
     isExternal: { type: Boolean, default: false },
   },
 };
@@ -28,9 +30,12 @@ export const keystatic: KeystaticContentComponent = block({
     href: fields.text({ label: "Link URL" }),
     variant: fields.select({
       label: "Variant",
-      options: [
-        { label: "Primary", value: "primary" },
-        { label: "Outline", value: "outline" },
+      options: BUTTON_VARIANTS.map((v) => ({
+        label: BUTTON_VARIANT_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: (typeof BUTTON_VARIANTS)[number] },
+        ...{ label: string; value: (typeof BUTTON_VARIANTS)[number] }[],
       ],
       defaultValue: "primary",
     }),

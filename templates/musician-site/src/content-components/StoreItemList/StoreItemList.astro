@@ -10,12 +10,15 @@
 import { Image } from "astro:assets";
 import { getCollection, type CollectionEntry } from "astro:content";
 import Button from "../Button/Button.astro";
-import type { StoreItemFilter, StoreItemLayout } from "../_shared/types";
-import type { StoreItemFormat } from "../../lib/schemas";
+import type {
+  StoreItemFormat,
+  StoreItemListFilter,
+  StoreItemListLayout,
+} from "../../lib/schemas";
 
 interface Props {
-  filter?: StoreItemFilter;
-  layout?: StoreItemLayout;
+  filter?: StoreItemListFilter;
+  layout?: StoreItemListLayout;
 }
 
 const { filter = "available", layout = "grid" } = Astro.props;

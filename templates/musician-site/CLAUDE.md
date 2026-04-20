@@ -60,6 +60,99 @@ This validates all singletons, all page frontmatter, and all collections against
 
 ---
 
+## Enum single-source-of-truth convention
+
+Every string-literal "enum" (release type, button variant, heading level,
+etc.) has exactly **one** canonical declaration. Zod schemas, Astro content
+collections, Keystatic selects, Markdoc `matches` arrays, and TypeScript
+unions all derive from that const — never redeclare the values.
+
+**Where each kind lives:**
+
+- **Data-shape enums** → `src/lib/schemas.ts`. These describe the shape of
+  content data (collections, frontmatter, config). Examples: `RELEASE_TYPES`,
+  `VIDEO_TYPES`, `TOUR_DATE_STATUSES`, `POST_CATEGORIES`, `POST_STATUSES`,
+  `STORE_ITEM_FORMATS`, `STORE_ITEM_STATUSES`, `IMAGE_USAGE_SLOTS`,
+  `FONT_CATEGORIES`.
+- **UI / attribute enums** → `src/content-components/_shared/types.ts`. These
+  are allowed-value sets for a Markdoc tag attribute or Keystatic
+  content-component select. Examples: `HEADING_LEVELS`, `BUTTON_VARIANTS`,
+  `COLUMNS_LAYOUTS`, `TOUR_DATES_FILTERS`, `POSTS_LIST_LAYOUTS`,
+  `EMBED_ASPECT_RATIOS`, `NEWSLETTER_SERVICES`, `VIDEO_URL_TYPES`.
+
+Labels that differ from values (e.g. `"H1"` vs `"h1"`, `"Sold Out"` vs
+`"sold_out"`) live in a sibling `FOO_LABELS: Record<FooValue, string>`
+record next to the const so every consumer can render a consistent label.
+
+The duplication-audit doc lives at `docs/enum-duplication-inventory.md` —
+it catalogues the cleanup that produced this convention and lists the
+intentional divergences (currency codes, social-link keys, etc.) that
+stay outside it.
+
+### Rule 1 — Canonical constant pattern
+
+Always `as const` + a derived union. Never a bare `string[]`.
+
+```ts
+export const FOO_VALUES = ["a", "b", "c"] as const;
+export type FooValue = (typeof FOO_VALUES)[number];
+```
+
+### Rule 2 — Markdoc `matches` consumers
+
+Cast to `string[]` at the point of use. The cast is localised to the schema
+file so no bare-string-array types leak into the codebase.
+
+```ts
+import { FOO_VALUES } from "../_shared/types"; // or "../../lib/schemas"
+
+export const markdoc = {
+  attributes: {
+    foo: {
+      type: String,
+      matches: FOO_VALUES as unknown as string[],
+    },
+  },
+};
+```
+
+### Rule 3 — Keystatic `fields.select` consumers
+
+```ts
+options: FOO_VALUES.map((v) => ({ label: FOO_LABELS[v] ?? v, value: v })) as [
+  { label: string; value: FooValue },
+  ...{ label: string; value: FooValue }[],
+]
+```
+
+The cast to a non-empty tuple satisfies Keystatic's select typing (which
+wants the literal value union preserved). Where the display label differs
+from the value, colocate a sibling `FOO_LABELS: Record<FooValue, string>`
+record next to the const and import both.
+
+### Rule 4 — `content.config.ts` (Astro zod v4)
+
+```ts
+import { FOO_VALUES } from "./lib/schemas";
+
+z.enum(FOO_VALUES)
+```
+
+### Adding a new enum
+
+1. Decide: is this a data-shape enum (add to `src/lib/schemas.ts`) or a UI
+   enum (add to `src/content-components/_shared/types.ts`)?
+2. Declare the const using Rule 1, plus a sibling labels record if labels
+   differ from values.
+3. Reference it via Rules 2–4 in every consumer (markdoc, keystatic,
+   content.config, Zod schema). Never paste the values a second time.
+4. If the new enum is for a content-component attribute, run
+   `npm run check:markdoc-config` and `npm test` — the cross-schema
+   consistency test asserts Markdoc `matches` and Keystatic `options` stay
+   aligned.
+
+---
+
 ## Content Map
 
 Use this to find where any piece of content lives.

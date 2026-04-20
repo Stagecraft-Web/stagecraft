@@ -6,6 +6,33 @@ import { z } from "zod";
 // Required: src, alt. All other fields are optional.
 // ============================================================
 
+// Semantic "what is this image used for" slot. A single canonical list; the
+// Keystatic per-collection selects (photos / releases / storeItems) filter
+// this down to the subset that makes sense for each collection.
+export const IMAGE_USAGE_SLOTS = [
+  "hero",
+  "about",
+  "release-cover",
+  "gallery",
+  "press",
+  "background",
+  "thumbnail",
+] as const;
+export type ImageUsageSlot = (typeof IMAGE_USAGE_SLOTS)[number];
+
+// Human-friendly labels for the Keystatic Usage Slot select(s). Labels are
+// title-cased; some values need specific casing ("release-cover" → "Release
+// cover" rather than "Release-cover").
+export const IMAGE_USAGE_SLOT_LABELS: Record<ImageUsageSlot, string> = {
+  hero: "Hero",
+  about: "About",
+  "release-cover": "Release cover",
+  gallery: "Gallery",
+  press: "Press",
+  background: "Background",
+  thumbnail: "Thumbnail",
+};
+
 export const imageMetadataSchema = z.object({
   src: z.string().min(1, "Image src is required"),
   alt: z.string().min(1, "Image alt text is required — do not leave blank"),
@@ -15,9 +42,7 @@ export const imageMetadataSchema = z.object({
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
   }).optional(),
-  usageSlot: z.enum([              // semantic slot — what this image is used for
-    "hero", "about", "release-cover", "gallery", "press", "background", "thumbnail",
-  ]).optional(),
+  usageSlot: z.enum(IMAGE_USAGE_SLOTS).optional(), // semantic slot — what this image is used for
 });
 
 // ============================================================
@@ -84,6 +109,19 @@ export const FONT_CATEGORIES = [
 
 const fontCategoryEnum = z.enum(FONT_CATEGORIES);
 export type FontCategory = (typeof FONT_CATEGORIES)[number];
+
+// Human-friendly labels for each font category. Consumed by both the
+// Keystatic picker (keystatic.config.ts) and the appearance sidebar
+// (src/components/appearance-sidebar/AppearanceSidebar.tsx) so both UIs
+// stay in lock-step.
+export const FONT_CATEGORY_LABELS: Record<FontCategory, string> = {
+  "sans-serif": "Sans-serif",
+  serif: "Serif",
+  monospace: "Monospace",
+  display: "Display",
+  handwriting: "Handwriting",
+  custom: "Custom (any Google Font)",
+};
 
 // Google Fonts family names: start with a capital, then letters / digits /
 // spaces only. Catches typos like "space grotesk" or trailing punctuation
@@ -240,9 +278,20 @@ export const pageFrontmatterSchema = z.object({
 // Collections
 // ============================================================
 
+// Release type — coarse category for a music release. Distinct from
+// STORE_ITEM_FORMATS, which covers both releases and merch (the store side).
+export const RELEASE_TYPES = ["album", "single", "ep"] as const;
+export type ReleaseType = (typeof RELEASE_TYPES)[number];
+
+export const RELEASE_TYPE_LABELS: Record<ReleaseType, string> = {
+  album: "Album",
+  single: "Single",
+  ep: "EP",
+};
+
 export const releaseSchema = z.object({
   title: z.string().min(1),
-  type: z.enum(["album", "single", "ep"]),
+  type: z.enum(RELEASE_TYPES),
   releaseDate: z.string().min(1),
   coverImage: imageMetadataSchema,
   description: z.string(),
@@ -257,10 +306,23 @@ export const releaseSchema = z.object({
 // image metadata shape (src + alt required, caption/credit/focalPoint/usageSlot optional).
 export const photoSchema = imageMetadataSchema;
 
+// Platforms the Videos collection can record. "other" is a catch-all for
+// self-hosted or non-YouTube/Vimeo platforms; collection consumers render it
+// as a plain link. The {% video %} content-component only accepts the two
+// embeddable platforms — see VIDEO_URL_TYPES in Video/schema.ts.
+export const VIDEO_TYPES = ["youtube", "vimeo", "other"] as const;
+export type VideoPlatform = (typeof VIDEO_TYPES)[number];
+
+export const VIDEO_TYPE_LABELS: Record<VideoPlatform, string> = {
+  youtube: "YouTube",
+  vimeo: "Vimeo",
+  other: "Other",
+};
+
 export const videoSchema = z.object({
   title: z.string().min(1),
   url: z.string().url(),
-  type: z.enum(["youtube", "vimeo", "other"]),
+  type: z.enum(VIDEO_TYPES),
   description: z.string().optional(),
 });
 
@@ -271,12 +333,31 @@ export const pressQuoteSchema = z.object({
   date: z.string().optional(),
 });
 
+// Show status for a tour date. Matches the four states the TourDatesList
+// block filters / badges on. `sold_out` uses an underscore (rather than the
+// kebab style elsewhere) because it's an older field and authored content
+// may depend on it.
+export const TOUR_DATE_STATUSES = [
+  "upcoming",
+  "sold_out",
+  "canceled",
+  "past",
+] as const;
+export type TourDateStatus = (typeof TOUR_DATE_STATUSES)[number];
+
+export const TOUR_DATE_STATUS_LABELS: Record<TourDateStatus, string> = {
+  upcoming: "Upcoming",
+  sold_out: "Sold Out",
+  canceled: "Canceled",
+  past: "Past",
+};
+
 export const tourDateSchema = z.object({
   date: z.string().min(1),
   venue: z.string().min(1),
   city: z.string().min(1),
   ticketUrl: z.string().optional(),
-  status: z.enum(["upcoming", "sold_out", "canceled", "past"]),
+  status: z.enum(TOUR_DATE_STATUSES),
 });
 
 // ============================================================

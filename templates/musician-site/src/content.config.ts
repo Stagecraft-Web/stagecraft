@@ -2,6 +2,16 @@ import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 import type { SchemaContext } from "astro:content";
+import {
+  IMAGE_USAGE_SLOTS,
+  POST_CATEGORIES,
+  POST_STATUSES,
+  RELEASE_TYPES,
+  STORE_ITEM_FORMATS,
+  STORE_ITEM_STATUSES,
+  TOUR_DATE_STATUSES,
+  VIDEO_TYPES,
+} from "./lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Schemas (using astro/zod for content collection compatibility)
@@ -21,7 +31,7 @@ const imageMetadataSchema = ({ image }: SchemaContext) =>
     caption: z.string().optional(),
     credit: z.string().optional(),
     focalPoint: z.object({ x: z.number(), y: z.number() }).optional(),
-    usageSlot: z.enum(["hero", "about", "release-cover", "gallery", "press", "background", "thumbnail"]).optional(),
+    usageSlot: z.enum(IMAGE_USAGE_SLOTS).optional(),
   });
 
 // ---------------------------------------------------------------------------
@@ -46,7 +56,7 @@ const releases = defineCollection({
   schema: (ctx) =>
     z.object({
       title: z.string().min(1),
-      type: z.enum(["album", "single", "ep"]),
+      type: z.enum(RELEASE_TYPES),
       releaseDate: z.string().min(1),
       coverImage: imageMetadataSchema(ctx),
       description: z.string(),
@@ -68,7 +78,7 @@ const videos = defineCollection({
   schema: z.object({
     title: z.string().min(1),
     url: z.url(),
-    type: z.enum(["youtube", "vimeo", "other"]),
+    type: z.enum(VIDEO_TYPES),
     description: z.string().optional(),
   }),
 });
@@ -90,7 +100,7 @@ const tourDates = defineCollection({
     venue: z.string().min(1),
     city: z.string().min(1),
     ticketUrl: z.string().optional(),
-    status: z.enum(["upcoming", "sold_out", "canceled", "past"]),
+    status: z.enum(TOUR_DATE_STATUSES),
   }),
 });
 
@@ -102,13 +112,13 @@ const storeItems = defineCollection({
   schema: (ctx) =>
     z.object({
       title: z.string().min(1),
-      format: z.enum(["album", "ep", "single", "merch"]),
+      format: z.enum(STORE_ITEM_FORMATS),
       price: z.number().nonnegative(),
       currency: z.string().length(3).default("USD"),
       image: imageMetadataSchema(ctx).optional(),
       description: z.string().optional(),
       buyUrl: z.url(),
-      status: z.enum(["available", "sold-out", "preorder"]).default("available"),
+      status: z.enum(STORE_ITEM_STATUSES).default("available"),
       order: z.number().int().optional(),
     }),
 });
@@ -133,11 +143,9 @@ const posts = defineCollection({
         .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be an ISO date (YYYY-MM-DD)"),
       featuredImage: imageMetadataSchema(ctx).optional(),
       excerpt: z.string().max(300).optional(),
-      category: z
-        .enum(["news", "blog", "update", "press", "release"])
-        .default("news"),
+      category: z.enum(POST_CATEGORIES).default("news"),
       externalUrl: z.url().optional(),
-      status: z.enum(["draft", "published"]).default("published"),
+      status: z.enum(POST_STATUSES).default("published"),
     }),
 });
 

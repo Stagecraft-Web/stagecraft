@@ -1,6 +1,10 @@
 import { fields } from "@keystatic/core";
 import { block } from "@keystatic/core/content-components";
-import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import type {
+  MarkdocTagDefinition,
+  KeystaticContentComponent,
+} from "../_shared/types";
+import { VIDEO_URL_TYPES, VIDEO_URL_TYPE_LABELS } from "../_shared/types";
 import { VideoPreview } from "./preview";
 
 /**
@@ -17,10 +21,15 @@ import { VideoPreview } from "./preview";
  * all flat-and-optional and Video.astro validates the (slug XOR url) shape at
  * render time. The cross-schema consistency test takes the bridge keys
  * (`source`) from `exemptKeys` so the parity check still passes.
+ *
+ * NOTE on the VIDEO_URL_TYPES vs VIDEO_TYPES split: the `videos` *collection*
+ * (src/lib/schemas.ts) accepts "youtube" | "vimeo" | "other" — "other"
+ * renders as a plain link. The inline Video *block* can only emit an iframe,
+ * so it restricts to the two embeddable platforms. The constant lives in
+ * `_shared/types.ts` to keep the two clearly separate.
  */
 
-const VIDEO_TYPES = ["youtube", "vimeo"] as const;
-type VideoType = (typeof VIDEO_TYPES)[number];
+type VideoUrlType = (typeof VIDEO_URL_TYPES)[number];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/Video/Video.astro",
@@ -32,7 +41,10 @@ export const markdoc: MarkdocTagDefinition = {
     // `type` is required when `url` is set. Validated at render time because
     // markdoc attribute schemas can't express this conditional requirement.
     url: { type: String },
-    type: { type: String, matches: [...VIDEO_TYPES] },
+    type: {
+      type: String,
+      matches: VIDEO_URL_TYPES as unknown as string[],
+    },
     title: { type: String },
     // Optional in both modes — rendered as <figcaption> below the iframe.
     caption: { type: String },
@@ -79,11 +91,14 @@ export const keystatic: KeystaticContentComponent = block({
             }),
             type: fields.select({
               label: "Type",
-              options: [
-                { label: "YouTube", value: "youtube" },
-                { label: "Vimeo", value: "vimeo" },
+              options: VIDEO_URL_TYPES.map((v) => ({
+                label: VIDEO_URL_TYPE_LABELS[v],
+                value: v,
+              })) as [
+                { label: string; value: VideoUrlType },
+                ...{ label: string; value: VideoUrlType }[],
               ],
-              defaultValue: "youtube" satisfies VideoType,
+              defaultValue: "youtube" satisfies VideoUrlType,
             }),
             title: fields.text({
               label: "Title",

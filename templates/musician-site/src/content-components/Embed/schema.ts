@@ -1,0 +1,75 @@
+import { fields } from "@keystatic/core";
+import { block } from "@keystatic/core/content-components";
+import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import { EmbedPreview } from "./preview";
+
+/**
+ * Markdoc tag `embed`.
+ *
+ * Single-segment slug — chosen deliberately to dodge the upstream markdoc
+ * 3-segment-kebab-case bug. Anything `embed-foo-bar` would risk hitting it.
+ *
+ * Why a generic `embed` rather than per-service tags
+ * --------------------------------------------------
+ * Earlier iterations (PR #30) discriminated on `service` and accepted a
+ * service-specific id (Spotify URI, Bandcamp album id, etc.). That hit
+ * three problems for a single-artist site:
+ *
+ *   1. Every new service required a code change.
+ *   2. Authors already paste raw embed code from each service's "Share"
+ *      UI — translating to / from a service+id was a friction step.
+ *   3. Video services (YouTube, Vimeo) belong with a separate Video
+ *      content-component, not lumped into a music-embed block.
+ *
+ * Trusting the author's snippet is acceptable here (single-author site),
+ * but we still parse + sanitize it (see ./extractIframe.ts) so the page
+ * doesn't ship arbitrary HTML, just the iframe with an attribute allowlist.
+ */
+const ASPECT_RATIOS = ["auto", "16/9", "4/3", "1/1"] as const;
+
+export type EmbedAspectRatio = (typeof ASPECT_RATIOS)[number];
+
+export const markdoc: MarkdocTagDefinition = {
+  render: "./src/content-components/Embed/Embed.astro",
+  selfClosing: true,
+  attributes: {
+    code: { type: String, required: true },
+    aspectRatio: { type: String, default: "auto", matches: [...ASPECT_RATIOS] },
+    title: { type: String },
+  },
+};
+
+export const keystatic: KeystaticContentComponent = block({
+  label: "Embed",
+  description:
+    "Embed a player from any service. Paste the raw HTML from the service's 'Share / Embed' UI (Spotify, Bandcamp, SoundCloud, YouTube, Vimeo, Apple Music, etc.).",
+  schema: {
+    code: fields.text({
+      label: "Embed code",
+      description:
+        "Paste the full <iframe …></iframe> snippet from the service. Only the iframe and a small set of attributes are kept; everything else is stripped on render.",
+      multiline: true,
+      validation: { isRequired: true },
+    }),
+    aspectRatio: fields.select({
+      label: "Aspect ratio",
+      description:
+        "'Auto' uses the iframe's intrinsic dimensions (best for fixed-height players like Spotify). Pick a ratio for video embeds so they scale responsively.",
+      options: [
+        { label: "Auto (use iframe's own size)", value: "auto" },
+        { label: "16:9 (widescreen video)", value: "16/9" },
+        { label: "4:3 (classic video)", value: "4/3" },
+        { label: "1:1 (square)", value: "1/1" },
+      ],
+      defaultValue: "auto",
+    }),
+    title: fields.text({
+      label: "Accessible title (optional)",
+      description:
+        "A short label describing the embedded content for screen readers. Falls back to the iframe's own title or a generic label.",
+    }),
+  },
+  ContentView: EmbedPreview,
+});
+
+export const tagName = "embed";

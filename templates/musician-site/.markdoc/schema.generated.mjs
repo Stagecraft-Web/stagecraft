@@ -90,5 +90,16 @@ export default {
         "layout": { type: String, default: "grid", matches: ["grid","list"] },
       },
     },
+    "newsletter-signup": {
+      selfClosing: true,
+      attributes: {
+        "service": { type: String, required: true, matches: ["mailchimp","convertkit","buttondown","generic"] },
+        "actionUrl": { type: String, required: true },
+        "title": { type: String, default: "Newsletter" },
+        "submitLabel": { type: String, default: "Subscribe" },
+        "successMessage": { type: String, default: "Thanks for subscribing!" },
+        "captureName": { type: Boolean, default: false },
+      },
+    },
   },
 };

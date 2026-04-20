@@ -71,6 +71,13 @@ export default {
         "filter": { type: String, default: "upcoming", matches: ["upcoming","all"] },
       },
     },
+    "store-items": {
+      selfClosing: true,
+      attributes: {
+        "filter": { type: String, default: "available", matches: ["all","available","preorder"] },
+        "layout": { type: String, default: "grid", matches: ["grid","list"] },
+      },
+    },
     "contact-form": {
       selfClosing: true,
     },

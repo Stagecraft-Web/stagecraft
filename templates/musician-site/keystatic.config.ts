@@ -1,7 +1,12 @@
 import { config, fields, collection, singleton } from "@keystatic/core";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
 import { pageContentComponents } from "./src/lib/keystatic-blocks";
-import { POST_CATEGORIES, POST_STATUSES } from "./src/lib/schemas";
+import {
+  POST_CATEGORIES,
+  POST_STATUSES,
+  STORE_ITEM_FORMATS,
+  STORE_ITEM_STATUSES,
+} from "./src/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Appearance singleton helpers
@@ -567,6 +572,119 @@ export default config({
         content: fields.markdoc({
           label: "Content",
           components: pageContentComponents,
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Store items — one YAML file per sellable item (album, EP, single,
+    // merch). Rendered by the `store-items` Markdoc block.
+    //
+    // Format options, statuses, and related enums are imported from
+    // `src/lib/schemas.ts` — the single source of truth. Price is a
+    // numeric amount with a separate ISO 4217 currency code (USD
+    // default), formatted at render time via Intl.NumberFormat.
+    // -----------------------------------------------------------------
+
+    storeItems: collection({
+      label: "Store Items",
+      slugField: "title",
+      path: "src/content/collections/storeItems/*",
+      schema: {
+        title: fields.slug({
+          name: { label: "Item title", validation: { isRequired: true } },
+        }),
+        format: fields.select({
+          label: "Format",
+          description:
+            "Coarse category. The buy link can point to a page offering " +
+            "multiple physical/digital formats — mention that in the " +
+            "description if it applies. Drives the colored badge on each card.",
+          options: STORE_ITEM_FORMATS.map((f) => ({
+            // "ep" → "EP"; others title-case.
+            label: f === "ep" ? "EP" : f.charAt(0).toUpperCase() + f.slice(1),
+            value: f,
+          })) as [
+            { label: string; value: (typeof STORE_ITEM_FORMATS)[number] },
+            ...{ label: string; value: (typeof STORE_ITEM_FORMATS)[number] }[],
+          ],
+          defaultValue: "album",
+        }),
+        price: fields.integer({
+          label: "Price (amount)",
+          description:
+            "Numeric amount in the item's currency — no symbol, no thousands " +
+            "separators. Formatted at display time using the currency field.",
+          validation: { min: 0 },
+        }),
+        currency: fields.select({
+          label: "Currency (ISO 4217 code)",
+          description:
+            "Three-letter currency code. Used with `Intl.NumberFormat` to render " +
+            "the price with the correct symbol and decimal placement.",
+          options: [
+            { label: "USD — US Dollar", value: "USD" },
+            { label: "EUR — Euro", value: "EUR" },
+            { label: "GBP — British Pound", value: "GBP" },
+            { label: "CAD — Canadian Dollar", value: "CAD" },
+            { label: "AUD — Australian Dollar", value: "AUD" },
+            { label: "JPY — Japanese Yen", value: "JPY" },
+          ],
+          defaultValue: "USD",
+        }),
+        image: fields.object(
+          {
+            src: fields.image({
+              label: "Cover image",
+              directory: "src/assets/images/store",
+              publicPath: "../../../assets/images/store/",
+            }),
+            alt: fields.text({ label: "Alt text" }),
+            caption: fields.text({ label: "Caption" }),
+            credit: fields.text({ label: "Credit" }),
+            usageSlot: fields.select({
+              label: "Usage slot",
+              options: [
+                { label: "Release cover", value: "release-cover" },
+                { label: "Gallery", value: "gallery" },
+                { label: "Thumbnail", value: "thumbnail" },
+              ],
+              defaultValue: "release-cover",
+            }),
+          },
+          { label: "Cover image" },
+        ),
+        description: fields.text({
+          label: "Description",
+          multiline: true,
+          description:
+            "Optional short blurb shown under the title. Mention alternate " +
+            "formats here (e.g. 'Available on CD, vinyl, and digital').",
+        }),
+        buyUrl: fields.url({
+          label: "Buy URL",
+          description:
+            "External link (Bandcamp, Shopify, Big Cartel, etc.) — opens in a new tab.",
+          validation: { isRequired: true },
+        }),
+        status: fields.select({
+          label: "Status",
+          description:
+            "Available items appear by default; sold-out items are hidden unless the block's filter is set to 'All'; preorders show a highlighted badge.",
+          options: STORE_ITEM_STATUSES.map((s) => ({
+            // "sold-out" → "Sold out"; others title-case.
+            label: s === "sold-out" ? "Sold out" : s.charAt(0).toUpperCase() + s.slice(1),
+            value: s,
+          })) as [
+            { label: string; value: (typeof STORE_ITEM_STATUSES)[number] },
+            ...{ label: string; value: (typeof STORE_ITEM_STATUSES)[number] }[],
+          ],
+          defaultValue: "available",
+        }),
+        order: fields.integer({
+          label: "Sort order",
+          description:
+            "Lower numbers appear first. Items without a sort order fall to the end and are sorted alphabetically.",
         }),
       },
     }),

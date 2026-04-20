@@ -51,6 +51,15 @@ export default {
     "photo-gallery": {
       selfClosing: true,
     },
+    "video-gallery": {
+      selfClosing: true,
+    },
+    "tour-dates": {
+      selfClosing: true,
+      attributes: {
+        "filter": { type: String, default: "upcoming", matches: ["upcoming","all"] },
+      },
+    },
     "contact-form": {
       selfClosing: true,
     },

@@ -26,6 +26,8 @@ export * as Image from "./Image";
 export * as ReleaseList from "./ReleaseList";
 export * as PressQuotes from "./PressQuotes";
 export * as PhotoGallery from "./PhotoGallery";
+export * as VideoGallery from "./VideoGallery";
+export * as TourDatesList from "./TourDatesList";
 export * as ContactForm from "./ContactForm";
 
 import * as Section from "./Section";
@@ -37,6 +39,8 @@ import * as Image from "./Image";
 import * as ReleaseList from "./ReleaseList";
 import * as PressQuotes from "./PressQuotes";
 import * as PhotoGallery from "./PhotoGallery";
+import * as VideoGallery from "./VideoGallery";
+import * as TourDatesList from "./TourDatesList";
 import * as ContactForm from "./ContactForm";
 
 /**
@@ -54,5 +58,7 @@ export const components = [
   ReleaseList,
   PressQuotes,
   PhotoGallery,
+  VideoGallery,
+  TourDatesList,
   ContactForm,
 ] as const;

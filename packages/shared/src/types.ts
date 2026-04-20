@@ -56,25 +56,6 @@ export type JobStatus =
   | "awaiting_review"
   | "canceled";
 
-/** Classification modes for edit requests */
-export type EditMode =
-  | "content_edit"
-  | "asset_update"
-  | "page_add"
-  | "page_remove"
-  | "nav_change"
-  | "style_update"
-  | "widget_update"
-  | "repair";
-
-/** Change request status */
-export type ChangeRequestStatus =
-  | "pending"
-  | "in_progress"
-  | "ready_for_review"
-  | "approved"
-  | "rejected"
-  | "discarded";
 
 /** Integration provider identifiers */
 export type IntegrationProvider = "github" | "netlify";

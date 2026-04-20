@@ -2,15 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
-import type { BlueprintType } from "@stagecraft/shared";
 
-const VALID_BLUEPRINTS: BlueprintType[] = [
-  "solo-artist",
-  "band",
-  "composer-educator",
-  "epk-focused",
-  "tour-focused",
-];
+const DEFAULT_BLUEPRINT = "solo-artist";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -20,12 +13,11 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     name?: string;
-    blueprintType?: BlueprintType;
   };
 
-  if (!body.name || !body.blueprintType) {
+  if (!body.name) {
     return NextResponse.json(
-      { error: "name and blueprintType are required" },
+      { error: "name is required" },
       { status: 400 }
     );
   }
@@ -34,13 +26,6 @@ export async function POST(req: NextRequest) {
   if (name.length < 2 || name.length > 60) {
     return NextResponse.json(
       { error: "Site name must be between 2 and 60 characters" },
-      { status: 400 }
-    );
-  }
-
-  if (!VALID_BLUEPRINTS.includes(body.blueprintType as BlueprintType)) {
-    return NextResponse.json(
-      { error: `Invalid blueprint type. Must be one of: ${VALID_BLUEPRINTS.join(", ")}` },
       { status: 400 }
     );
   }
@@ -76,7 +61,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       name,
       slug,
-      blueprintType: body.blueprintType,
+      blueprintType: DEFAULT_BLUEPRINT,
       status: "creating",
     },
   });
@@ -91,7 +76,7 @@ export async function POST(req: NextRequest) {
       requestPayload: {
         name,
         slug,
-        blueprintType: body.blueprintType,
+        blueprintType: DEFAULT_BLUEPRINT,
       },
     },
   });

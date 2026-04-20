@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
-import { BLUEPRINT_VALUES, isBlueprintType, isValidHttpUrl } from "@stagecraft/shared";
-import type { BlueprintType } from "@stagecraft/shared";
+import { isValidHttpUrl } from "@stagecraft/shared";
+
+const DEFAULT_BLUEPRINT = "solo-artist";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,12 +15,11 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     url?: string;
     name?: string;
-    blueprintType?: BlueprintType;
   };
 
-  if (!body.url || !body.name || !body.blueprintType) {
+  if (!body.url || !body.name) {
     return NextResponse.json(
-      { error: "url, name, and blueprintType are required" },
+      { error: "url and name are required" },
       { status: 400 }
     );
   }
@@ -30,15 +30,6 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-
-  if (!isBlueprintType(body.blueprintType)) {
-    return NextResponse.json(
-      { error: `Invalid blueprint type. Must be one of: ${BLUEPRINT_VALUES.join(", ")}` },
-      { status: 400 }
-    );
-  }
-
-  const blueprintType: BlueprintType = body.blueprintType;
 
   // Check integrations are connected
   const integrations = await prisma.integrationAccount.findMany({
@@ -71,7 +62,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       name: body.name,
       slug,
-      blueprintType,
+      blueprintType: DEFAULT_BLUEPRINT,
       status: "creating",
     },
   });
@@ -87,7 +78,7 @@ export async function POST(req: NextRequest) {
         url: body.url,
         name: body.name,
         slug,
-        blueprintType,
+        blueprintType: DEFAULT_BLUEPRINT,
       },
     },
   });

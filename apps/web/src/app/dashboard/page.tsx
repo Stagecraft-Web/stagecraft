@@ -29,10 +29,7 @@ export default async function DashboardPage() {
       <section style={{ marginTop: "var(--space-8)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>Your Sites</h2>
-          <div style={{ display: "flex", gap: "var(--space-2)" }}>
-            <Button href="/migrate" size="sm" variant="ghost">Import existing site</Button>
-            <Button href="/create" size="sm">+ Create site</Button>
-          </div>
+          <Button href="/create" size="sm">+ Create site</Button>
         </div>
         {sites.length === 0 ? (
           <p>No sites yet. <a href="/create">Create your first musician website</a> to get started.</p>

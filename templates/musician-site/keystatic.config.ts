@@ -166,9 +166,12 @@ export default config({
 
     // -----------------------------------------------------------------
     // Navigation — owns both membership and order.
-    // An ordered array of page references (relationship field).
-    // Add a page here to show it in the nav; remove it to hide it.
-    // Drag to reorder.
+    //
+    // `multiRelationship` renders two parts in the editor:
+    //   1. A combobox at the top listing pages NOT yet in the nav
+    //      (i.e. omitted pages). Pick one to add it.
+    //   2. A drag-and-drop list below of the pages currently in the
+    //      nav, in order.
     // -----------------------------------------------------------------
 
     navigation: singleton({
@@ -176,13 +179,12 @@ export default config({
       path: "src/content/config/nav",
       format: { data: "json" },
       schema: {
-        items: fields.array(
-          fields.relationship({ label: "Page", collection: "pages" }),
-          {
-            label: "Navigation Items",
-            itemLabel: (props) => props.value ?? "Select a page",
-          },
-        ),
+        items: fields.multiRelationship({
+          label: "Navigation Items",
+          collection: "pages",
+          description:
+            "Pick pages to include in the site navigation. Drag to reorder. Pages not in this list won't appear in the header nav.",
+        }),
       },
     }),
 

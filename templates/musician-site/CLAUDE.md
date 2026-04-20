@@ -413,3 +413,69 @@ npm run test              # Unit tests (vitest)
 npm run test:smoke        # Playwright smoke tests (requires build first)
 npm run validate          # Run all checks: content + lint + typecheck + build
 ```
+
+---
+
+## PR screenshots convention
+
+Every pull request that changes rendered UI — public site, Keystatic
+admin, or both — must include screenshots in the PR body. The point
+is simple: reviewers shouldn't need to check out the branch and boot
+the dev server to see what changed.
+
+### Rules
+
+1. **Screenshots live in-tree** at `templates/musician-site/docs/screenshots/pr-<N>/<name>.png`.
+   One directory per PR number. Committed alongside the code change.
+2. **Two views per change**: one `site-*` view showing the rendered
+   public page, one `admin-*` view showing the Keystatic admin
+   surface. If a change only affects one surface (e.g. admin-only
+   schema tweak), one view is fine — document why in the PR body.
+3. **Naming**:
+   - `site-<page-name>.png` (or `.jpg`) for public site views.
+   - `admin-<collection-or-page>.png` for Keystatic admin views.
+4. **Size budget**: aim for < 500 KB per image. JPEG for site views,
+   PNG for admin UI (text-heavy, transparency).
+5. **Embed with a repo-relative path** in the PR body:
+   ```markdown
+   ![Press page](templates/musician-site/docs/screenshots/pr-42/site-press.jpg)
+   ![Keystatic press editor](templates/musician-site/docs/screenshots/pr-42/admin-pages.png)
+   ```
+6. **Refactor-only PRs** (no visible UI change at all) can omit
+   screenshots. Document that in the PR body: _"No screenshots — pure
+   refactor, no visible UI change."_ If the refactor touches a
+   Keystatic admin surface (e.g. derived `fields.select` options),
+   still capture the admin view to show options render correctly.
+
+### Example PR body
+
+```markdown
+## Screenshots
+
+### Site
+![Press page](templates/musician-site/docs/screenshots/pr-35/site-press.jpg)
+
+### Admin
+![Keystatic press editor](templates/musician-site/docs/screenshots/pr-35/admin-pages.png)
+
+## Summary
+(…standard summary / test plan below)
+```
+
+### Capturing
+
+`scripts/capture-pr-screenshots.mjs` automates the common cases. Boot
+the dev server, then:
+
+```bash
+node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
+     docs/screenshots/pr-<N>
+```
+
+See the script's top-of-file comment for flags (`--only`,
+`--jpeg-quality`, `--site-format`) and `docs/screenshots/README.md` for
+the full convention.
+
+If your dev setup requires auth for Keystatic admin and the script
+can't reach the live admin UI, capture those frames manually from a
+signed-in browser and drop them into `pr-<N>/` with the same naming.

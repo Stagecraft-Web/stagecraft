@@ -4,9 +4,15 @@ import styles from "./Lightbox.module.css";
 
 interface LightboxProps {
   images: { src: string; alt: string; caption?: string }[];
+  /**
+   * Custom event name to listen on. Defaults to "open-lightbox".
+   * Override when multiple Lightbox instances co-exist on the same page
+   * (e.g. one per Download item), so their open-events don't collide.
+   */
+  eventName?: string;
 }
 
-export default function Lightbox({ images }: LightboxProps) {
+export default function Lightbox({ images, eventName = "open-lightbox" }: LightboxProps) {
   const [index, setIndex] = useState<number | null>(null);
 
   const close = useCallback(() => setIndex(null), []);
@@ -24,9 +30,9 @@ export default function Lightbox({ images }: LightboxProps) {
       const detail = (e as CustomEvent<{ index: number }>).detail;
       setIndex(detail.index);
     }
-    window.addEventListener("open-lightbox", handleOpen);
-    return () => window.removeEventListener("open-lightbox", handleOpen);
-  }, []);
+    window.addEventListener(eventName, handleOpen);
+    return () => window.removeEventListener(eventName, handleOpen);
+  }, [eventName]);
 
   useEffect(() => {
     if (index === null) return;

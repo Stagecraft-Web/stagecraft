@@ -108,5 +108,22 @@ export default {
         "captureName": { type: Boolean, default: false },
       },
     },
+    "downloads": {
+      attributes: {
+        "title": { type: String },
+        "layout": { type: String, default: "list", matches: ["list","grid"] },
+      },
+    },
+    "download": {
+      selfClosing: true,
+      attributes: {
+        "label": { type: String, required: true },
+        "file": { type: String, required: true },
+        "kind": { type: String, default: "other", matches: ["photo","audio","video","pdf","other"] },
+        "description": { type: String },
+        "credit": { type: String },
+        "sizeLabel": { type: String },
+      },
+    },
   },
 };

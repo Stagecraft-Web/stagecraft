@@ -137,3 +137,30 @@ export const VIDEO_URL_TYPE_LABELS: Record<VideoUrlType, string> = {
   youtube: "YouTube",
   vimeo: "Vimeo",
 };
+
+/** Layout variant for `{% downloads %}` (wrapper). */
+export const DOWNLOADS_LAYOUTS = ["list", "grid"] as const;
+export type DownloadsLayout = (typeof DOWNLOADS_LAYOUTS)[number];
+
+export const DOWNLOADS_LAYOUT_LABELS: Record<DownloadsLayout, string> = {
+  list: "List",
+  grid: "Grid",
+};
+
+/** Kind of file a `{% download %}` block represents. Drives the inline preview. */
+export const DOWNLOAD_KINDS = [
+  "photo",
+  "audio",
+  "video",
+  "pdf",
+  "other",
+] as const;
+export type DownloadKind = (typeof DOWNLOAD_KINDS)[number];
+
+export const DOWNLOAD_KIND_LABELS: Record<DownloadKind, string> = {
+  photo: "Photo",
+  audio: "Audio",
+  video: "Video",
+  pdf: "PDF",
+  other: "Other",
+};

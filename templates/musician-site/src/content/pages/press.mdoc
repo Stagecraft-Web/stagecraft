@@ -4,7 +4,23 @@ title: Press
 
 For press inquiries, booking, or media requests, please use the contact page or email directly.
 
-{% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
+{% button label="Download full press kit" href="/downloads/press-kit.zip" variant="outline" /%}
+
+{% downloads title="Press kit" layout="list" %}
+  {% download
+     label="Press photo (web, 800×600)"
+     file="./example-press-photo-web.svg"
+     kind="photo"
+     description="For digital use — magazines, blogs, social."
+     credit="Photo by Jane Smith"
+     sizeLabel="800 × 600" /%}
+
+  {% download
+     label="One-sheet & rider"
+     file="./example-one-sheet.pdf"
+     kind="pdf"
+     description="Bio, tech rider, stage plot."
+     sizeLabel="1 page" /%}
+{% /downloads %}
 
 {% press-quotes /%}
-

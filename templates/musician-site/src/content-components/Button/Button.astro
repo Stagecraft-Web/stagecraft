@@ -16,6 +16,12 @@ interface Props {
   isExternal?: boolean;
   /** Text label — used when rendered via Markdoc (no slot content) */
   label?: string;
+  /**
+   * When true, renders as `<a download>` so browsers save the file instead of
+   * navigating to it. Only applies when `href` is set. The `download` attr is
+   * only honored for same-origin URLs; cross-origin links may still navigate.
+   */
+  isDownload?: boolean;
 }
 
 const {
@@ -26,14 +32,16 @@ const {
   class: className,
   isExternal,
   label,
+  isDownload,
 } = Astro.props;
 
 const classes = ["btn", `btn-${variant}`, className].filter(Boolean).join(" ");
 const externalAttrs = isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {};
+const downloadAttrs = isDownload ? { download: "" } : {};
 ---
 
 {href ? (
-  <a href={href} class={classes} aria-label={ariaLabel} {...externalAttrs}>
+  <a href={href} class={classes} aria-label={ariaLabel} {...externalAttrs} {...downloadAttrs}>
     {label}<slot />
   </a>
 ) : (

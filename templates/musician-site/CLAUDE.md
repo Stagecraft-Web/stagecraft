@@ -638,3 +638,84 @@ npm run test              # Unit tests (vitest)
 npm run test:smoke        # Playwright smoke tests (requires build first)
 npm run validate          # Run all checks: content + lint + typecheck + build
 ```
+
+---
+
+## PR screenshots convention
+
+Every pull request that changes rendered UI — public site, Keystatic
+admin, or both — must include screenshots in the PR body. Reviewers
+shouldn't need to check out the branch and boot the dev server to see
+what changed.
+
+**Full workflow + copy-pastable commands: `docs/screenshots/README.md`.**
+
+### Rules
+
+1. **Host on a public gist, not in-tree.** This repo is private, so
+   `raw.githubusercontent.com` URLs 404 for unauthenticated viewers
+   and images committed in-tree don't render in the PR body. Upload
+   the screenshots to a public gist and embed `gist.githubusercontent.com`
+   URLs instead.
+2. **Two views per change**: one `site-*` view showing the rendered
+   public page, one `admin-*` view showing the Keystatic admin
+   surface. If a change only affects one surface (e.g. admin-only
+   schema tweak), one view is fine — document why in the PR body.
+3. **Naming**:
+   - `site-<page-name>.jpg` for public site views (JPEG).
+   - `admin-<collection-or-page>.png` for Keystatic admin views (PNG).
+4. **Size budget**: aim for < 500 KB per image.
+5. **Refactor-only PRs** (no visible UI change at all) can omit
+   screenshots. Document that in the PR body: _"No screenshots — pure
+   refactor, no visible UI change."_ If the refactor touches a
+   Keystatic admin surface (e.g. derived `fields.select` options),
+   still capture the admin view to show options render correctly.
+
+### Capturing + uploading
+
+Capture to a local temp dir, then upload to a public gist:
+
+```bash
+# 1) Capture (with dev server running in another terminal)
+node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
+     /tmp/pr-<N>-screenshots
+
+# 2) Seed a public gist
+echo "stagecraft PR #<N> screenshots" > /tmp/pr-<N>-readme.md
+gh gist create --public --desc "stagecraft PR #<N> screenshots" \
+  /tmp/pr-<N>-readme.md
+# → https://gist.github.com/<user>/<GIST_ID>
+
+# 3) Clone, copy images in, push with token (gist's default clone
+#    URL can't auth from CLI)
+git clone https://gist.github.com/<GIST_ID>.git /tmp/pr-<N>-gist
+cp /tmp/pr-<N>-screenshots/*.{png,jpg} /tmp/pr-<N>-gist/
+cd /tmp/pr-<N>-gist
+git add -A && git commit -m "Add PR #<N> screenshots"
+git remote set-url origin \
+  "https://<user>:$(gh auth token)@gist.github.com/<GIST_ID>.git"
+git push
+```
+
+### Embed in the PR body
+
+```markdown
+## Screenshots
+
+### Site
+![Press page](https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/site-press.jpg)
+
+### Admin
+![Keystatic press editor](https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/admin-pages.png)
+```
+
+Verify each URL returns `HTTP 200` anonymously before submitting:
+
+```bash
+curl -sI "https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/site-press.jpg" | head -1
+```
+
+If Keystatic admin requires auth in your setup and the script can't
+reach it headlessly, capture those frames manually from a signed-in
+browser and drop them into the same `/tmp/pr-<N>-screenshots/` dir
+before uploading.

@@ -17,7 +17,7 @@ export const markdoc: MarkdocTagDefinition = {
     filter: {
       type: String,
       default: "upcoming",
-      matches: TOUR_DATES_FILTERS as unknown as string[],
+      matches: [...TOUR_DATES_FILTERS],
     },
   },
 };

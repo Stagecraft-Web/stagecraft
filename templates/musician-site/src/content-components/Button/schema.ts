@@ -16,7 +16,7 @@ export const markdoc: MarkdocTagDefinition = {
     variant: {
       type: String,
       default: "primary",
-      matches: BUTTON_VARIANTS as unknown as string[],
+      matches: [...BUTTON_VARIANTS],
     },
     isExternal: { type: Boolean, default: false },
   },

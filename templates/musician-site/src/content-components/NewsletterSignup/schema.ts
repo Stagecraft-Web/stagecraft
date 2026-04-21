@@ -40,7 +40,7 @@ export const markdoc: MarkdocTagDefinition = {
     service: {
       type: String,
       required: true,
-      matches: NEWSLETTER_SERVICES as unknown as string[],
+      matches: [...NEWSLETTER_SERVICES],
     },
     actionUrl: {
       type: String,

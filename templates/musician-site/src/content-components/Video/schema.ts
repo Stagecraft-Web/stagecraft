@@ -43,7 +43,7 @@ export const markdoc: MarkdocTagDefinition = {
     url: { type: String },
     type: {
       type: String,
-      matches: VIDEO_URL_TYPES as unknown as string[],
+      matches: [...VIDEO_URL_TYPES],
     },
     title: { type: String },
     // Optional in both modes — rendered as <figcaption> below the iframe.

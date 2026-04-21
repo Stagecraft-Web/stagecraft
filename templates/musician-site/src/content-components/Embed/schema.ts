@@ -47,7 +47,7 @@ export const markdoc: MarkdocTagDefinition = {
     aspectRatio: {
       type: String,
       default: "auto",
-      matches: EMBED_ASPECT_RATIOS as unknown as string[],
+      matches: [...EMBED_ASPECT_RATIOS],
     },
     title: { type: String },
   },

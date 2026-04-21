@@ -14,7 +14,7 @@ export const markdoc: MarkdocTagDefinition = {
     headingLevel: {
       type: String,
       default: "h2",
-      matches: HEADING_LEVELS as unknown as string[],
+      matches: [...HEADING_LEVELS],
     },
     isTitleHidden: { type: Boolean, default: false },
   },

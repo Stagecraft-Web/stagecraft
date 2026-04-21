@@ -13,7 +13,7 @@ export const markdoc: MarkdocTagDefinition = {
     layout: {
       type: String,
       default: "1-1",
-      matches: COLUMNS_LAYOUTS as unknown as string[],
+      matches: [...COLUMNS_LAYOUTS],
     },
   },
 };

@@ -33,12 +33,12 @@ export const markdoc: MarkdocTagDefinition = {
     filter: {
       type: String,
       default: "available",
-      matches: STORE_ITEM_LIST_FILTERS as unknown as string[],
+      matches: [...STORE_ITEM_LIST_FILTERS],
     },
     layout: {
       type: String,
       default: "grid",
-      matches: STORE_ITEM_LIST_LAYOUTS as unknown as string[],
+      matches: [...STORE_ITEM_LIST_LAYOUTS],
     },
   },
 };

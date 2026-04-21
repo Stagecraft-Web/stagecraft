@@ -43,7 +43,7 @@ export const markdoc: MarkdocTagDefinition = {
     layout: {
       type: String,
       default: "grid",
-      matches: POSTS_LIST_LAYOUTS as unknown as string[],
+      matches: [...POSTS_LIST_LAYOUTS],
     },
   },
 };

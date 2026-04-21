@@ -381,6 +381,138 @@ or authored file.
 
 ---
 
+## Enum DRYness Convention
+
+String-literal unions and enum option arrays are defined **exactly once** in
+the template. Every other site of use imports and derives from that
+canonical definition. Duplicated enum values drift silently; a single source
+of truth prevents that.
+
+### Where enums live
+
+- **Data-shape enums** — values persisted in content files, validated by
+  Zod. Live in `src/lib/schemas.ts` as a `const` array + derived `z.enum(...)` + type alias.
+  Examples: `RELEASE_TYPES`, `VIDEO_TYPES`, `TOUR_DATE_STATUSES`,
+  `IMAGE_USAGE_SLOTS`, `POST_CATEGORIES`, `STORE_ITEM_FORMATS`,
+  `STORE_ITEM_STATUSES`.
+
+- **Content-component attribute enums** — values that only appear in
+  markdoc block attributes + keystatic select options, never in collection
+  data. Live in `src/content-components/_shared/types.ts` as a `const`
+  array + derived type.
+  Examples: `HEADING_LEVELS`, `BUTTON_VARIANTS`, `COLUMNS_LAYOUTS`,
+  `EMBED_ASPECT_RATIOS`, `NEWSLETTER_SERVICES`, `VIDEO_URL_TYPES`.
+
+When unsure whether an enum is data-shape or attribute, default to
+`schemas.ts` — the more conservative choice.
+
+### The pattern
+
+Define the canonical constant once:
+
+```ts
+export const HEADING_LEVELS = ["h1", "h2", "h3", "h4"] as const;
+export type HeadingLevel = (typeof HEADING_LEVELS)[number];
+
+// Optional: a sibling labels record when display labels differ from values.
+export const HEADING_LEVEL_LABELS: Record<HeadingLevel, string> = {
+  h1: "H1", h2: "H2", h3: "H3", h4: "H4",
+};
+```
+
+Consumers import and derive:
+
+```ts
+// Markdoc schema (`matches` array):
+import { HEADING_LEVELS } from "../_shared/types";
+matches: HEADING_LEVELS as unknown as string[]
+
+// Keystatic select (`options` array):
+import { HEADING_LEVELS, HEADING_LEVEL_LABELS } from "../_shared/types";
+options: HEADING_LEVELS.map((v) => ({ label: HEADING_LEVEL_LABELS[v], value: v }))
+
+// Astro content config (`content.config.ts`, zod v4):
+import { HEADING_LEVELS } from "./lib/schemas";  // or _shared/types path
+z.enum(HEADING_LEVELS)
+```
+
+### Rules
+
+1. **Never inline a string-literal array in more than one place.** If you
+   find yourself typing the same `["a", "b", "c"]` in a second file, import
+   from the canonical source instead.
+2. **Keystatic `fields.select` options must be derived via `.map()`** from
+   the canonical constant. Never hand-roll the `[{ label, value }]` array
+   with literal strings.
+3. **Markdoc `matches` arrays must reference the constant** with the
+   `as unknown as string[]` cast (Markdoc's type requires a plain
+   `string[]`).
+4. **`content.config.ts` `z.enum(...)` calls must receive the constant**,
+   not an inline array literal.
+5. **Sibling `_LABELS` records live next to the constant** when display
+   labels differ from values (e.g. "Primary" button label for a `primary`
+   value). Keeps presentation metadata DRY too.
+
+### Intentional divergences (documented — don't treat as violations)
+
+- **Currency codes** on `storeItems` — zod schema is permissive
+  (`z.string().length(3)`); Keystatic shows a curated select of common
+  codes. The zod layer allows any valid ISO 4217 code authored directly in
+  yaml; Keystatic curates to reduce admin typos. These are intentionally
+  distinct surfaces.
+- **Social-link keys** — a record shape, not an enum.
+- **`parseColumnsLayout` regex** — deliberately permissive (accepts any
+  `N-M` or `N-M-K` layout string), not enumerated.
+
+---
+
+## PR Screenshots Convention
+
+When opening or revising a pull request, include screenshots of the main
+details of your changes in the PR description. Examples of what to capture:
+
+- **Artist site renders** — the page where a new content component shows
+  up, or the before/after for a theme/layout change.
+- **Keystatic editor views** — the admin UI for a new collection, block,
+  or singleton field; the "insert block" menu if a new block appears there.
+- **CLI / terminal output** for tooling changes (new scripts, validation
+  errors, etc.).
+
+The goal: reviewers understand what changed visually in seconds, without
+having to pull the branch and run the dev server.
+
+### How to include screenshots
+
+**Preferred:** upload images directly to the PR description via GitHub's
+web UI (drag-and-drop). GitHub stores them on its image CDN
+(`user-images.githubusercontent.com/...`), so the images live outside the
+repo and the URLs persist independently.
+
+**Alternative when automating:** commit the screenshots to the PR branch,
+reference them from the PR body via relative paths, and **delete them in a
+follow-up commit** once the PR description's uploaded versions have been
+verified to render. Screenshots should not accumulate in the repo
+long-term.
+
+When committing screenshots to a branch temporarily, place them under
+`templates/musician-site/docs/pr/pr-<N>/` with descriptive names:
+
+- `site-<page>.png` for rendered-site views
+- `admin-<collection-or-page>.png` for Keystatic admin views
+- Keep each file under 500 KB (use JPEG for photos, PNG for admin UI)
+
+The `docs/pr/` directory is expected to be empty or near-empty in main at
+any given time — it's a staging area, not a permanent archive.
+
+### When screenshots don't apply
+
+For pure refactors, type-system changes, build-tooling changes with no
+visible UI delta, or backend-only changes: **document explicitly in the PR
+body** that no screenshots apply and why. Don't force synthetic screenshots
+for changes that have nothing to show.
+
+---
+
 ## API Routes
 
 ### `POST /api/contact`

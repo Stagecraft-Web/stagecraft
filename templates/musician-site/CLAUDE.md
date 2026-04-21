@@ -495,14 +495,14 @@ verified to render. Screenshots should not accumulate in the repo
 long-term.
 
 When committing screenshots to a branch temporarily, place them under
-`templates/musician-site/docs/pr/pr-<N>/` with descriptive names:
+`templates/musician-site/docs/screenshots/pr-<N>/` with descriptive names:
 
 - `site-<page>.png` for rendered-site views
 - `admin-<collection-or-page>.png` for Keystatic admin views
 - Keep each file under 500 KB (use JPEG for photos, PNG for admin UI)
 
-The `docs/pr/` directory is expected to be empty or near-empty in main at
-any given time — it's a staging area, not a permanent archive.
+The `docs/screenshots/` directory is expected to be empty or near-empty in
+main at any given time — it's a staging area, not a permanent archive.
 
 ### When screenshots don't apply
 

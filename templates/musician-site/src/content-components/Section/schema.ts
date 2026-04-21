@@ -3,17 +3,19 @@ import { wrapper } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
-  HeadingLevel,
 } from "../_shared/types";
-
-const HEADING_LEVELS: readonly HeadingLevel[] = ["h1", "h2", "h3", "h4"];
+import { HEADING_LEVELS, HEADING_LEVEL_LABELS } from "../_shared/types";
 
 /** Markdoc tag: `{% section %}` — wraps children in a titled section. */
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/Section/Section.astro",
   attributes: {
     title: { type: String },
-    headingLevel: { type: String, default: "h2", matches: [...HEADING_LEVELS] },
+    headingLevel: {
+      type: String,
+      default: "h2",
+      matches: [...HEADING_LEVELS],
+    },
     isTitleHidden: { type: Boolean, default: false },
   },
 };
@@ -27,11 +29,12 @@ export const keystatic: KeystaticContentComponent = wrapper({
     title: fields.text({ label: "Title" }),
     headingLevel: fields.select({
       label: "Heading Level",
-      options: [
-        { label: "H1", value: "h1" },
-        { label: "H2", value: "h2" },
-        { label: "H3", value: "h3" },
-        { label: "H4", value: "h4" },
+      options: HEADING_LEVELS.map((v) => ({
+        label: HEADING_LEVEL_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: (typeof HEADING_LEVELS)[number] },
+        ...{ label: string; value: (typeof HEADING_LEVELS)[number] }[],
       ],
       defaultValue: "h2",
     }),

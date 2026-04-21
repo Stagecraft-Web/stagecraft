@@ -3,13 +3,28 @@ import { block } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
-  StoreItemFilter,
-  StoreItemLayout,
 } from "../_shared/types";
+import {
+  STORE_ITEM_LIST_FILTERS,
+  STORE_ITEM_LIST_LAYOUTS,
+  type StoreItemListFilter,
+  type StoreItemListLayout,
+} from "../../lib/schemas";
 import { StoreItemListPreview } from "./preview";
 
-const STORE_ITEM_FILTERS: readonly StoreItemFilter[] = ["all", "available", "preorder"];
-const STORE_ITEM_LAYOUTS: readonly StoreItemLayout[] = ["grid", "list"];
+// Filter and layout labels are local because they aren't reused elsewhere —
+// the schemas.ts constants are the list of values; the display strings are a
+// block-specific concern (sold-out copy etc.).
+const FILTER_LABELS: Record<StoreItemListFilter, string> = {
+  all: "All (including sold-out)",
+  available: "Available only",
+  preorder: "Preorders only",
+};
+
+const LAYOUT_LABELS: Record<StoreItemListLayout, string> = {
+  grid: "Grid",
+  list: "List",
+};
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/StoreItemList/StoreItemList.astro",
@@ -18,12 +33,12 @@ export const markdoc: MarkdocTagDefinition = {
     filter: {
       type: String,
       default: "available",
-      matches: [...STORE_ITEM_FILTERS],
+      matches: [...STORE_ITEM_LIST_FILTERS],
     },
     layout: {
       type: String,
       default: "grid",
-      matches: [...STORE_ITEM_LAYOUTS],
+      matches: [...STORE_ITEM_LIST_LAYOUTS],
     },
   },
 };
@@ -38,10 +53,12 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Filter",
       description:
         "Which items to include. 'Available only' hides sold-out items (the common default); 'All' shows sold-out items with a grayed-out badge; 'Preorders only' is for launch pages.",
-      options: [
-        { label: "Available only", value: "available" },
-        { label: "All (including sold-out)", value: "all" },
-        { label: "Preorders only", value: "preorder" },
+      options: STORE_ITEM_LIST_FILTERS.map((v) => ({
+        label: FILTER_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: StoreItemListFilter },
+        ...{ label: string; value: StoreItemListFilter }[],
       ],
       defaultValue: "available",
     }),
@@ -49,9 +66,12 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Layout",
       description:
         "Grid is best for cover-led merch walls; list is compact and works well for digital-only catalogues.",
-      options: [
-        { label: "Grid", value: "grid" },
-        { label: "List", value: "list" },
+      options: STORE_ITEM_LIST_LAYOUTS.map((v) => ({
+        label: LAYOUT_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: StoreItemListLayout },
+        ...{ label: string; value: StoreItemListLayout }[],
       ],
       defaultValue: "grid",
     }),

@@ -2,10 +2,22 @@ import { config, fields, collection, singleton } from "@keystatic/core";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
 import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
+  FONT_CATEGORIES,
+  FONT_CATEGORY_LABELS,
+  IMAGE_USAGE_SLOTS,
+  IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
   POST_STATUSES,
+  RELEASE_TYPES,
+  RELEASE_TYPE_LABELS,
   STORE_ITEM_FORMATS,
   STORE_ITEM_STATUSES,
+  TOUR_DATE_STATUSES,
+  TOUR_DATE_STATUS_LABELS,
+  VIDEO_TYPES,
+  VIDEO_TYPE_LABELS,
+  type FontCategory,
+  type ImageUsageSlot,
 } from "./src/lib/schemas";
 
 // ---------------------------------------------------------------------------
@@ -23,18 +35,16 @@ const toOptions = (families: { family: string }[]) =>
 
 const weightOptions = FONT_WEIGHTS.map((w) => ({ label: String(w), value: String(w) }));
 
-const CATEGORY_OPTIONS = [
-  { label: "Sans-serif", value: "sans-serif" },
-  { label: "Serif", value: "serif" },
-  { label: "Monospace", value: "monospace" },
-  { label: "Display", value: "display" },
-  { label: "Handwriting", value: "handwriting" },
-  { label: "Custom (any Google Font)", value: "custom" },
-] as const;
+// Pair each category (from schemas.FONT_CATEGORIES) with its display label
+// (from schemas.FONT_CATEGORY_LABELS). Keystatic's select typing wants the
+// literal-union preserved, so we build the tuple by mapping the canonical
+// const rather than redeclaring the values here.
+const CATEGORY_OPTIONS = FONT_CATEGORIES.map((v) => ({
+  label: FONT_CATEGORY_LABELS[v],
+  value: v,
+})) as unknown as readonly { label: string; value: FontCategory }[];
 
-type FontCategoryValue = (typeof CATEGORY_OPTIONS)[number]["value"];
-
-const CATEGORY_DEFAULTS: Record<Exclude<FontCategoryValue, "custom">, string> = {
+const CATEGORY_DEFAULTS: Record<Exclude<FontCategory, "custom">, string> = {
   "sans-serif": "Inter",
   serif: "Merriweather",
   monospace: "JetBrains Mono",
@@ -48,7 +58,7 @@ const CATEGORY_DEFAULTS: Record<Exclude<FontCategoryValue, "custom">, string> = 
  * shown once as the category label; the font dropdown below reuses the same
  * label so it reads naturally.
  */
-const fontPicker = (label: string, defaults: { category: FontCategoryValue; family: string }) =>
+const fontPicker = (label: string, defaults: { category: FontCategory; family: string }) =>
   fields.conditional(
     fields.select({
       label: `${label} — category`,
@@ -98,6 +108,27 @@ const weightField = (label: string, defaultValue: number) =>
     label,
     options: weightOptions,
     defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
+  });
+
+// Build a curated "Usage Slot" select that exposes only the subset of
+// IMAGE_USAGE_SLOTS relevant to a given collection (e.g. photos rarely need
+// "release-cover"). Preserves the canonical order from IMAGE_USAGE_SLOTS and
+// re-uses its label map so all callers stay in lock-step.
+const usageSlotField = (
+  allowed: readonly ImageUsageSlot[],
+  defaultValue: ImageUsageSlot,
+  label = "Usage Slot",
+) =>
+  fields.select({
+    label,
+    options: IMAGE_USAGE_SLOTS.filter((v) => allowed.includes(v)).map((v) => ({
+      label: IMAGE_USAGE_SLOT_LABELS[v],
+      value: v,
+    })) as [
+      { label: string; value: ImageUsageSlot },
+      ...{ label: string; value: ImageUsageSlot }[],
+    ],
+    defaultValue,
   });
 
 // ---------------------------------------------------------------------------
@@ -366,10 +397,12 @@ export default config({
         title: fields.slug({ name: { label: "Title", validation: { isRequired: true } } }),
         type: fields.select({
           label: "Type",
-          options: [
-            { label: "Album", value: "album" },
-            { label: "Single", value: "single" },
-            { label: "EP", value: "ep" },
+          options: RELEASE_TYPES.map((v) => ({
+            label: RELEASE_TYPE_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: (typeof RELEASE_TYPES)[number] },
+            ...{ label: string; value: (typeof RELEASE_TYPES)[number] }[],
           ],
           defaultValue: "album",
         }),
@@ -385,16 +418,10 @@ export default config({
             alt: fields.text({ label: "Alt Text", validation: { isRequired: true } }),
             caption: fields.text({ label: "Caption" }),
             credit: fields.text({ label: "Credit" }),
-            usageSlot: fields.select({
-              label: "Usage Slot",
-              options: [
-                { label: "Release Cover", value: "release-cover" },
-                { label: "Hero", value: "hero" },
-                { label: "Gallery", value: "gallery" },
-                { label: "Thumbnail", value: "thumbnail" },
-              ],
-              defaultValue: "release-cover",
-            }),
+            usageSlot: usageSlotField(
+              ["release-cover", "hero", "gallery", "thumbnail"],
+              "release-cover",
+            ),
           },
           { label: "Cover Image" },
         ),
@@ -438,18 +465,10 @@ export default config({
         alt: fields.slug({ name: { label: "Alt Text", validation: { isRequired: true } } }),
         caption: fields.text({ label: "Caption" }),
         credit: fields.text({ label: "Credit" }),
-        usageSlot: fields.select({
-          label: "Usage Slot",
-          options: [
-            { label: "Gallery", value: "gallery" },
-            { label: "Hero", value: "hero" },
-            { label: "About", value: "about" },
-            { label: "Press", value: "press" },
-            { label: "Background", value: "background" },
-            { label: "Thumbnail", value: "thumbnail" },
-          ],
-          defaultValue: "gallery",
-        }),
+        usageSlot: usageSlotField(
+          ["gallery", "hero", "about", "press", "background", "thumbnail"],
+          "gallery",
+        ),
       },
     }),
 
@@ -466,10 +485,12 @@ export default config({
         url: fields.url({ label: "Video URL", validation: { isRequired: true } }),
         type: fields.select({
           label: "Platform",
-          options: [
-            { label: "YouTube", value: "youtube" },
-            { label: "Vimeo", value: "vimeo" },
-            { label: "Other", value: "other" },
+          options: VIDEO_TYPES.map((v) => ({
+            label: VIDEO_TYPE_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: (typeof VIDEO_TYPES)[number] },
+            ...{ label: string; value: (typeof VIDEO_TYPES)[number] }[],
           ],
           defaultValue: "youtube",
         }),
@@ -508,11 +529,12 @@ export default config({
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({
           label: "Status",
-          options: [
-            { label: "Upcoming", value: "upcoming" },
-            { label: "Sold Out", value: "sold_out" },
-            { label: "Canceled", value: "canceled" },
-            { label: "Past", value: "past" },
+          options: TOUR_DATE_STATUSES.map((v) => ({
+            label: TOUR_DATE_STATUS_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: (typeof TOUR_DATE_STATUSES)[number] },
+            ...{ label: string; value: (typeof TOUR_DATE_STATUSES)[number] }[],
           ],
           defaultValue: "upcoming",
         }),
@@ -650,15 +672,11 @@ export default config({
             alt: fields.text({ label: "Alt text" }),
             caption: fields.text({ label: "Caption" }),
             credit: fields.text({ label: "Credit" }),
-            usageSlot: fields.select({
-              label: "Usage slot",
-              options: [
-                { label: "Release cover", value: "release-cover" },
-                { label: "Gallery", value: "gallery" },
-                { label: "Thumbnail", value: "thumbnail" },
-              ],
-              defaultValue: "release-cover",
-            }),
+            usageSlot: usageSlotField(
+              ["release-cover", "gallery", "thumbnail"],
+              "release-cover",
+              "Usage slot",
+            ),
           },
           { label: "Cover image" },
         ),

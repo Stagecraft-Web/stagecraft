@@ -6,7 +6,13 @@
  * (mirrors the toEmbeddable.ts pattern next door in VideoGallery/).
  */
 
-export type VideoType = "youtube" | "vimeo";
+import { VIDEO_URL_TYPES } from "../_shared/types";
+
+// Alias the shared constant under the existing `VideoType` name so downstream
+// imports from this module (Video.astro, tests) keep working. The set is
+// deliberately narrower than `VIDEO_TYPES` in src/lib/schemas.ts, which also
+// includes "other" — the inline block only supports embeddable iframes.
+export type VideoType = (typeof VIDEO_URL_TYPES)[number];
 
 export interface VideoMarkdocProps {
   slug?: string;

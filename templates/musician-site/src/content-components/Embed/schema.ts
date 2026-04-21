@@ -1,6 +1,13 @@
 import { fields } from "@keystatic/core";
 import { block } from "@keystatic/core/content-components";
-import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import type {
+  MarkdocTagDefinition,
+  KeystaticContentComponent,
+} from "../_shared/types";
+import {
+  EMBED_ASPECT_RATIOS,
+  EMBED_ASPECT_RATIO_LABELS,
+} from "../_shared/types";
 import { EmbedPreview } from "./preview";
 
 /**
@@ -25,16 +32,23 @@ import { EmbedPreview } from "./preview";
  * but we still parse + sanitize it (see ./extractIframe.ts) so the page
  * doesn't ship arbitrary HTML, just the iframe with an attribute allowlist.
  */
-const ASPECT_RATIOS = ["auto", "16/9", "4/3", "1/1"] as const;
 
-export type EmbedAspectRatio = (typeof ASPECT_RATIOS)[number];
+/**
+ * Re-export from `_shared/types` so existing imports from `./schema`
+ * (e.g. Embed.astro) keep working without knowing the canonical location.
+ */
+export type EmbedAspectRatio = (typeof EMBED_ASPECT_RATIOS)[number];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/Embed/Embed.astro",
   selfClosing: true,
   attributes: {
     code: { type: String, required: true },
-    aspectRatio: { type: String, default: "auto", matches: [...ASPECT_RATIOS] },
+    aspectRatio: {
+      type: String,
+      default: "auto",
+      matches: [...EMBED_ASPECT_RATIOS],
+    },
     title: { type: String },
   },
 };
@@ -55,11 +69,12 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Aspect ratio",
       description:
         "'Auto' uses the iframe's intrinsic dimensions (best for fixed-height players like Spotify). Pick a ratio for video embeds so they scale responsively.",
-      options: [
-        { label: "Auto (use iframe's own size)", value: "auto" },
-        { label: "16:9 (widescreen video)", value: "16/9" },
-        { label: "4:3 (classic video)", value: "4/3" },
-        { label: "1:1 (square)", value: "1/1" },
+      options: EMBED_ASPECT_RATIOS.map((v) => ({
+        label: EMBED_ASPECT_RATIO_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: EmbedAspectRatio },
+        ...{ label: string; value: EmbedAspectRatio }[],
       ],
       defaultValue: "auto",
     }),

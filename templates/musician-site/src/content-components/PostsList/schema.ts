@@ -1,19 +1,33 @@
 import { fields } from "@keystatic/core";
 import { block } from "@keystatic/core/content-components";
-import type { MarkdocTagDefinition, KeystaticContentComponent } from "../_shared/types";
+import type {
+  MarkdocTagDefinition,
+  KeystaticContentComponent,
+} from "../_shared/types";
+import {
+  POSTS_LIST_LAYOUTS,
+  POSTS_LIST_LAYOUT_LABELS,
+} from "../_shared/types";
 import { PostsListPreview } from "./preview";
 import { POST_CATEGORIES, type PostCategory } from "../../lib/schemas";
 
-/** Supported layouts for the PostsList block. Mirrored in markdoc `matches`. */
-export type PostsListLayout = "grid" | "list";
+/**
+ * Re-export from `_shared/types` so `PostsList.astro` can continue to
+ * `import type { PostsListLayout } from "./schema"` without knowing where
+ * the canonical const lives.
+ */
+export type PostsListLayout = (typeof POSTS_LIST_LAYOUTS)[number];
 
 /**
  * Category filter options for the PostsList block. `"all"` shows every
  * category; the other values correspond 1:1 with POST_CATEGORIES.
+ *
+ * This union is specific to the block (it combines the `all` sentinel with
+ * POST_CATEGORIES) and isn't duplicated elsewhere, so it stays here rather
+ * than moving to `_shared/types.ts`.
  */
 export type PostsListFilter = "all" | PostCategory;
 
-const LAYOUT_OPTIONS: readonly PostsListLayout[] = ["grid", "list"];
 const FILTER_OPTIONS: readonly PostsListFilter[] = ["all", ...POST_CATEGORIES];
 
 export const markdoc: MarkdocTagDefinition = {
@@ -29,7 +43,7 @@ export const markdoc: MarkdocTagDefinition = {
     layout: {
       type: String,
       default: "grid",
-      matches: [...LAYOUT_OPTIONS],
+      matches: [...POSTS_LIST_LAYOUTS],
     },
   },
 };
@@ -57,9 +71,12 @@ export const keystatic: KeystaticContentComponent = block({
     }),
     layout: fields.select({
       label: "Layout",
-      options: [
-        { label: "Grid (cards)", value: "grid" as PostsListLayout },
-        { label: "List (rows)", value: "list" as PostsListLayout },
+      options: POSTS_LIST_LAYOUTS.map((v) => ({
+        label: POSTS_LIST_LAYOUT_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: PostsListLayout },
+        ...{ label: string; value: PostsListLayout }[],
       ],
       defaultValue: "grid",
     }),

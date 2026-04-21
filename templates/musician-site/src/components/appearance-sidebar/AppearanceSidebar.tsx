@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
 import type { FontCategory } from "../../lib/schemas";
-import { FONT_CATEGORIES } from "../../lib/schemas";
+import { FONT_CATEGORIES, FONT_CATEGORY_LABELS } from "../../lib/schemas";
 import {
   AuthExpiredError,
   commitFile,
@@ -563,20 +563,7 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
 }
 
 function categoryLabel(cat: FontCategory): string {
-  switch (cat) {
-    case "sans-serif":
-      return "Sans-serif";
-    case "serif":
-      return "Serif";
-    case "monospace":
-      return "Monospace";
-    case "display":
-      return "Display";
-    case "handwriting":
-      return "Handwriting";
-    case "custom":
-      return "Custom (any Google Font)";
-  }
+  return FONT_CATEGORY_LABELS[cat];
 }
 
 /** Coerce any CSS color to a 6-digit hex so <input type="color"> can display

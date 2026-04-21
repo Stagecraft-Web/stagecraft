@@ -14,7 +14,7 @@
 import { getEntry } from "astro:content";
 import { toEmbeddable, type EmbeddableVideo } from "../VideoGallery/toEmbeddable";
 import type { Video } from "../../lib/schemas";
-import { validateVideoProps, withoutAutoplay } from "./resolveSource";
+import { validateVideoProps, withoutAutoplay, type VideoType } from "./resolveSource";
 
 interface Props {
   /** Slug of an entry in the `videos` collection. Mutually exclusive with url. */
@@ -22,7 +22,7 @@ interface Props {
   /** Direct video URL. Mutually exclusive with slug. Requires `type`. */
   url?: string;
   /** Required when `url` is set. */
-  type?: "youtube" | "vimeo";
+  type?: VideoType;
   /** Optional title — used for the iframe's accessible name. */
   title?: string;
   /** Optional caption rendered below the iframe. */

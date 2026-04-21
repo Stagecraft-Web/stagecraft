@@ -6,6 +6,7 @@ import {
   previewTextMuted,
 } from "../_shared/previewTokens";
 import { StockPreviewFrame, CaptionNote } from "../_shared/previewChrome";
+import type { VideoUrlType } from "../_shared/types";
 
 /**
  * Keystatic admin preview for the {% video %} block.
@@ -27,7 +28,7 @@ type VideoSourceValue =
       discriminant: "url";
       value: {
         url: string | null;
-        type: "youtube" | "vimeo";
+        type: VideoUrlType;
         title: string | null;
       };
     };

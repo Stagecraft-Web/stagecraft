@@ -234,6 +234,10 @@ export const themeSchema = z.object({
 
 export const pageFrontmatterSchema = z.object({
   title: z.string().min(1),
+  // When true, this page takes over `/` and renders without the site header
+  // or footer. The regular "home" page (if any) auto-moves to `/home`.
+  // Only one page may be marked as a splash.
+  isSplashPage: z.boolean().optional(),
 });
 
 // ============================================================

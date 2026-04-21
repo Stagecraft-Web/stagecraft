@@ -84,6 +84,29 @@ if (fs.existsSync(pagesDir)) {
   for (const file of pageFiles) {
     validatePageFrontmatter(path.join(pagesDir, file));
   }
+
+  // Only one page may be marked as a splash. More than one would make the
+  // root route (/) ambiguous — the Astro build would also fail, but this
+  // check gives a clearer error before the build runs.
+  const splashPages: string[] = [];
+  for (const file of pageFiles) {
+    const raw = fs.readFileSync(path.join(pagesDir, file), "utf-8");
+    const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) continue;
+    try {
+      const data = yaml.parse(fmMatch[1]);
+      if (data?.isSplashPage === true) splashPages.push(file);
+    } catch {
+      // frontmatter parse errors are already reported by validatePageFrontmatter
+    }
+  }
+  if (splashPages.length > 1) {
+    errors.push(
+      `Multiple splash pages found (${splashPages.join(", ")}). ` +
+        `Only one page can have \`isSplashPage: true\` — it takes over \`/\` and displaces home to \`/home\`. ` +
+        `Uncheck "Splash page" on all but one.`,
+    );
+  }
 } else {
   errors.push("src/content/pages/: directory is missing");
 }

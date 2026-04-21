@@ -1,6 +1,6 @@
 ---
 import { Image } from "astro:assets";
-import { buildNav, getSiteConfig } from "../lib/content";
+import { buildNav, getHomeHref, getSiteConfig } from "../lib/content";
 import { resolveImage } from "../lib/resolve-image";
 
 const nav = await buildNav();
@@ -13,11 +13,16 @@ const currentPath = Astro.url.pathname;
 // fall through to the artist-name text below — safe default.
 const wordmarkImage = site.wordmark ? resolveImage(site.wordmark.src) : undefined;
 const hasWordmark = Boolean(site.wordmark && wordmarkImage);
+
+// Logo targets the real home, not the splash page (which is meant to be
+// seen once on first visit — returning visitors shouldn't land on it again
+// when they click the logo).
+const homeHref = await getHomeHref();
 ---
 
 <header class="site-header">
   <div class="container header-inner">
-    <a href="/" class="site-logo" aria-label={site.artistName}>
+    <a href={homeHref} class="site-logo" aria-label={site.artistName}>
       {hasWordmark && site.wordmark && wordmarkImage ? (
         <Image
           src={wordmarkImage}

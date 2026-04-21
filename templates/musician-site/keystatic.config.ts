@@ -344,7 +344,7 @@ export default config({
         isSplashPage: fields.checkbox({
           label: "Splash page",
           description:
-            'Render this page without the site header or footer. Intended for a landing page with a full-bleed hero and an "enter site" link.',
+            'When enabled, this page appears at "/" (the site root) and renders without the site header or footer. Your regular home page automatically moves to "/home". Link the "Enter Site" button in this page\'s body to /home. Only one page can be marked as a splash.',
           defaultValue: false,
         }),
         content: fields.markdoc({

@@ -41,12 +41,27 @@ export async function buildNav(): Promise<NavItem[]> {
   const allPages = await getCollection("pages");
   const pageMap = new Map(allPages.map((p) => [p.id, p.data]));
 
+  // When a page is marked as a splash, it displaces the home page from `/`
+  // and home auto-moves to `/home`. Nav links to "home" must follow.
+  const homeHref = await getHomeHref();
+
   return navSlugs
     .filter((slug) => pageMap.has(slug))
     .map((slug) => ({
       label: pageMap.get(slug)!.title,
-      href: slug === "home" ? "/" : `/${slug}`,
+      href: slug === "home" ? homeHref : `/${slug}`,
     }));
+}
+
+/**
+ * Where the "home" page actually lives. When a splash page exists, it
+ * displaces home from `/` → `/home`; otherwise home is at `/`. Shared by
+ * `buildNav()` and `Header.astro` (logo link) so both stay in sync.
+ */
+export async function getHomeHref(): Promise<string> {
+  const allPages = await getCollection("pages");
+  const hasSplash = allPages.some((p) => p.data.isSplashPage);
+  return hasSplash ? "/home" : "/";
 }
 
 export function getTheme(): Theme {

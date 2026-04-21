@@ -1,28 +1,83 @@
 # PR screenshots
 
-Screenshots that are embedded in pull-request descriptions live here,
-committed alongside the code change they document.
+Screenshots embedded in pull-request descriptions are hosted on a
+**public gist**, not committed in-tree.
 
-## Directory layout
+## Why a gist
 
+This repo is private. Raw file URLs on a private repo
+(`raw.githubusercontent.com/...`) return 404 for anyone who isn't
+authenticated with repo access — so images committed in-tree
+don't render in the PR body for most viewers. Content served from
+`gist.githubusercontent.com` is anonymously reachable even when the
+author's repos are private, which is exactly what a PR-body image
+embed needs.
+
+Not committing screenshots also keeps the repo free of per-PR
+binary bloat.
+
+## Workflow
+
+### 1. Capture
+
+Capture to a local temp directory. The helper script at
+`scripts/capture-pr-screenshots.mjs` automates the common set
+(site home, every nav page, Keystatic admin home, one per collection):
+
+```bash
+# Terminal 1: dev server
+npm run dev
+
+# Terminal 2: capture
+node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
+     /tmp/pr-<N>-screenshots
 ```
-docs/screenshots/
-  pr-<N>/
-    site-<page-name>.png     # rendered public site
-    admin-<collection>.png   # Keystatic admin view
-    …
+
+See the script header for flags (`--only`, `--jpeg-quality`,
+`--site-format`).
+
+### 2. Upload to a public gist
+
+```bash
+# Seed a public gist (needs at least one file to create it)
+echo "stagecraft PR #<N> screenshots" > /tmp/pr-<N>-readme.md
+gh gist create --public --desc "stagecraft PR #<N> screenshots" \
+  /tmp/pr-<N>-readme.md
+# → prints https://gist.github.com/<user>/<GIST_ID>
+
+# Clone, copy images in, commit
+git clone https://gist.github.com/<GIST_ID>.git /tmp/pr-<N>-gist
+cp /tmp/pr-<N>-screenshots/*.{png,jpg} /tmp/pr-<N>-gist/
+cd /tmp/pr-<N>-gist
+git add -A
+git commit -m "Add PR #<N> screenshots"
+
+# Push — the gist's default clone URL can't auth from CLI, so
+# embed a token in the remote URL:
+git remote set-url origin \
+  "https://<github-user>:$(gh auth token)@gist.github.com/<GIST_ID>.git"
+git push
 ```
 
-- One directory per open PR number (e.g. `pr-35/`).
-- Every screenshot referenced by the PR body lives under that directory.
-- Once the PR merges the directory stays in-tree as a historical record
-  of what the change looked like.
+### 3. Embed in the PR body
+
+```markdown
+![Home page](https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/site-home.jpg)
+![Keystatic releases](https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/admin-releases.png)
+```
+
+Verify each URL returns HTTP 200 anonymously before submitting:
+
+```bash
+curl -sI "https://gist.githubusercontent.com/<user>/<GIST_ID>/raw/site-home.jpg" | head -1
+# HTTP/2 200
+```
 
 ## Naming convention
 
 | Prefix   | Meaning                                            | Example                  |
 | -------- | -------------------------------------------------- | ------------------------ |
-| `site-`  | Public-facing Astro page (rendered at the dev URL) | `site-home.png`          |
+| `site-`  | Public-facing Astro page (rendered at the dev URL) | `site-home.jpg`          |
 | `admin-` | Keystatic admin view (`/keystatic/...`)            | `admin-releases.png`     |
 
 Use the page slug or collection name as the second token. For nested
@@ -33,26 +88,16 @@ admin views, include the item slug: `admin-releases-item-first-album.png`.
 - PNG for admin UI (lots of text, transparency, crisp edges).
 - JPEG (`.jpg`) for site views — they photograph like magazine pages,
   JPEG stays under the budget.
-- Aim for **< 500 KB** per image. If a raw Playwright capture is larger
-  than that, re-run it as JPEG (`type: "jpeg", quality: 80`) or post-
-  process with `pngquant` / `jpegoptim`.
+- Aim for **< 500 KB** per image. If a raw Playwright capture is larger,
+  re-run it as JPEG (`type: "jpeg", quality: 80`) or post-process with
+  `pngquant` / `jpegoptim`.
 - Default viewport is 1440×900 (matches the site crawler skill).
-
-## How to embed in a PR body
-
-Use a **relative path from the repo root**. GitHub resolves it against
-the PR branch automatically:
-
-```markdown
-![Home page](templates/musician-site/docs/screenshots/pr-42/site-home.jpg)
-![Keystatic releases](templates/musician-site/docs/screenshots/pr-42/admin-releases.png)
-```
 
 ## Refactor-only PRs
 
 If a PR is a pure refactor with no visible UI change (no site-side
-diff, no Keystatic admin diff), screenshots may be omitted. In that
-case the PR body should say so explicitly, e.g.:
+diff, no Keystatic admin diff), screenshots may be omitted. Document
+that in the PR body explicitly, e.g.:
 
 > No screenshots — pure refactor, no visible UI change.
 
@@ -60,14 +105,12 @@ If the refactor touches a Keystatic admin surface (say, derived
 `fields.select` options), still capture one admin screenshot showing
 the options continue to render correctly post-refactor.
 
-## Capturing screenshots
+## Keystatic admin needs auth?
 
-The helper script at `scripts/capture-pr-screenshots.mjs` automates
-the common captures (site home, every nav page, Keystatic admin home,
-one screenshot per collection). See that script's top-of-file
-comment for usage.
-
-If your local Keystatic admin requires authentication you can't
-satisfy headlessly, the script skips the `admin-*` captures and
-logs a warning — capture those manually from a signed-in browser
-and drop the PNGs into the `pr-<N>/` directory with the same naming.
+The template's dev Keystatic runs in `local` storage mode without
+sign-in, so the capture script reaches the admin dashboard headlessly.
+If your setup uses `PUBLIC_KEYSTATIC_STORAGE=github`, the admin
+requires OAuth — the script will hit the sign-in page instead.
+Capture admin frames manually from a signed-in browser in that case
+and drop them into your `/tmp/pr-<N>-screenshots/` directory with the
+standard naming before uploading to the gist.

@@ -14,7 +14,12 @@ Boot the dev server, then in another terminal:
 
 ```bash
 node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
-     docs/screenshots/pr-<N>
+     /tmp/pr-<N>-screenshots
 ```
 
-See `docs/screenshots/README.md` for the PR-screenshot convention.
+Captures to a local temp directory — the images are then uploaded to
+a public gist and referenced from the PR body (this repo is private,
+so in-tree raw URLs don't render anonymously).
+
+See `docs/screenshots/README.md` for the full PR-screenshot convention
+including the gist upload workflow.

@@ -7,6 +7,11 @@
  * site + every page in the nav singleton, then visits the Keystatic
  * admin and captures each collection listing.
  *
+ * Output goes to a local directory — PR screenshots are then uploaded
+ * to a public gist and referenced from the PR body (this repo is
+ * private, so in-tree raw URLs 404 for anonymous viewers). See
+ * `docs/screenshots/README.md` for the full upload workflow.
+ *
  * Usage:
  *   node scripts/capture-pr-screenshots.mjs <dev-server-url> <output-dir>
  *     [--only site-home,admin-releases,...]
@@ -16,11 +21,11 @@
  * Examples:
  *   # Start the dev server separately, then:
  *   node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
- *        docs/screenshots/pr-35
+ *        /tmp/pr-35-screenshots
  *
  *   # Only capture the press page + its admin view:
  *   node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
- *        docs/screenshots/pr-35 --only site-press,admin-pages
+ *        /tmp/pr-35-screenshots --only site-press,admin-pages
  *
  * Output naming:
  *   site-<slug>.jpg    for each public page (home -> site-home.jpg)

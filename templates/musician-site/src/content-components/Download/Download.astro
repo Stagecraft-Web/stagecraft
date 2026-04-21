@@ -117,7 +117,7 @@ const lightboxEventName = `open-lightbox-${instanceId}`;
 
 {downloadUrl && (
   <article class={`download download-${kind}`} data-kind={kind}>
-    <div class="download-preview">
+    <div class="download-media" data-kind={kind}>
       {kind === "photo" && bundledImage && (
         <>
           <button
@@ -173,37 +173,40 @@ const lightboxEventName = `open-lightbox-${instanceId}`;
       )}
 
       {(kind === "pdf" || kind === "other") && (
-        <div class={`download-icon-tile download-icon-${kind}`} aria-hidden="true">
-          {kind === "pdf" ? (
-            <svg
-              width="44"
-              height="44"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.25"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <text x="12" y="17" text-anchor="middle" font-size="5.5" fill="currentColor" stroke="none" font-family="sans-serif" font-weight="700">PDF</text>
-            </svg>
-          ) : (
-            <svg
-              width="44"
-              height="44"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.25"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-          )}
+        <div class={`download-icon-tile download-icon-${kind}`}>
+          <div class="download-icon-glyph" aria-hidden="true">
+            {kind === "pdf" ? (
+              <svg
+                width="44"
+                height="44"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <text x="12" y="17" text-anchor="middle" font-size="5.5" fill="currentColor" stroke="none" font-family="sans-serif" font-weight="700">PDF</text>
+              </svg>
+            ) : (
+              <svg
+                width="44"
+                height="44"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            )}
+          </div>
+          <div class="download-icon-filename">{filename}</div>
         </div>
       )}
     </div>
@@ -242,31 +245,38 @@ const lightboxEventName = `open-lightbox-${instanceId}`;
 
 <style>
   .download {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     padding: 0.875rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: var(--color-surface);
-    align-items: start;
+    /* Standalone (outside a .downloads wrapper) — keep sane readable width.
+       Inside a wrapper, the parent grid/flex constrains width already. */
+    max-width: 32rem;
   }
 
-  /* Grid layout — stack preview above meta for card-like items. */
-  :global(.downloads-grid) .download {
-    grid-template-columns: 1fr;
+  /* Inside a Downloads wrapper, let the wrapper's grid/flex drive width. */
+  :global(.downloads) .download {
+    max-width: none;
   }
 
-  .download-preview {
+  /* ---------- 4:3 media area (same container for every kind) ------------- */
+
+  .download-media {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 8rem;
+    background: var(--color-background);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
 
-  :global(.downloads-grid) .download-preview {
-    min-width: 0;
-  }
+  /* ---------- photo ------------------------------------------------------ */
 
   .download-photo-btn {
     background: none;
@@ -274,43 +284,63 @@ const lightboxEventName = `open-lightbox-${instanceId}`;
     padding: 0;
     cursor: pointer;
     display: block;
-    border-radius: var(--radius);
-    overflow: hidden;
+    width: 100%;
+    height: 100%;
     line-height: 0;
   }
 
   .download-photo-thumb {
     display: block;
-    width: auto;
-    max-width: 100%;
-    max-height: 240px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    border-radius: var(--radius);
   }
 
-  .download-audio,
+  /* ---------- audio: centered inside 4:3 box ---------------------------- */
+
+  .download-audio {
+    width: calc(100% - 1.5rem);
+    max-width: 24rem;
+  }
+
+  /* ---------- video: fills 4:3 area with cover fit ---------------------- */
+
   .download-video {
     width: 100%;
-    max-width: 320px;
-    border-radius: var(--radius);
+    height: 100%;
+    object-fit: cover;
+    background: var(--color-background);
   }
 
-  :global(.downloads-grid) .download-audio,
-  :global(.downloads-grid) .download-video {
-    max-width: 100%;
-  }
+  /* ---------- pdf / other: icon + filename, vertically centered --------- */
 
   .download-icon-tile {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: var(--color-text-muted);
+  }
+
+  .download-icon-glyph {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 5.5rem;
-    height: 5.5rem;
-    color: var(--color-text-muted);
-    background: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
   }
+
+  .download-icon-filename {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+    word-break: break-all;
+    max-width: 100%;
+  }
+
+  /* ---------- meta (below media area, unchanged behaviour) -------------- */
 
   .download-meta {
     min-width: 0;
@@ -347,12 +377,5 @@ const lightboxEventName = `open-lightbox-${instanceId}`;
   .download-size {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
-  }
-
-  /* Small-screen: always stack preview above meta regardless of layout. */
-  @media (max-width: 540px) {
-    .download {
-      grid-template-columns: 1fr;
-    }
   }
 </style>

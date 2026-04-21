@@ -23,4 +23,15 @@ For press inquiries, booking, or media requests, please use the contact page or 
      sizeLabel="1 page" /%}
 {% /downloads %}
 
+## Standalone download (no wrapper)
+
+A `{% download %}` tag also works on its own, inline with prose — no wrapping `{% downloads %}` needed.
+
+{% download
+   label="Bio (one-sheet PDF)"
+   file="./example-one-sheet.pdf"
+   kind="pdf"
+   description="Short bio and tech details for blog posts or write-ups."
+   sizeLabel="1 page" /%}
+
 {% press-quotes /%}

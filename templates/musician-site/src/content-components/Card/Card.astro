@@ -42,11 +42,6 @@ interface Props {
   size?: CardSize;
   /** Adds a lift-on-hover effect. Pairs naturally with `href`. */
   hover?: boolean;
-  /** When true, removes the card's surface-color background while preserving
-   *  the variant's border and padding. Useful when a card sits on a page
-   *  section that already has its own colored background (e.g. a dark hero)
-   *  and the surface fill would create a visible tile against it. */
-  isNoBackground?: boolean;
   /** Extra class on the root — useful for internal callers (ReleaseList) that
    *  want to target specific cards without reaching into Card's internals. */
   class?: string;
@@ -81,7 +76,6 @@ const {
   orientation = "vertical",
   size = "md",
   hover = false,
-  isNoBackground = false,
   class: className,
   href,
   isExternal = false,
@@ -230,7 +224,6 @@ const rootClass = [
   `card-${orientation}`,
   `card-${size}`,
   hover ? "card-hover" : null,
-  isNoBackground ? "card-no-background" : null,
   resolvedKind !== "none" ? "card-has-media" : "card-no-media",
   href ? "card-as-link" : null,
   className,
@@ -458,14 +451,6 @@ const rootClass = [
     padding: 1.375rem;
   }
 
-  /* --- no-background modifier ------------------------------------------- */
-
-  /* Flips off just the surface fill. Composes with any variant; most useful
-     with `filled` on a page section that already has its own coloured
-     background. Border + rounding + padding stay intact. */
-  .card-no-background {
-    background: transparent;
-  }
 
   /* In horizontal filled/outlined, the media area sits flush-left; padding
      goes on content only (mirroring PostsList's pre-refactor behaviour). */

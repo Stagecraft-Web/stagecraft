@@ -29,7 +29,6 @@ export const markdoc: MarkdocTagDefinition = {
     orientation: { type: String, matches: [...CARD_ORIENTATIONS] },
     size: { type: String, matches: [...CARD_SIZES] },
     hover: { type: Boolean },
-    isNoBackground: { type: Boolean },
 
     // Whole-card link
     href: { type: String },
@@ -147,13 +146,6 @@ export const keystatic: KeystaticContentComponent = wrapper({
       label: "Hover lift",
       description:
         "Adds a subtle lift-on-hover effect. Natural pairing with a link URL.",
-      defaultValue: false,
-    }),
-
-    isNoBackground: fields.checkbox({
-      label: "No background",
-      description:
-        "Removes the card's surface-color fill while keeping its border, padding, and rounded corners. Useful when the card sits on a page section that already has its own coloured background.",
       defaultValue: false,
     }),
 

@@ -59,7 +59,6 @@ export default {
         "orientation": { type: String, matches: ["vertical","horizontal"] },
         "size": { type: String, matches: ["sm","md","lg"] },
         "hover": { type: Boolean },
-        "isNoBackground": { type: Boolean },
         "href": { type: String },
         "isExternal": { type: Boolean },
         "media": { type: String },

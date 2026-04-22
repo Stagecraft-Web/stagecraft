@@ -29,10 +29,23 @@ If multiple candidates exist and the caller is the pipeline, prefer the run-dir 
 
 Before starting, verify you can read the stagecraft template:
 
-- `templates/musician-site/` exists in the current repo
-- `templates/musician-site/src/content-components/` — enumerate the available content components (current set includes: `Section`, `FullscreenSection`, `Columns`, `Column`, `Button`, `Image`, `ReleaseList`, `PhotoGallery`, `PressQuotes`, `ContactForm`). Rely on this enumeration, not memory — the set evolves.
+- `templates/musician-site/` exists in the current repo (OR the invocation explicitly names a template path in another repo — cross-repo reads via Bash `cp -R` work even when the target-dir is elsewhere)
+- `templates/musician-site/src/content-components/` — enumerate the available content components (current set includes: `Section`, `FullscreenSection`, `Columns`, `Column`, `Button`, `Image`, `Card`, `ReleaseList`, `PhotoGallery`, `PressQuotes`, `ContactForm`). Rely on this enumeration, not memory — the set evolves.
 - `templates/musician-site/src/content/` — existing example pages and singletons (site config, nav, theme) that show the expected shapes
 - `templates/musician-site/src/lib/schemas.*` — zod schemas for singletons; consult these when writing config files
+
+## Sandbox / write-access check (first 30 seconds)
+
+Before any substantive work, confirm you can actually write to `<target-dir>`. This is cheap and catches sandboxing issues in seconds instead of after ~10 minutes of doomed work.
+
+1. `mkdir -p <target-dir>` (or verify it exists if the orchestrator pre-created it).
+2. Sanity-write: `echo ok > <target-dir>/_sanity.txt && rm <target-dir>/_sanity.txt`.
+3. If that Bash write fails, STOP. Report the exact error to the caller. Do not:
+   - Try `dangerouslyDisableSandbox` on Bash in a loop.
+   - Attempt the Edit tool on copied template files hoping for different behaviour.
+   - cp in the template anyway and hope later writes succeed.
+
+The sandbox is deterministic: if the sanity write fails, every subsequent write to that subtree will fail. Fail fast and surface the issue — the pipeline's Step 0 has rules about choosing a writable path, and the caller can redirect before more tokens are spent.
 
 ## Workflow
 

@@ -32,13 +32,57 @@ Single-site vs. batch doesn't change the mode — pass one or many.
 
 The run-dir is the single workspace holding this batch's `index.json`, `crawls/`, and `recreations/`. Its resolution depends on the mode.
 
+### Path choice — `.claude/runs/` vs `pipeline-runs/`
+
+**Default:** `.claude/runs/<YYYY-MM-DDTHH-MM>/` — matches the convention the individual skills (`crawl-artist-site`, `recreate-artist-site`, `evaluate-artist-site-recreation`) use when you pass `run-dir=` forward.
+
+**Exception — parallel subagents:** if you plan to dispatch one subagent per site for Phase 2 / Phase 3 (the normal batch pattern), the run-dir MUST live somewhere each subagent can write to. Concrete constraints discovered in practice:
+
+1. **Subagent writes are cwd-scoped.** Each subagent inherits the main agent's cwd; `Write` / `Edit` / Bash-redirect into paths outside that tree are denied even when the main agent can write there.
+2. **Nested `.claude/` inside the cwd is subagent-locked.** If the main agent runs from inside a worktree (e.g. `repo/.claude/worktrees/<name>/`), writes to that worktree's own `<name>/.claude/...` are blocked for subagents. The *outer* `.claude/` (parent of the worktree) is fine — that's the directory the worktree sits inside — but anything the subagent tries to create at `<name>/.claude/foo/bar` will fail.
+
+When those constraints apply, use a sibling directory at the cwd root:
+
+```bash
+RUN_ID=$(date '+%Y-%m-%dT%H-%M')
+RUN_DIR="pipeline-runs/$RUN_ID"    # not .claude/runs/
+mkdir -p "$RUN_DIR"
+```
+
+Test the path is subagent-writable before dispatching work:
+
+```bash
+mkdir -p "$RUN_DIR/recreations/_probe" && echo ok > "$RUN_DIR/recreations/_probe/sanity.txt" && rm -rf "$RUN_DIR/recreations/_probe"
+```
+
+If that smoke-test Bash write fails, the chosen location is wrong — retry under a different path before spending tokens on a subagent that will hit the same wall.
+
+The individual child skills (`recreate-artist-site`, `evaluate-artist-site-recreation`) don't care whether the run-dir is `.claude/runs/*` or `pipeline-runs/*` — they only care that `<run-dir>/crawls/<slug>/` and `<run-dir>/recreations/<slug>/` resolve. Legacy auto-discovery paths (`.claude/runs/*/crawls/<slug>/`, `.claude/site-crawls/<slug>/`) still work as read sources regardless of where the output run-dir lives.
+
+### Cross-repo setups (crawl source ≠ output location)
+
+Crawls from a different repo checkout can be read through symlinks into the output run-dir. Subagents traverse symlinks for reads; only their writes are cwd-scoped. Typical shape:
+
+```
+<cwd>/
+  pipeline-runs/2026-04-22T07-43/        ← output, writable for subagents
+    crawls/
+      artist-a/    → /path/to/other-repo/.claude/runs/.../crawls/artist-a/    (symlink)
+      artist-b/    → /path/to/other-repo/.claude/runs/.../crawls/artist-b/    (symlink)
+    recreations/
+      artist-a/    ← real dir written by the subagent
+      artist-b/
+```
+
+Template source can also live in a different repo — subagents `cp -R` it into their recreation dir via Bash (reads are unrestricted), and everything after that happens inside the writable output tree.
+
 ### Full pipeline / crawl-only
 
 - If `run-dir=<path>` is explicit, use it.
-- Otherwise generate a fresh one:
+- Otherwise generate a fresh one per the path-choice rules above (`.claude/runs/` by default, `pipeline-runs/` if subagent writes will land there):
   ```bash
   RUN_ID=$(date '+%Y-%m-%dT%H-%M')
-  RUN_DIR=".claude/runs/$RUN_ID"
+  RUN_DIR=".claude/runs/$RUN_ID"      # or pipeline-runs/$RUN_ID for subagent-parallel runs
   mkdir -p "$RUN_DIR"
   ```
 
@@ -132,17 +176,51 @@ If `crawl-only` was set, stop here and summarize.
 
 For each slug, follow the `recreate-artist-site` workflow, passing `run-dir=<run-dir>`. That skill's option A (`run-dir=`) derives `crawl-dir` as `<run-dir>/crawls/<slug>/` — which works correctly whether the crawl is a real directory or a symlink from Step 0.
 
-**Parallelism:** recreations are I/O + compute heavy (npm install, image downloads, build). Run them sequentially by default. Only parallelize if the user explicitly asks and has a fast machine.
+### Parallelism via subagents
+
+Recreations are I/O + compute heavy (npm install, image downloads, build). For batches of ≥ 2 sites, **dispatch one subagent per site via the Agent tool**. In practice this halves or quarters wall-clock vs. sequential-in-main, and each site's build runs in its own node_modules/ so they don't collide.
+
+**Always run a smoke-test subagent on ONE site before fanning out.** The first subagent confirms the run-dir is actually writable for subagents (Step 0's sanity-check is a proxy but hits a narrower surface than a real recreate). Only dispatch the remaining N-1 subagents after the smoke test returns a real `RECREATION_REPORT.md` path. This avoids spending tokens on N parallel subagents that all hit the same sandbox wall.
+
+**Instruct each subagent to fail fast on the first write denial.** If the sandbox blocks their output path, they should stop and report the exact error rather than looping through Write → Edit → Bash redirect → `dangerouslyDisableSandbox` workarounds. The loop wastes tokens without producing anything recoverable.
+
+### Subagent prompt essentials
+
+Each subagent needs at minimum:
+
+- The run-dir path (absolute — relative paths break across subagent cwds)
+- The slug they own; explicit instruction not to touch other slugs' directories
+- The template source path (can be in a different repo — Bash reads work)
+- A unique evaluation port (see Phase 3's convention)
+- A reminder that writes outside the main agent's cwd tree are denied
+- Instructions to follow the `recreate-artist-site` and `evaluate-artist-site-recreation` skills at `~/.claude/skills/<skill-name>/SKILL.md`
+- A short report-back template (under ~300 words) so they don't over-narrate
 
 Output lands at `<run-dir>/recreations/<slug>/`.
 
-Update `index.json` after each recreation.
+Update `index.json` as each subagent reports back.
 
 ## Phase 3 — Evaluate
 
-For each slug, follow the `evaluate-artist-site-recreation` workflow, passing `run-dir=<run-dir>`. Run sequentially — each evaluation boots a local server on a unique port.
+For each slug, follow the `evaluate-artist-site-recreation` workflow, passing `run-dir=<run-dir>`.
 
-**Re-evaluate mode housekeeping:** if `<recreation-dir>/RECREATION_REPORT.md` already exists, archive it as `RECREATION_REPORT-<previous-date>.md` before writing the new one. The evaluate skill does this automatically; just verify it happened.
+### Port assignment for parallel evaluations
+
+Each evaluation boots a local server, so parallel runs need distinct ports. Use `4322 + <slug-index>`:
+
+- site 1 → 4322
+- site 2 → 4323
+- site 3 → 4324
+- site 4 → 4325
+- site 5 → 4326
+
+This avoids clashing with the user's dev server (typically 4321) and keeps ports contiguous and easy to clean up with `lsof -ti:4322-4326 | xargs kill` if a subagent leaves one dangling.
+
+When each subagent owns its full site (recreate + evaluate together, which is the recommended batch pattern), just pass that site's assigned port in the subagent prompt.
+
+### Re-evaluate mode housekeeping
+
+If `<recreation-dir>/RECREATION_REPORT.md` already exists, archive it as `RECREATION_REPORT-<previous-date>.md` before writing the new one. The evaluate skill does this automatically; just verify it happened.
 
 Reports land at `<run-dir>/recreations/<slug>/RECREATION_REPORT.md`.
 

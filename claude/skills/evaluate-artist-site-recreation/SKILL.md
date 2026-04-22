@@ -35,6 +35,7 @@ If `<recreation-dir>/RECREATION_REPORT.md` already exists (re-evaluation case), 
 - Recreation must be runnable locally (`npm run build` + static serve, or `npm run dev`)
 - The `crawl-artist-site` skill must be available — this skill invokes its workflow against the local URL
 - `jq` and standard Unix tools for parsing crawl JSON. No pixel-diff libraries required (visual comparison is reasoning-based; the user can add `pixelmatch` later if they want a quantitative metric, but exact-pixel diffs on a redesigned site aren't very meaningful)
+- **Write access to `<run-dir>/crawls/<slug>--recreation/`** (for the recreation crawl output) and `<recreation-dir>` (for `RECREATION_REPORT.md`). Sanity-write to both at the start and bail with a clear error if either fails — per the sandbox note in `recreate-artist-site`, `<run-dir>` under a nested `.claude/` is subagent-locked in the default path, and the caller should have picked a writable alternative before dispatching.
 
 ## Workflow
 
@@ -43,9 +44,10 @@ If `<recreation-dir>/RECREATION_REPORT.md` already exists (re-evaluation case), 
 1. `cd` to the recreation directory
 2. Prefer a production-style serve: run `npm run build`, then serve `dist/` on a free port via `npx serve dist -p <PORT>` or equivalent. This captures what the site looks like deployed, not the dev overlay.
 3. Fallback: `npm run dev -- --port <PORT>` if the build is flaky. Note in the report that you used dev mode.
-4. Pick a free port. Try 4322, 8989, or 4000 — use `lsof -i :<PORT>` to check. Avoid the user's default dev port.
+4. **Pick a port using the batch-convention when invoked by the pipeline:** `4322 + <site-index>` (site 1 → 4322, site 2 → 4323, …, site N → 4322 + N − 1). This avoids the user's default dev server on 4321 and keeps parallel evaluations cleanly separated. For ad-hoc single-site invocations outside the pipeline, 4322 / 8989 / 4000 are fine. Use `lsof -i :<PORT>` to confirm it's free.
 5. Wait for the server to respond (poll `curl -s http://localhost:<PORT>`). Time out at 30s.
 6. Run the server as a background process so you can kill it after the crawl.
+7. **Always kill your server before returning,** including on error paths. Parallel evaluations leave orphaned servers on 4322–4326 otherwise; the next batch will hit "address in use". A `trap` on your background PID or an explicit kill in a `finally`-style step works.
 
 ### 2. Crawl the recreation
 

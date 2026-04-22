@@ -24,6 +24,7 @@ export * as Columns from "./Columns";
 export * as Column from "./Column";
 export * as Image from "./Image";
 export * as Video from "./Video";
+export * as Card from "./Card";
 export * as ReleaseList from "./ReleaseList";
 export * as PressQuotes from "./PressQuotes";
 export * as PhotoGallery from "./PhotoGallery";
@@ -42,6 +43,7 @@ import * as Columns from "./Columns";
 import * as Column from "./Column";
 import * as Image from "./Image";
 import * as Video from "./Video";
+import * as Card from "./Card";
 import * as ReleaseList from "./ReleaseList";
 import * as PressQuotes from "./PressQuotes";
 import * as PhotoGallery from "./PhotoGallery";
@@ -66,6 +68,7 @@ export const components = [
   Column,
   Image,
   Video,
+  Card,
   ReleaseList,
   PressQuotes,
   PhotoGallery,

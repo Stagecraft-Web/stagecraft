@@ -4,11 +4,10 @@
 // delegated to the pure helper in src/lib/resolve-posts.ts so the logic
 // stays unit-testable.
 //
-// Each card links to the internal `/news/<slug>` page by default, or to
-// `post.data.externalUrl` when the author set one (e.g. for off-site press
-// pickups). External links open in a new tab.
+// Each post is a <Card href={postHref} hover> composition — the grid vs.
+// list toggle just swaps Card's `orientation` and `mediaAspect`.
 import { getCollection } from "astro:content";
-import { Image } from "astro:assets";
+import Card from "../Card/Card.astro";
 import {
   resolvePosts,
   getPostHref,
@@ -40,6 +39,12 @@ const formatDate = (iso: string) => {
     day: "numeric",
   });
 };
+
+const orientation = layout === "list" ? "horizontal" : "vertical";
+// Grid posts look best at 16:9 (widescreen blog thumbnails). In list mode
+// the media is a fixed side column whose height is driven by content, so
+// aspect is left auto (Card handles that by construction for horizontal).
+const mediaAspect = layout === "list" ? "auto" : "16:9";
 ---
 
 {posts.length > 0 && (
@@ -49,31 +54,21 @@ const formatDate = (iso: string) => {
       const isExternal = isPostExternal(post);
       return (
         <li class="posts-list-item">
-          <a
-            class="posts-list-link"
+          <Card
             href={href}
-            target={isExternal ? "_blank" : undefined}
-            rel={isExternal ? "noopener noreferrer" : undefined}
+            isExternal={isExternal}
+            eyebrow={post.data.category}
+            title={post.data.title}
+            meta={formatDate(post.data.publishedDate)}
+            media={post.data.featuredImage?.src}
+            mediaAlt={post.data.featuredImage?.alt}
+            mediaAspect={mediaAspect}
+            orientation={orientation}
+            variant="filled"
+            hover
           >
-            {post.data.featuredImage && (
-              <div class="posts-list-image">
-                <Image
-                  src={post.data.featuredImage.src}
-                  alt={post.data.featuredImage.alt}
-                />
-              </div>
-            )}
-            <div class="posts-list-body">
-              <p class="posts-list-category">{post.data.category}</p>
-              <h3 class="posts-list-title">{post.data.title}</h3>
-              <time class="posts-list-date" datetime={post.data.publishedDate}>
-                {formatDate(post.data.publishedDate)}
-              </time>
-              {post.data.excerpt && (
-                <p class="posts-list-excerpt">{post.data.excerpt}</p>
-              )}
-            </div>
-          </a>
+            {post.data.excerpt && <p class="posts-list-excerpt">{post.data.excerpt}</p>}
+          </Card>
         </li>
       );
     })}
@@ -102,79 +97,14 @@ const formatDate = (iso: string) => {
     margin: 0;
   }
 
-  .posts-list-link {
-    display: flex;
-    flex-direction: column;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    color: inherit;
-    text-decoration: none;
+  /* Card handles its own hover effect; we just make sure the card fills the
+     list item so clicks land anywhere inside the tile. */
+  .posts-list-item :global(.card) {
     height: 100%;
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-
-  .posts-list--list .posts-list-link {
-    flex-direction: row;
-    align-items: stretch;
-  }
-
-  .posts-list-link:hover,
-  .posts-list-link:focus-visible {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-  }
-
-  .posts-list-image {
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    background: var(--color-border);
-  }
-
-  .posts-list--list .posts-list-image {
-    width: 180px;
-    flex-shrink: 0;
-    aspect-ratio: auto;
-  }
-
-  .posts-list-image :global(img) {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .posts-list-body {
-    padding: 1rem 1.25rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-    flex: 1;
-  }
-
-  .posts-list-category {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-secondary);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .posts-list-title {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    line-height: 1.3;
-  }
-
-  .posts-list-date {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
   }
 
   .posts-list-excerpt {
-    margin: 0.25rem 0 0;
+    margin: 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
     line-height: 1.5;

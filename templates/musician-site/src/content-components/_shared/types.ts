@@ -137,3 +137,77 @@ export const VIDEO_URL_TYPE_LABELS: Record<VideoUrlType, string> = {
   youtube: "YouTube",
   vimeo: "Vimeo",
 };
+
+// ---------------------------------------------------------------------------
+// Card — the generic tile primitive used both directly as `{% card %}` and
+// internally by specialised list components (ReleaseList, PostsList) that
+// render a Card per collection entry. See src/content-components/Card/ for
+// the implementation.
+// ---------------------------------------------------------------------------
+
+/** Container style. "filled" = bg + border (default); "outlined" = border
+ *  only; "bare" = no chrome. */
+export const CARD_VARIANTS = ["filled", "outlined", "bare"] as const;
+export type CardVariant = (typeof CARD_VARIANTS)[number];
+
+export const CARD_VARIANT_LABELS: Record<CardVariant, string> = {
+  filled: "Filled (bg + border)",
+  outlined: "Outlined (border only)",
+  bare: "Bare (no chrome)",
+};
+
+/** How media sits relative to body. "vertical" = media above (default);
+ *  "horizontal" = media beside body. Horizontal stacks to vertical on narrow
+ *  screens. */
+export const CARD_ORIENTATIONS = ["vertical", "horizontal"] as const;
+export type CardOrientation = (typeof CARD_ORIENTATIONS)[number];
+
+export const CARD_ORIENTATION_LABELS: Record<CardOrientation, string> = {
+  vertical: "Vertical (media above)",
+  horizontal: "Horizontal (media beside)",
+};
+
+/** Size controls padding + type scale. */
+export const CARD_SIZES = ["sm", "md", "lg"] as const;
+export type CardSize = (typeof CARD_SIZES)[number];
+
+export const CARD_SIZE_LABELS: Record<CardSize, string> = {
+  sm: "Small",
+  md: "Medium",
+  lg: "Large",
+};
+
+/** Media aspect ratio. `auto` lets the media keep its intrinsic aspect
+ *  (used when there's no media, or for native `<audio>` / horizontal lists). */
+export const CARD_MEDIA_ASPECTS = ["4:3", "1:1", "16:9", "auto"] as const;
+export type CardMediaAspect = (typeof CARD_MEDIA_ASPECTS)[number];
+
+export const CARD_MEDIA_ASPECT_LABELS: Record<CardMediaAspect, string> = {
+  "4:3": "4:3 (photo, general)",
+  "1:1": "1:1 (album art, square)",
+  "16:9": "16:9 (video, widescreen)",
+  auto: "Auto",
+};
+
+/** Kind of media the card renders. `auto` = infer from `media` / `file`
+ *  extension (recommended default; authors usually don't set this). */
+export const CARD_MEDIA_KINDS = [
+  "auto",
+  "photo",
+  "audio",
+  "video",
+  "pdf",
+  "icon",
+  "none",
+] as const;
+export type CardMediaKind = (typeof CARD_MEDIA_KINDS)[number];
+
+export const CARD_MEDIA_KIND_LABELS: Record<CardMediaKind, string> = {
+  auto: "Auto (infer from file extension)",
+  photo: "Photo (thumbnail)",
+  audio: "Audio (inline player)",
+  video: "Video (inline player)",
+  pdf: "PDF icon",
+  icon: "Generic file icon",
+  none: "None (no media)",
+};

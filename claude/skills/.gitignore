@@ -1,0 +1,4 @@
+# Installed per-skill via `npm install` on first use (see crawl-artist-site
+# first-run setup in its SKILL.md). Excluded from version control to avoid
+# committing large platform-specific binaries (Playwright's Chromium etc.).
+node_modules/

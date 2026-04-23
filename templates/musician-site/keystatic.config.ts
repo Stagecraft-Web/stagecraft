@@ -277,7 +277,7 @@ export default config({
         colors: fields.object(
           {
             primary: fields.text({ label: "Primary (headings, logo)", defaultValue: "#1a1a2e" }),
-            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#e94560" }),
+            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#b91c4a" }),
             accent: fields.text({ label: "Accent", defaultValue: "#0f3460" }),
             // Optional — leave blank to reuse Accent. Authors who want links to
             // read differently from the main accent/CTA color (e.g. a subdued
@@ -292,7 +292,7 @@ export default config({
             surface: fields.text({ label: "Surface (cards, panels)", defaultValue: "#ffffff" }),
             text: fields.text({ label: "Body text", defaultValue: "#1a1a2e" }),
             textMuted: fields.text({ label: "Muted text", defaultValue: "#6b7280" }),
-            border: fields.text({ label: "Borders & dividers", defaultValue: "#e5e7eb" }),
+            border: fields.text({ label: "Borders & dividers", defaultValue: "#7c828b" }),
           },
           {
             label: "Colors",

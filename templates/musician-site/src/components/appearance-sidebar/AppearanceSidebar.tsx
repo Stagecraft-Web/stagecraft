@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
 import type { FontCategory } from "../../lib/schemas";
 import { FONT_CATEGORIES, FONT_CATEGORY_LABELS } from "../../lib/schemas";
+import { checkContrast, type ContrastResult } from "../../lib/color-contrast";
 import {
   AuthExpiredError,
   commitFile,
@@ -96,6 +97,15 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
     () => JSON.stringify(draft) !== JSON.stringify(committed),
     [draft, committed],
   );
+
+  // Recompute on every keystroke — the whole palette is ~10 pairs of cheap
+  // floating-point math, no need to debounce.
+  const contrastResults = useMemo(() => checkContrast(draft.colors), [draft.colors]);
+  const contrastFailures = useMemo(
+    () => contrastResults.filter((r) => !r.passes),
+    [contrastResults],
+  );
+  const hasContrastFailure = contrastFailures.length > 0;
 
   const updateDraft = useCallback(
     (patch: (prev: AppearanceState) => AppearanceState) => {
@@ -272,7 +282,11 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
           <h3 id="stagecraft-colors" className={styles.sectionTitle}>
             Colors
           </h3>
-          <ColorFields draft={draft} onChange={updateDraft} />
+          <ColorFields
+            draft={draft}
+            onChange={updateDraft}
+            contrastFailures={contrastFailures}
+          />
         </section>
 
         <section className={styles.section} aria-labelledby="stagecraft-typography">
@@ -283,6 +297,23 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
         </section>
 
         <footer className={styles.footer}>
+          {hasContrastFailure && (
+            <div className={styles.contrastBanner} role="alert">
+              <strong className={styles.contrastBannerTitle}>Color contrast issues</strong>
+              <p className={styles.contrastBannerHint}>
+                Fix these before saving. WCAG AA requires 4.5:1 for body text and 3:1 for large
+                text.
+              </p>
+              <ul className={styles.contrastBannerList}>
+                {contrastFailures.map((f) => (
+                  <li key={f.pair.label}>
+                    {f.pair.label}:{" "}
+                    {Number.isFinite(f.ratio) ? f.ratio.toFixed(2) : "?"}:1, needs {f.required}:1
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {saveStatus.kind === "error" && (
             <div className={styles.errorBanner} role="alert">
               {saveStatus.message}
@@ -316,7 +347,15 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
                 saveStatus.kind === "saving" ||
                 // Only github mode needs a branch selected; local mode has
                 // no such dependency.
-                (isGitHub && !branch)
+                (isGitHub && !branch) ||
+                // Contrast failures hard-block saving — no override. Authors
+                // must fix the palette before the Save button becomes active.
+                hasContrastFailure
+              }
+              title={
+                hasContrastFailure
+                  ? `Fix ${contrastFailures.length} color-contrast issue${contrastFailures.length === 1 ? "" : "s"} before saving.`
+                  : undefined
               }
             >
               {saveStatus.kind === "saving" ? "Saving…" : "Save"}
@@ -337,7 +376,11 @@ interface FieldProps {
   onChange: (patch: (prev: AppearanceState) => AppearanceState) => void;
 }
 
-function ColorFields({ draft, onChange }: FieldProps) {
+interface ColorFieldsProps extends FieldProps {
+  contrastFailures: ContrastResult[];
+}
+
+function ColorFields({ draft, onChange, contrastFailures }: ColorFieldsProps) {
   const fields: Array<{ key: keyof AppearanceState["colors"]; label: string }> = [
     { key: "primary", label: "Primary" },
     { key: "secondary", label: "Secondary" },
@@ -356,41 +399,62 @@ function ColorFields({ draft, onChange }: FieldProps) {
 
   return (
     <>
-      {fields.map(({ key, label }) => (
-        <div className={styles.field} key={key}>
-          <label className={styles.label}>{label}</label>
-          <div className={styles.colorRow}>
-            {/* <input type="color"> gives us the OS color picker; the text
-                input next to it preserves the full CSS value (hex, rgb(),
-                rgba()) and lets people paste anything. */}
-            <input
-              type="color"
-              className={styles.colorSwatch}
-              value={toHex(draft.colors[key])}
-              onChange={(e) =>
-                onChange((prev) => ({
-                  ...prev,
-                  colors: { ...prev.colors, [key]: e.target.value },
-                }))
-              }
-              aria-label={`${label} (color picker)`}
-            />
-            <input
-              type="text"
-              className={styles.colorInput}
-              value={draft.colors[key]}
-              onChange={(e) =>
-                onChange((prev) => ({
-                  ...prev,
-                  colors: { ...prev.colors, [key]: e.target.value },
-                }))
-              }
-              aria-label={`${label} (text)`}
-              spellCheck={false}
-            />
+      {fields.map(({ key, label }) => {
+        // A failure is "because of this color" if this key appears on either
+        // side of the pair. That's intentionally broad: if you tweak `text`
+        // you want to see the pair that involves it, regardless of whether
+        // it's the fg or the bg of that pair. Literal refs can't match.
+        const relevantFailures = contrastFailures.filter(
+          (f) =>
+            ("key" in f.pair.fg && f.pair.fg.key === key) ||
+            ("key" in f.pair.bg && f.pair.bg.key === key),
+        );
+        return (
+          <div className={styles.field} key={key}>
+            <label className={styles.label}>{label}</label>
+            <div className={styles.colorRow}>
+              {/* <input type="color"> gives us the OS color picker; the text
+                  input next to it preserves the full CSS value (hex, rgb(),
+                  rgba()) and lets people paste anything. */}
+              <input
+                type="color"
+                className={styles.colorSwatch}
+                value={toHex(draft.colors[key])}
+                onChange={(e) =>
+                  onChange((prev) => ({
+                    ...prev,
+                    colors: { ...prev.colors, [key]: e.target.value },
+                  }))
+                }
+                aria-label={`${label} (color picker)`}
+              />
+              <input
+                type="text"
+                className={styles.colorInput}
+                value={draft.colors[key]}
+                onChange={(e) =>
+                  onChange((prev) => ({
+                    ...prev,
+                    colors: { ...prev.colors, [key]: e.target.value },
+                  }))
+                }
+                aria-label={`${label} (text)`}
+                spellCheck={false}
+              />
+            </div>
+            {relevantFailures.length > 0 && (
+              <ul className={styles.contrastBadgeList} aria-live="polite">
+                {relevantFailures.map((f) => (
+                  <li key={f.pair.label} className={styles.contrastBadge}>
+                    {f.pair.label}:{" "}
+                    {Number.isFinite(f.ratio) ? f.ratio.toFixed(2) : "?"}:1 / needs {f.required}:1
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

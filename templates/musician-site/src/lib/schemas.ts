@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkContrast } from "./color-contrast.js";
 
 // ============================================================
 // Image Metadata
@@ -236,7 +237,26 @@ export const appearanceSchema = z
       heading: input.typography.heading.heading,
       weights: input.typography.weights,
     },
-  }));
+  }))
+  // Enforce WCAG AA contrast on every fg/bg pair a site actually renders.
+  // See src/lib/color-contrast.ts for the pair list + thresholds. We run
+  // this post-transform because `linkColor` only has its final value after
+  // the fallback to `accent` has been applied.
+  //
+  // No override escape hatch: fixing the colors is the point.
+  .superRefine((value, ctx) => {
+    const results = checkContrast(value.colors);
+    const failures = results.filter((r) => !r.passes);
+    if (failures.length === 0) return;
+    for (const fail of failures) {
+      const ratioStr = Number.isFinite(fail.ratio) ? fail.ratio.toFixed(2) : "could not compute";
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["colors"],
+        message: `Contrast too low for "${fail.pair.label}": ${ratioStr}:1 (needs ${fail.required}:1 for WCAG ${fail.pair.level}). Adjust these colors in appearance.json.`,
+      });
+    }
+  });
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];

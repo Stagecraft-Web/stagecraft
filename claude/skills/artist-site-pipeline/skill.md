@@ -76,6 +76,21 @@ Crawls from a different repo checkout can be read through symlinks into the outp
 
 Template source can also live in a different repo — subagents `cp -R` it into their recreation dir via Bash (reads are unrestricted), and everything after that happens inside the writable output tree.
 
+#### Post-run: relocate output to the canonical history dir
+
+When the run-dir lived under `pipeline-runs/` (subagent-sandbox workaround), it's the *temporary* home — the canonical history of pipeline runs lives in the source repo's `.claude/runs/`. **After all subagents have reported back successfully**, move the run-dir there so future skip-crawl / re-evaluate auto-discovery finds it alongside prior runs:
+
+```bash
+SRC="$PWD/pipeline-runs/<RUN_ID>"
+DEST=/path/to/source-repo/.claude/runs/<RUN_ID>
+mv "$SRC" "$DEST"
+rmdir pipeline-runs 2>/dev/null   # remove if now empty
+```
+
+The crawl symlinks inside the run-dir use absolute paths, so they still resolve after the move. Recreations are real dirs and move as-is. Update any paths you've already shown the user (e.g. in the final summary).
+
+Do this only once the pipeline is **complete** — moving mid-run would leave subagents writing into a location that no longer exists. If a subagent is still running, wait.
+
 ### Full pipeline / crawl-only
 
 - If `run-dir=<path>` is explicit, use it.

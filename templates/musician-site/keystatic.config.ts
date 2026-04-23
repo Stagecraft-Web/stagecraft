@@ -538,6 +538,11 @@ export default config({
           ],
           defaultValue: "upcoming",
         }),
+        category: fields.text({
+          label: "Category",
+          description:
+            "Optional series or show type (e.g. 'Charlie Brown Christmas'). Leave blank for most shows.",
+        }),
       },
     }),
 

@@ -362,6 +362,11 @@ export const tourDateSchema = z.object({
   city: z.string().min(1),
   ticketUrl: z.string().optional(),
   status: z.enum(TOUR_DATE_STATUSES),
+  // Free-text category / show series (e.g. "Winter Tour", "Charlie Brown
+  // Christmas"). Not an enum — categories are artist-specific. Used by the
+  // `{% tour-dates categoryFilter="..." %}` attribute to scope a block to a
+  // single series, and surfaced as a small label under the venue.
+  category: z.string().optional(),
 });
 
 // ============================================================

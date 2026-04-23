@@ -106,6 +106,11 @@ const tourDates = defineCollection({
     city: z.string().min(1),
     ticketUrl: z.string().optional(),
     status: z.enum(TOUR_DATE_STATUSES),
+    // Free-text series / show-type tag. Not an enum — categories vary by
+    // artist (e.g. "Winter Tour", "Charlie Brown Christmas"). Surfaces as
+    // a label under the venue and scopes the `{% tour-dates %}` block when
+    // its `categoryFilter` attribute is set.
+    category: z.string().optional(),
   }),
 });
 

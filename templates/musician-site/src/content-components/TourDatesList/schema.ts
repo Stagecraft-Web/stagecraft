@@ -8,6 +8,7 @@ import { TourDatesListPreview } from "./preview";
 
 const DEFAULT_PAST_PADDING = 3;
 const DEFAULT_EMPTY_MESSAGE = "No upcoming shows. Check back soon.";
+const DEFAULT_PAGE_SIZE = 10;
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/TourDatesList/TourDatesList.astro",
@@ -20,6 +21,13 @@ export const markdoc: MarkdocTagDefinition = {
     emptyMessage: {
       type: String,
       default: DEFAULT_EMPTY_MESSAGE,
+    },
+    pageSize: {
+      type: Number,
+      default: DEFAULT_PAGE_SIZE,
+    },
+    categoryFilter: {
+      type: String,
     },
   },
 };
@@ -40,6 +48,18 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Empty state message",
       description: "Shown when there are no upcoming shows.",
       defaultValue: DEFAULT_EMPTY_MESSAGE,
+    }),
+    pageSize: fields.integer({
+      label: "Page size",
+      description:
+        "How many shows to display before the 'Show more' button. Revealed in batches of this size.",
+      defaultValue: DEFAULT_PAGE_SIZE,
+      validation: { min: 1 },
+    }),
+    categoryFilter: fields.text({
+      label: "Category filter",
+      description:
+        "Optional — only include tour dates with this exact category (e.g. 'Winter Tour'). Leave blank to show all.",
     }),
   },
   ContentView: TourDatesListPreview,

@@ -55,7 +55,9 @@ describe("siteConfigSchema", () => {
   };
 
   it("accepts a valid config", () => {
-    expect(siteConfigSchema.parse(valid)).toEqual(valid);
+    // Use toMatchObject: the schema adds defaults for headerStyle and
+    // headerPosition, so the parsed result has more keys than the input.
+    expect(siteConfigSchema.parse(valid)).toMatchObject(valid);
   });
 
   it("rejects missing artistName", () => {
@@ -100,6 +102,45 @@ describe("siteConfigSchema", () => {
         wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
       }),
     ).toThrow();
+  });
+
+  // ---- Header appearance --------------------------------------------------
+  it("applies header defaults when new fields are missing (back-compat)", () => {
+    const result = siteConfigSchema.parse(valid);
+    expect(result.headerStyle).toBe("solid");
+    expect(result.headerPosition).toBe("sticky");
+    // headerForegroundColor is a plain optional — stays undefined until set.
+    expect(result.headerForegroundColor).toBeUndefined();
+  });
+
+  it("round-trips an explicit transparent header config", () => {
+    const withTransparent = {
+      ...valid,
+      headerStyle: "transparent" as const,
+      headerForegroundColor: "#ffffff",
+      headerPosition: "fixed" as const,
+    };
+    const result = siteConfigSchema.parse(withTransparent);
+    expect(result.headerStyle).toBe("transparent");
+    expect(result.headerForegroundColor).toBe("#ffffff");
+    expect(result.headerPosition).toBe("fixed");
+  });
+
+  it("rejects unknown headerStyle values", () => {
+    expect(() =>
+      siteConfigSchema.parse({ ...valid, headerStyle: "frosted" }),
+    ).toThrow();
+  });
+
+  it("rejects unknown headerPosition values", () => {
+    expect(() =>
+      siteConfigSchema.parse({ ...valid, headerPosition: "floating" }),
+    ).toThrow();
+  });
+
+  it("accepts an empty headerForegroundColor (common seed value)", () => {
+    const result = siteConfigSchema.parse({ ...valid, headerForegroundColor: "" });
+    expect(result.headerForegroundColor).toBe("");
   });
 });
 

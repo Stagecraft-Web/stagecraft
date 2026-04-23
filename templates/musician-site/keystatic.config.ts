@@ -4,6 +4,10 @@ import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  HEADER_POSITIONS,
+  HEADER_POSITION_LABELS,
+  HEADER_STYLES,
+  HEADER_STYLE_LABELS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
@@ -17,6 +21,8 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type HeaderPosition,
+  type HeaderStyle,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -226,6 +232,48 @@ export default config({
         ),
         contactEmail: fields.text({ label: "Contact Email", validation: { isRequired: true } }),
         copyright: fields.text({ label: "Copyright Line" }),
+        // -------------------------------------------------------------
+        // Header appearance
+        //
+        // "Solid" paints the surface color behind the nav so content
+        // scrolling underneath is hidden. "Transparent" lets the page
+        // background read through (designed to pair with a full-bleed
+        // hero image or fullscreen-section at the top of the page);
+        // when the user scrolls the surface color fades back in so
+        // the nav stays readable over regular content.
+        // -------------------------------------------------------------
+        headerStyle: fields.select({
+          label: "Header style",
+          description:
+            "Solid keeps the nav on its own surface background. Transparent lets the page background (e.g. a hero image or fullscreen section) read through; the background fades in automatically once the reader scrolls. Pair transparent with a page that starts with a fullscreen-section so the nav has something to sit over.",
+          options: HEADER_STYLES.map((v) => ({
+            label: HEADER_STYLE_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: HeaderStyle },
+            ...{ label: string; value: HeaderStyle }[],
+          ],
+          defaultValue: "solid",
+        }),
+        headerForegroundColor: fields.text({
+          label: "Header foreground color",
+          description:
+            "Optional. Only applied when header style is 'transparent'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
+          defaultValue: "",
+        }),
+        headerPosition: fields.select({
+          label: "Header position",
+          description:
+            "How the header behaves as the page scrolls. 'Sticky' (default) pins it at the top after the user scrolls past. 'Fixed' keeps it permanently overlaid. 'Static' lets it scroll away with the page.",
+          options: HEADER_POSITIONS.map((v) => ({
+            label: HEADER_POSITION_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: HeaderPosition },
+            ...{ label: string; value: HeaderPosition }[],
+          ],
+          defaultValue: "sticky",
+        }),
       },
     }),
 

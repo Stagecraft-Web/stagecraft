@@ -61,6 +61,31 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
+// Header style — controls whether the site header paints its own surface
+// background or lets the page background (e.g. a full-bleed hero image)
+// read through. "transparent" is intended to pair with a hero-section page
+// layout that owns its own backdrop; the header emits no background or
+// bottom border until the user scrolls.
+export const HEADER_STYLES = ["solid", "transparent"] as const;
+export type HeaderStyle = (typeof HEADER_STYLES)[number];
+
+export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
+  solid: "Solid (default)",
+  transparent: "Transparent (renders over page background)",
+};
+
+// Header position — CSS positioning mode for the header element. "sticky"
+// matches the historical default; "fixed" keeps the header permanently
+// pinned to the viewport; "static" lets it scroll away with the page.
+export const HEADER_POSITIONS = ["static", "fixed", "sticky"] as const;
+export type HeaderPosition = (typeof HEADER_POSITIONS)[number];
+
+export const HEADER_POSITION_LABELS: Record<HeaderPosition, string> = {
+  static: "Static (scrolls with page)",
+  fixed: "Fixed (always on top)",
+  sticky: "Sticky (default — follows scroll, pins at top)",
+};
+
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
   wordmark: wordmarkSchema.optional(),
@@ -69,6 +94,17 @@ export const siteConfigSchema = z.object({
   socialLinks: z.record(z.string()),
   contactEmail: z.string().email(),
   copyright: z.string(),
+  // Header appearance. All three fields have Zod defaults so existing
+  // site.json files without these keys keep parsing — the admin UI (and
+  // seed) surface them explicitly, but runtime consumers can treat them as
+  // always-present.
+  headerStyle: z.enum(HEADER_STYLES).default("solid"),
+  // Only meaningful when headerStyle === "transparent". Colors nav links
+  // and the artist-name title against the page background (typically a
+  // hero image). Accepts hex / rgb() / rgba(). Empty string = unset; the
+  // renderer falls back to the usual token colors.
+  headerForegroundColor: z.string().optional(),
+  headerPosition: z.enum(HEADER_POSITIONS).default("sticky"),
 });
 
 // Nav config — what's stored in nav.json.

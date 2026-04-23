@@ -208,6 +208,53 @@ export default config({
               "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
           },
         ),
+        // Site-wide default page-background image. Rendered as a fixed-position
+        // layer behind all page content (below the overlay). Individual pages
+        // can override this via their own `pageBackground` frontmatter.
+        //
+        // `src/assets/images/` with `../../assets/images/` matches the
+        // wordmark's convention — site.json lives in `src/content/config/`,
+        // so the publicPath walks back two levels.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required for accessibility even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background",
+            description:
+              "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Leave the image blank for no site-wide background.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description:
+                "Hex ('#000000') or rgb()/rgba() value painted over the background image. Darken the image to boost text contrast, or use a brand color for a tinted wash.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay",
+            description:
+              "Tint painted over the site-wide background image for text legibility. Ignored when no background image is set.",
+          },
+        ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(
@@ -378,6 +425,53 @@ export default config({
             'When enabled, this page appears at "/" (the site root) and renders without the site header or footer. Your regular home page automatically moves to "/home". Link the "Enter Site" button in this page\'s body to /home. Only one page can be marked as a splash.',
           defaultValue: false,
         }),
+        // Per-page background override. Leave unset to inherit the site-wide
+        // default from Site Settings → Page Background. Splash pages ignore
+        // this entirely — they render their own full-bleed imagery via
+        // FullscreenSection.
+        //
+        // pages live in `src/content/pages/*`, so publicPath walks back two
+        // levels to reach src/assets/images/ — same as the wordmark from
+        // src/content/config/.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background (override)",
+            description:
+              "Leave unset to inherit the site-wide default. When set, this page shows its own background photo behind the content.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description: "Hex ('#000000') or rgb()/rgba() value. Leave blank inputs to inherit defaults.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay (override)",
+            description:
+              "Leave unset to inherit the site-wide overlay. Only applies when a background image is resolved for this page.",
+          },
+        ),
         content: fields.markdoc({
           label: "Body Content",
           components: pageContentComponents,

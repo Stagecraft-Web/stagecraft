@@ -1,30 +1,81 @@
 ---
 import "../styles/global.css";
+import { Image } from "astro:assets";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import { AppearanceSidebar } from "../components/appearance-sidebar/AppearanceSidebar";
 import type { SidebarConfig } from "../components/appearance-sidebar/types";
 import { getSiteConfig, getTheme, getAppearance } from "../lib/content";
+import { resolveImage } from "../lib/resolve-image";
 import {
   appearanceToFontRequests,
   buildGoogleFontsUrl,
   buildFontStack,
 } from "../lib/google-fonts";
+import {
+  pageBackgroundOverlaySchema,
+  type PageBackgroundOverlay,
+} from "../lib/schemas";
 
 interface Props {
   title?: string;
   description?: string;
   /** When true, hide the site header and footer. Used for splash / landing
-   *  pages that display a full-bleed hero and a single "enter site" link. */
+   *  pages that display a full-bleed hero and a single "enter site" link.
+   *  Splash pages also skip the page-background plumbing — they render their
+   *  own full-bleed imagery via FullscreenSection. */
   isSplashPage?: boolean;
+  /** Per-page background image override. When absent, BaseLayout falls back
+   *  to the site-wide `pageBackground` from site.json. When set, replaces the
+   *  site-level default for this page only.
+   *
+   *  `src` is a relative path string (not an Astro ImageMetadata object) —
+   *  resolveImage() handles the path → optimised metadata lookup so the
+   *  site-wide (site.json) and per-page (frontmatter) cases flow through
+   *  the same resolver. */
+  pageBackground?: { src: string; alt: string };
+  /** Per-page overlay override. Same inheritance rules as `pageBackground`.
+   *  Overlay defaults (black @ 0.3) apply when individual fields are absent. */
+  pageBackgroundOverlay?: Partial<PageBackgroundOverlay>;
 }
 
 const site = getSiteConfig();
 const theme = getTheme();
 const appearance = getAppearance();
-const { title, description, isSplashPage = false } = Astro.props;
+const {
+  title,
+  description,
+  isSplashPage = false,
+  pageBackground: pageBackgroundProp,
+  pageBackgroundOverlay: pageBackgroundOverlayProp,
+} = Astro.props;
 const pageTitle = title ? `${title} — ${site.artistName}` : site.siteTitle;
 const pageDescription = description ?? site.siteDescription;
+
+// -----------------------------------------------------------------
+// Page background resolution
+//
+// Per-page frontmatter overrides the site-wide default. Splash pages skip
+// the background layer entirely — they render their own full-bleed imagery
+// via FullscreenSection and the overlap would produce a muddy double-tint.
+//
+// The overlay is normalised through pageBackgroundOverlaySchema so the
+// admin-editable empty object (`{}` / partial fields) falls back to the
+// spec's default of black @ 30%. Colors flow through CSS custom properties
+// so nothing is hardcoded in the stylesheet below.
+// -----------------------------------------------------------------
+const effectiveBackground = !isSplashPage
+  ? (pageBackgroundProp ?? site.pageBackground)
+  : undefined;
+const resolvedBackground = effectiveBackground
+  ? resolveImage(effectiveBackground.src)
+  : undefined;
+const hasBackground = Boolean(effectiveBackground && resolvedBackground);
+
+const overlayInput = !isSplashPage
+  ? (pageBackgroundOverlayProp ?? site.pageBackgroundOverlay ?? {})
+  : {};
+const overlay = pageBackgroundOverlaySchema.parse(overlayInput);
 
 const colorMode = theme.colorMode ?? "light";
 
@@ -123,6 +174,9 @@ const sidebarConfig: SidebarConfig = {
         --font-weight-h4: ${typography.weights.h4};
         --font-weight-h5: ${typography.weights.h5};
         --font-weight-h6: ${typography.weights.h6};
+
+        --page-bg-overlay-color: ${overlay.color};
+        --page-bg-overlay-opacity: ${overlay.opacity};
       }`}
     />
 
@@ -140,7 +194,20 @@ const sidebarConfig: SidebarConfig = {
       })();
     </script>
   </head>
-  <body class:list={[{ "is-splash-page": isSplashPage }]}>
+  <body class:list={[{ "is-splash-page": isSplashPage, "has-page-background": hasBackground }]}>
+    {hasBackground && effectiveBackground && resolvedBackground && (
+      <div class="page-background" aria-hidden="true">
+        <Image
+          src={resolvedBackground}
+          alt={effectiveBackground.alt}
+          class="page-background-image"
+          widths={[640, 1280, 1920, 2560]}
+          sizes="100vw"
+          loading="eager"
+        />
+        <div class="page-background-overlay"></div>
+      </div>
+    )}
     {!isSplashPage && <Header />}
     <main id="main-content">
       <slot />
@@ -178,6 +245,52 @@ const sidebarConfig: SidebarConfig = {
       body.is-splash-page main {
         max-width: none;
         padding: 0;
+      }
+
+      /* -------------------------------------------------------------------
+         Page background layer
+         -------------------------------------------------------------------
+         Fixed-position layer anchored behind all page content. The image
+         stays put while content scrolls over it (classic parallax-lite
+         effect); the overlay sits above the image but below content to
+         tint the photo without tinting the text.
+
+         z-index ordering:
+           -2  .page-background (image wrapper)
+           -1  .page-background-overlay (tint)
+            0  body content (header/main/footer)
+
+         Color + opacity of the tint are thread-through CSS variables set
+         in the inline :root block above — never hardcoded here. */
+      .page-background {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .page-background-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+      }
+
+      .page-background-overlay {
+        position: absolute;
+        inset: 0;
+        background: var(--page-bg-overlay-color);
+        opacity: var(--page-bg-overlay-opacity);
+        z-index: 1;
+      }
+
+      /* When a background is in play, the body surface must be transparent
+         so the fixed background shows through. Without this, the body's
+         default --color-bg would paint over the image entirely. */
+      body.has-page-background {
+        background: transparent;
       }
     </style>
     {colorMode === "light" && (

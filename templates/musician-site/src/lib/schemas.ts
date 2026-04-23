@@ -61,9 +61,28 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
+// Overlay painted over a page-background image for text legibility. Split
+// into a color + opacity rather than a single rgba() string so the Keystatic
+// admin can expose each knob independently (and the opacity can have a
+// range-clamped numeric input). Defaults to a lightly-darkened overlay
+// (black @ 30%) — equivalent to the spec's rgba(0,0,0,0.3).
+export const pageBackgroundOverlaySchema = z.object({
+  color: z.string().min(1).default("#000000"),
+  opacity: z.number().min(0).max(1).default(0.3),
+});
+export type PageBackgroundOverlay = z.infer<typeof pageBackgroundOverlaySchema>;
+
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
   wordmark: wordmarkSchema.optional(),
+  // Site-wide default background image painted behind all page content. Each
+  // page may override this via page frontmatter (pageBackground). Absent =
+  // no background (plain --color-bg). Required shape: src + alt.
+  pageBackground: imageMetadataSchema.optional(),
+  // Tint painted over `pageBackground` for text legibility. When the
+  // background is unset the overlay is ignored. Defaults kick in when the
+  // field is present but `color`/`opacity` are missing.
+  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
@@ -276,6 +295,13 @@ export const pageFrontmatterSchema = z.object({
   // or footer. The regular "home" page (if any) auto-moves to `/home`.
   // Only one page may be marked as a splash.
   isSplashPage: z.boolean().optional(),
+  // Per-page background override. When set, replaces the site-wide
+  // pageBackground for this page only; when absent, the page inherits the
+  // site-level default. Splash pages ignore this entirely (they render their
+  // own full-bleed imagery via FullscreenSection).
+  pageBackground: imageMetadataSchema.optional(),
+  // Per-page overlay override. Same inheritance rules as pageBackground.
+  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
 });
 
 // ============================================================

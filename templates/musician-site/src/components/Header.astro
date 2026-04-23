@@ -26,24 +26,83 @@ const headerPosition = site.headerPosition;
 const headerForegroundColor = site.headerForegroundColor?.trim() ?? "";
 const hasHeaderForeground = isTransparent && headerForegroundColor.length > 0;
 
-// When an author supplies a foreground color, expose it as a custom
-// property so the nav-link / title CSS picks it up via var(--header-fg).
-// Keystatic stores an empty string when the field is blank; don't emit the
-// inline style in that case so the CSS fallback (muted/primary tokens)
-// wins.
-const headerStyle = hasHeaderForeground
-  ? `--header-fg: ${headerForegroundColor};`
-  : undefined;
+// §2.3 style variations — all four fields have Zod defaults, so downstream
+// reads never need a null-check.
+const headerLayout = site.headerLayout;
+const isUppercase = site.isHeaderTextUppercase;
+// Subtitle is hidden when a wordmark image is in use — wordmarks usually
+// incorporate their own brand hierarchy, and stacking a muted tagline
+// under a pre-rendered image looks disjointed.
+const headerSubtitle = !hasWordmark ? (site.headerSubtitle?.trim() ?? "") : "";
+const hasSubtitle = headerSubtitle.length > 0;
+
+// Size-adjust multipliers — hand-picked to feel like coarse "notches" rather
+// than a linear scale. Applied to `.site-title` font-size (via CSS calc()
+// against var(--font-size-lg)) AND to the wordmark's max-height (against
+// the baseline 2.25rem). Keys are stringified numbers because JSON-parsed
+// values retain their numeric type but the table lookup is cleaner as a
+// dict of strings; we coerce via String(...) at read time.
+const SIZE_MULTIPLIERS: Record<string, number> = {
+  "-2": 0.72,
+  "-1": 0.85,
+  "0": 1,
+  "1": 1.15,
+  "2": 1.35,
+};
+const sizeMultiplier = SIZE_MULTIPLIERS[String(site.headerTextSizeAdjust)] ?? 1;
+
+// For `logo-center-nav-split`, split the nav list in half by index so one
+// half renders left of the centered logo and the other renders right. We
+// split here (rather than via pure-CSS order tricks) so the DOM preserves
+// left/right semantics for screen readers and tab order, and so nav lists
+// of any length (odd or even) split cleanly. Other layouts render the
+// full list in a single <ul> — so `navRight` stays empty below.
+const isSplitLayout = headerLayout === "logo-center-nav-split";
+const splitAt = isSplitLayout ? Math.ceil(nav.length / 2) : nav.length;
+const navLeft = isSplitLayout ? nav.slice(0, splitAt) : nav;
+const navRight = isSplitLayout ? nav.slice(splitAt) : [];
+
+// Build a single style string that carries both the §2.2 foreground color
+// (conditional) and the §2.3 size multiplier (always, since Zod defaults
+// it to 0 → 1x). Empty-string foreground falls through the CSS fallback.
+const inlineStyles = [
+  hasHeaderForeground ? `--header-fg: ${headerForegroundColor}` : null,
+  `--header-size-multiplier: ${sizeMultiplier}`,
+]
+  .filter(Boolean)
+  .join("; ");
 
 const headerClasses = [
   "site-header",
   `site-header--position-${headerPosition}`,
   isTransparent ? "site-header--transparent" : null,
 ];
+
+const innerClasses = [
+  "container",
+  "header-inner",
+  `header-inner--layout-${headerLayout}`,
+];
 ---
 
-<header class:list={headerClasses} style={headerStyle}>
-  <div class="container header-inner">
+<header class:list={headerClasses} style={inlineStyles}>
+  <div class:list={innerClasses}>
+    {isSplitLayout && (
+      <nav class="main-nav main-nav--left" aria-label="Main navigation (left half)">
+        <ul>
+          {navLeft.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class:list={[{ active: currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href)) }]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    )}
     <a href={homeHref} class="site-logo" aria-label={site.artistName}>
       {hasWordmark && site.wordmark && wordmarkImage ? (
         <Image
@@ -54,7 +113,12 @@ const headerClasses = [
           widths={[40, 80]}
         />
       ) : (
-        <span class="site-title">{site.artistName}</span>
+        <span class:list={["site-title", { "site-title--uppercase": isUppercase }]}>
+          {site.artistName}
+        </span>
+      )}
+      {hasSubtitle && (
+        <span class="site-subtitle">{headerSubtitle}</span>
       )}
     </a>
     <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
@@ -62,33 +126,54 @@ const headerClasses = [
       <span class="nav-toggle-bar"></span>
       <span class="nav-toggle-bar"></span>
     </button>
-    <nav class="main-nav" aria-label="Main navigation">
-      <ul>
-        {nav.map((item) => (
-          <li>
-            <a
-              href={item.href}
-              class:list={[{ active: currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href)) }]}
-            >
-              {item.label}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    {isSplitLayout ? (
+      <nav class="main-nav main-nav--right" aria-label="Main navigation (right half)">
+        <ul>
+          {navRight.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class:list={[{ active: currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href)) }]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    ) : (
+      <nav class="main-nav" aria-label="Main navigation">
+        <ul>
+          {nav.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class:list={[{ active: currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href)) }]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    )}
   </div>
 </header>
 
 <script>
   // Astro scripts in .astro files are hoisted and run as standard deferred
   // scripts, so the DOM is ready when this executes.
+  //
+  // Toggle every `.main-nav` in the header — the split-layout renders two
+  // lists (left + right halves) that both collapse into the same hamburger
+  // menu on mobile, so we toggle them together.
   const toggle = document.querySelector(".nav-toggle");
-  const nav = document.querySelector(".main-nav");
+  const navs = document.querySelectorAll(".site-header .main-nav");
 
   toggle?.addEventListener("click", () => {
     const expanded = toggle.getAttribute("aria-expanded") === "true";
     toggle.setAttribute("aria-expanded", String(!expanded));
-    nav?.classList.toggle("open");
+    navs.forEach((n) => n.classList.toggle("open"));
   });
 
   // Scroll-state toggle — when the user scrolls past ~8px, we tag the
@@ -155,6 +240,9 @@ const headerClasses = [
     border-bottom-color: var(--color-border);
   }
 
+  /* Default (logo-left-nav-right) — the historical flex layout, kept as
+     the base `.header-inner` rule so sites without a layout modifier
+     (or explicitly choosing the default) behave exactly as before. */
   .header-inner {
     display: flex;
     align-items: center;
@@ -164,23 +252,49 @@ const headerClasses = [
 
   .site-logo {
     display: inline-flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     color: var(--color-primary);
     text-decoration: none;
+    /* Tight subtitle stack — let the title and subtitle sit close. */
+    line-height: 1.15;
+    gap: 0.1rem;
   }
 
   .site-title {
     font-family: var(--font-heading);
-    font-size: var(--font-size-lg);
+    /* §2.3: font-size scales with --header-size-multiplier (set on
+       .site-header). Fallback keeps the legacy size when the variable is
+       missing (which it won't be, but belt-and-braces). */
+    font-size: calc(var(--font-size-lg) * var(--header-size-multiplier, 1));
     font-weight: var(--font-weight-bold);
   }
 
-  /* Wordmark renders at a fixed max-height so authored logos (which vary
-     wildly in native dimensions) slot into the header at a predictable
-     size regardless of the source file. Width is auto so the aspect ratio
-     is preserved. */
+  /* §2.3: uppercase modifier — applied only when isHeaderTextUppercase is
+     true. Separate class so wordmark images (which skip `.site-title`)
+     are never affected. Letter-spacing tuned to the typical 0.05em that
+     balances the extra visual density of all-caps. */
+  .site-title--uppercase {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* §2.3: subtitle — small, muted second line under the artist name. Not
+     rendered at all when a wordmark is in use (see author-side check). */
+  .site-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-regular, 400);
+    /* Don't inherit the uppercase transform — the subtitle reads better
+       in sentence case even when the title is all-caps. */
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  /* Wordmark renders at a max-height that scales with the header-size
+     multiplier. Width is auto so the aspect ratio is preserved. */
   .site-wordmark {
-    max-height: 2.25rem;
+    max-height: calc(2.25rem * var(--header-size-multiplier, 1));
     width: auto;
     display: block;
   }
@@ -204,6 +318,65 @@ const headerClasses = [
     color: var(--color-secondary);
   }
 
+  /* ---------------------------------------------------------------
+     §2.3 layout variants
+     --------------------------------------------------------------- */
+
+  /* Centered logo, nav on a row below it. Mobile collapses normally
+     (the nav-toggle CSS at the bottom handles hamburger behavior for
+     all three layouts). */
+  .header-inner--layout-logo-center-nav-below {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "logo"
+      "nav";
+    justify-items: center;
+    row-gap: 0.75rem;
+    padding-block: 1rem;
+  }
+
+  .header-inner--layout-logo-center-nav-below .site-logo {
+    grid-area: logo;
+    align-items: center;
+  }
+
+  .header-inner--layout-logo-center-nav-below .main-nav {
+    grid-area: nav;
+  }
+
+  .header-inner--layout-logo-center-nav-below .nav-toggle {
+    /* Hamburger sits next to the logo on mobile; at desktop it's hidden
+       by the base `.nav-toggle { display: none }` rule. */
+    grid-area: logo;
+    justify-self: end;
+  }
+
+  /* Split layout — centered logo with nav on both sides. First half of
+     nav items renders in the left column; second half renders in the
+     right column. Split happens in the Astro template (by index) so the
+     DOM order matches the visual order for screen readers and tab order. */
+  .header-inner--layout-logo-center-nav-split {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    column-gap: 1.5rem;
+    padding-block: 1rem;
+  }
+
+  .header-inner--layout-logo-center-nav-split .main-nav--left {
+    justify-self: end;
+  }
+
+  .header-inner--layout-logo-center-nav-split .site-logo {
+    justify-self: center;
+    align-items: center;
+  }
+
+  .header-inner--layout-logo-center-nav-split .main-nav--right {
+    justify-self: start;
+  }
+
   /* When a transparent header has a `--header-fg` custom property set
      (from site.headerForegroundColor), prefer it for the title + nav
      links. Falls back to the usual tokens so sites without a custom
@@ -214,12 +387,24 @@ const headerClasses = [
     color: var(--header-fg, var(--color-primary));
   }
 
+  .site-header--transparent .site-subtitle {
+    /* Subtitles use header-fg as a hint when transparent; fall back to
+       the muted token so readable-on-hero contrast is preserved. */
+    color: var(--header-fg, var(--color-text-muted));
+    opacity: 0.85;
+  }
+
   .site-header--transparent .main-nav a {
     color: var(--header-fg, var(--color-text-muted));
   }
 
   .site-header--transparent.is-scrolled .site-title {
     color: var(--color-primary);
+  }
+
+  .site-header--transparent.is-scrolled .site-subtitle {
+    color: var(--color-text-muted);
+    opacity: 1;
   }
 
   .site-header--transparent.is-scrolled .main-nav a {
@@ -254,6 +439,24 @@ const headerClasses = [
       display: flex;
     }
 
+    /* Hamburger collapses every layout back to a single mobile layout:
+       logo on the left, hamburger on the right, nav menu below when
+       open. The centered-below and split layouts override their grid
+       back to flex so mobile ergonomics match the default layout. */
+    .header-inner--layout-logo-center-nav-below,
+    .header-inner--layout-logo-center-nav-split {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      grid-template-areas: none;
+      grid-template-columns: none;
+    }
+
+    .header-inner--layout-logo-center-nav-below .nav-toggle,
+    .header-inner--layout-logo-center-nav-split .nav-toggle {
+      justify-self: auto;
+    }
+
     .main-nav {
       display: none;
       position: absolute;
@@ -272,6 +475,14 @@ const headerClasses = [
     .main-nav ul {
       flex-direction: column;
       gap: 0.75rem;
+    }
+
+    /* On mobile the split layout's two halves stack into one dropdown.
+       Remove the left/right justify-self rules that only make sense at
+       desktop. */
+    .header-inner--layout-logo-center-nav-split .main-nav--left,
+    .header-inner--layout-logo-center-nav-split .main-nav--right {
+      justify-self: auto;
     }
   }
 </style>

@@ -4,6 +4,8 @@ import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  HEADER_LAYOUTS,
+  HEADER_LAYOUT_LABELS,
   HEADER_POSITIONS,
   HEADER_POSITION_LABELS,
   HEADER_STYLES,
@@ -14,6 +16,8 @@ import {
   POST_STATUSES,
   RELEASE_TYPES,
   RELEASE_TYPE_LABELS,
+  SIZE_ADJUSTMENTS,
+  SIZE_ADJUSTMENT_LABELS,
   STORE_ITEM_FORMATS,
   STORE_ITEM_STATUSES,
   TOUR_DATE_STATUSES,
@@ -21,6 +25,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type HeaderLayout,
   type HeaderPosition,
   type HeaderStyle,
   type ImageUsageSlot,
@@ -273,6 +278,59 @@ export default config({
             ...{ label: string; value: HeaderPosition }[],
           ],
           defaultValue: "sticky",
+        }),
+        // -------------------------------------------------------------
+        // Header style variations (§2.3)
+        //
+        // Four coarse style levers on top of the §2.2 structure knobs:
+        //   - Text size adjust scales the artist-name font / wordmark
+        //     max-height up or down by a fixed multiplier.
+        //   - Uppercase applies CSS text-transform to `.site-title` only
+        //     (wordmark images are unaffected — they're pre-rendered).
+        //   - Header subtitle renders a muted second line under the
+        //     artist name; hidden when a wordmark image is in use.
+        //   - Header layout changes how logo + nav are arranged
+        //     (default flex, centered-with-nav-below grid, centered-
+        //     split grid). Mobile hamburger works across all three.
+        // -------------------------------------------------------------
+        headerTextSizeAdjust: fields.select({
+          label: "Header text size",
+          description:
+            "Scales the artist name text AND the wordmark max-height up or down from the default. −2 ≈ 0.72×, +2 ≈ 1.35×.",
+          // Stringify: Keystatic select values must be strings.
+          options: SIZE_ADJUSTMENTS.map((v) => ({
+            label: SIZE_ADJUSTMENT_LABELS[String(v)],
+            value: String(v),
+          })) as [
+            { label: string; value: string },
+            ...{ label: string; value: string }[],
+          ],
+          defaultValue: "0",
+        }),
+        isHeaderTextUppercase: fields.checkbox({
+          label: "Uppercase header text",
+          description:
+            "Renders the artist name in uppercase with slight extra letter-spacing. Only affects the text variant; wordmark images are not transformed.",
+          defaultValue: false,
+        }),
+        headerSubtitle: fields.text({
+          label: "Header subtitle (optional)",
+          description:
+            "Small second line under the artist name — a tagline, location, or role. Hidden automatically when a wordmark image is set, since wordmarks usually carry their own hierarchy.",
+          defaultValue: "",
+        }),
+        headerLayout: fields.select({
+          label: "Header layout",
+          description:
+            "How logo and navigation are arranged. 'Logo left, nav right' is the default flex layout. The two centered variants are grid-based: 'nav below' stacks the nav under a centered logo; 'nav split' places the nav on both sides of a centered logo.",
+          options: HEADER_LAYOUTS.map((v) => ({
+            label: HEADER_LAYOUT_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: HeaderLayout },
+            ...{ label: string; value: HeaderLayout }[],
+          ],
+          defaultValue: "logo-left-nav-right",
         }),
       },
     }),

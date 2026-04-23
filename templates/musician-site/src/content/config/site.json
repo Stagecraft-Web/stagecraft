@@ -17,5 +17,9 @@
   "copyright": "© 2026 Artist Name. All rights reserved.",
   "headerStyle": "solid",
   "headerForegroundColor": "",
-  "headerPosition": "sticky"
+  "headerPosition": "sticky",
+  "headerTextSizeAdjust": 0,
+  "isHeaderTextUppercase": false,
+  "headerSubtitle": "",
+  "headerLayout": "logo-left-nav-right"
 }

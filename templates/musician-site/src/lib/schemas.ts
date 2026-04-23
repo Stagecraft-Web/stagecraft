@@ -86,6 +86,43 @@ export const HEADER_POSITION_LABELS: Record<HeaderPosition, string> = {
   sticky: "Sticky (default — follows scroll, pins at top)",
 };
 
+// Relative size adjustment — a coarse multiplier used across the template for
+// fields where the author wants "default, a bit smaller, a bit larger" without
+// having to pick an exact size token. Currently consumed by the header text/
+// wordmark sizing (§2.3). Future work on broader font-size customization
+// (§6.2) reuses the same domain — this declaration is the shared source; when
+// §6.2 lands, reconcile to avoid redeclaration.
+export const SIZE_ADJUSTMENTS = [-2, -1, 0, 1, 2] as const;
+export type SizeAdjustment = (typeof SIZE_ADJUSTMENTS)[number];
+
+// Keys stringified because Keystatic `fields.select` values are strings; the
+// table is looked up by the same string the select emits. A plain number-
+// keyed record would force coercion at every call site.
+export const SIZE_ADJUSTMENT_LABELS: Record<string, string> = {
+  "-2": "Much smaller (−2)",
+  "-1": "Smaller (−1)",
+  "0": "Default (0)",
+  "1": "Larger (+1)",
+  "2": "Much larger (+2)",
+};
+
+// Header layout — arrangement of logo + nav inside `.header-inner`. The
+// default matches the historical flex layout (logo left, nav right). The
+// two centered variants target artist sites that want a more editorial /
+// symmetrical header.
+export const HEADER_LAYOUTS = [
+  "logo-left-nav-right",
+  "logo-center-nav-below",
+  "logo-center-nav-split",
+] as const;
+export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
+
+export const HEADER_LAYOUT_LABELS: Record<HeaderLayout, string> = {
+  "logo-left-nav-right": "Logo left, nav right (default)",
+  "logo-center-nav-below": "Logo centered, nav below",
+  "logo-center-nav-split": "Logo centered, nav split left/right",
+};
+
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
   wordmark: wordmarkSchema.optional(),
@@ -105,6 +142,21 @@ export const siteConfigSchema = z.object({
   // renderer falls back to the usual token colors.
   headerForegroundColor: z.string().optional(),
   headerPosition: z.enum(HEADER_POSITIONS).default("sticky"),
+  // Relative multiplier applied to `.site-title` font-size AND the wordmark
+  // `max-height`. Keystatic's `fields.select` emits the value as a string
+  // ("0", "-1", …), so we coerce before range-checking — JSON authors can
+  // write either a number or its string form.
+  headerTextSizeAdjust: z.coerce.number().int().min(-2).max(2).default(0),
+  // When true, `.site-title` renders uppercase with a slight tracking bump.
+  // Wordmark images aren't affected (they're pre-rendered).
+  isHeaderTextUppercase: z.boolean().default(false),
+  // Optional tagline shown on a second line under the artist name. Hidden
+  // when a wordmark image is in use — wordmarks usually carry their own
+  // branding hierarchy.
+  headerSubtitle: z.string().optional(),
+  // Arrangement of logo + nav inside `.header-inner`. Default preserves
+  // the historical flex layout; the two centered variants use CSS Grid.
+  headerLayout: z.enum(HEADER_LAYOUTS).default("logo-left-nav-right"),
 });
 
 // Nav config — what's stored in nav.json.

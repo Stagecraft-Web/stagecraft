@@ -50,6 +50,8 @@ export const markdoc: MarkdocTagDefinition = {
       matches: [...EMBED_ASPECT_RATIOS],
     },
     title: { type: String },
+    minHeight: { type: Number },
+    maxWidth: { type: Number },
   },
 };
 
@@ -82,6 +84,16 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Accessible title (optional)",
       description:
         "A short label describing the embedded content for screen readers. Falls back to the iframe's own title or a generic label.",
+    }),
+    minHeight: fields.integer({
+      label: "Min height (px)",
+      description:
+        "Optional minimum height for the embed wrapper. Useful for short players that would otherwise collapse on wide columns.",
+    }),
+    maxWidth: fields.integer({
+      label: "Max width (px)",
+      description:
+        "Optional cap on the embed's rendered width. Overrides the value auto-detected from the snippet in 'Auto' aspect mode; applies as a plain max-width in other modes.",
     }),
   },
   ContentView: EmbedPreview,

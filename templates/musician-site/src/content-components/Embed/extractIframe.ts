@@ -22,6 +22,18 @@
  * The iframe `title` attribute is preserved verbatim from the snippet but
  * the renderer is expected to override it when the author supplies their
  * own `title` field — providing one is an a11y win.
+ *
+ * Intrinsic dimensions
+ * --------------------
+ * Beyond the raw attribute bag, the parser also surfaces the iframe's
+ * intrinsic width/height (in pixels) and the host of its `src`. Dimensions
+ * are pulled from the `width`/`height` attributes if they are pixel values,
+ * otherwise from inline `style="width: Xpx; height: Ypx"` rules. Percent
+ * values (`width="100%"`) don't count — they describe the iframe's
+ * rendered width, not its natural dimensions. These fields let the renderer
+ * auto-derive an aspect ratio + max-width for fixed-size embeds (Bandcamp
+ * 350×470 players) so the wrapper can scale them responsively without the
+ * author configuring anything.
  */
 
 /**
@@ -57,9 +69,18 @@ export type AllowedAttributeName = (typeof ALLOWED_ATTRIBUTES)[number];
  * Parsed, sanitized iframe ready to render. `attributes` contains only
  * keys in `ALLOWED_ATTRIBUTES`. Boolean-style attributes (`allowfullscreen`)
  * are stored as the empty string so callers can render them as bare names.
+ *
+ * `intrinsicWidth` / `intrinsicHeight` are the pixel dimensions derived
+ * from either the `width`/`height` attributes or the inline style — `null`
+ * when the source snippet doesn't express a pixel value (e.g. Spotify's
+ * `width="100%"`). `host` is the host of `attributes.src`, extracted via
+ * `extractEmbedHost`.
  */
 export interface ParsedIframe {
   attributes: Partial<Record<AllowedAttributeName, string>>;
+  intrinsicWidth: number | null;
+  intrinsicHeight: number | null;
+  host: string | null;
 }
 
 const ALLOWED_SET = new Set<string>(ALLOWED_ATTRIBUTES);
@@ -86,6 +107,86 @@ const IFRAME_OPEN_TAG = /<iframe\b([^>]*)>/i;
  * the parser tighter.
  */
 const ATTRIBUTE_PATTERN = /([a-zA-Z_:][a-zA-Z0-9_.:-]*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'))?/g;
+
+/**
+ * Matches a pixel-valued dimension inside the `width` / `height` attribute.
+ * Accepts a bare integer (`350`) or an integer with `px` suffix (`350px`),
+ * rejecting percent (`100%`) and other unit values so the caller only gets
+ * true pixel dimensions.
+ */
+const PIXEL_ATTR_VALUE = /^\s*(\d+)(?:px)?\s*$/i;
+
+/**
+ * Matches `width:` / `height:` declarations in an inline style string and
+ * pulls out the pixel value. Declarations are separated by `;` and we only
+ * keep ones whose value ends in `px` (so `width: 100%` is ignored).
+ */
+function parsePixelFromStyle(style: string, property: "width" | "height"): number | null {
+  // Anchored to the property name, allowing optional whitespace, matching
+  // values ending in `px`. Non-greedy on the number to be forgiving of
+  // decimals (e.g. `350.5px`) by truncating to the integer part.
+  const pattern = new RegExp(
+    `(?:^|;)\\s*${property}\\s*:\\s*(\\d+(?:\\.\\d+)?)px\\s*(?:;|$)`,
+    "i",
+  );
+  const match = pattern.exec(style);
+  if (!match || !match[1]) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Pull a pixel dimension out of a raw attribute value (`width="350"` or
+ * `height="470px"`), returning `null` for percent or other non-pixel
+ * values.
+ */
+function parsePixelFromAttribute(raw: string | undefined): number | null {
+  if (typeof raw !== "string") return null;
+  const match = PIXEL_ATTR_VALUE.exec(raw);
+  if (!match || !match[1]) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Resolve the intrinsic pixel dimension from either the attribute or the
+ * inline style, preferring the attribute when both are present and valid.
+ */
+function resolveIntrinsicDimension(
+  attrValue: string | undefined,
+  style: string | undefined,
+  property: "width" | "height",
+): number | null {
+  const fromAttr = parsePixelFromAttribute(attrValue);
+  if (fromAttr !== null) return fromAttr;
+  if (typeof style !== "string" || style.length === 0) return null;
+  return parsePixelFromStyle(style, property);
+}
+
+/**
+ * Remove `width:` and `height:` declarations from an inline style string,
+ * preserving all other rules. Used by the renderer when a wrapper takes
+ * over sizing — keeping the raw `style="border:0; width:350px"` on the
+ * iframe would fight the wrapper's absolute-positioning rules.
+ *
+ * Returns the cleaned string. An empty string means every remaining rule
+ * was dimensional; callers typically treat that as "drop the style
+ * attribute entirely".
+ */
+export function stripDimensionsFromStyle(style: string | undefined | null): string {
+  if (typeof style !== "string" || style.length === 0) return "";
+  return style
+    .split(";")
+    .map((decl) => decl.trim())
+    .filter((decl) => {
+      if (decl.length === 0) return false;
+      const colonIdx = decl.indexOf(":");
+      if (colonIdx === -1) return true;
+      const property = decl.slice(0, colonIdx).trim().toLowerCase();
+      return property !== "width" && property !== "height";
+    })
+    .join("; ");
+}
 
 /**
  * Extract the first `<iframe>` from the snippet. Returns `null` if none is
@@ -129,7 +230,11 @@ export function extractIframe(input: string | null | undefined): ParsedIframe | 
   // empty box.
   if (!attributes.src) return null;
 
-  return { attributes };
+  const intrinsicWidth = resolveIntrinsicDimension(attributes.width, attributes.style, "width");
+  const intrinsicHeight = resolveIntrinsicDimension(attributes.height, attributes.style, "height");
+  const host = extractEmbedHost(attributes.src);
+
+  return { attributes, intrinsicWidth, intrinsicHeight, host };
 }
 
 /**

@@ -106,6 +106,8 @@ export default {
         "code": { type: String, required: true },
         "aspectRatio": { type: String, default: "auto", matches: ["auto","16/9","4/3","1/1"] },
         "title": { type: String },
+        "minHeight": { type: Number },
+        "maxWidth": { type: Number },
       },
     },
     "posts-list": {

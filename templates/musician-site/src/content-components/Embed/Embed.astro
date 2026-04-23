@@ -11,12 +11,25 @@
  *
  * Aspect ratio
  * ------------
- * - "auto" (default) lets the iframe's intrinsic width/height attributes
- *   apply, capped to 100% width via CSS so it stays inside the page on
- *   mobile. Best for fixed-height players (Spotify, Bandcamp).
- * - A ratio string like "16/9" wraps the iframe in a positioned container
- *   that enforces the ratio and sizes the iframe absolutely to fill it.
- *   Best for video embeds that should scale.
+ * - "auto" (default) attempts to derive a responsive box from the iframe's
+ *   intrinsic pixel dimensions. If both width and height are pixel values
+ *   (either as attributes or via `style="width:Xpx;height:Ypx"`) we render
+ *   a wrapper with `aspect-ratio: W/H; max-width: Wpx` and absolutely
+ *   position the iframe to fill it — fixed-size embeds (Bandcamp 350×470
+ *   players) then scale responsively on narrow columns without clipping.
+ *   If neither dimension is pixel-expressible, we fall back to passthrough:
+ *   the iframe's own attributes apply, capped to 100% width.
+ * - An explicit ratio string like "16/9" forces the ratio regardless of
+ *   the iframe's intrinsic size. Best for video embeds that should scale.
+ *
+ * minHeight / maxWidth
+ * --------------------
+ * Optional author overrides for the wrapper. `maxWidth` overrides the
+ * intrinsic cap (useful when the source embed is narrower than the column
+ * can comfortably hold). `minHeight` is applied to the wrapper for both
+ * the explicit-ratio and the auto-detect branches (handy for short embeds
+ * that would otherwise collapse on wide columns). Both apply to the
+ * passthrough branch as well.
  *
  * Title fallback chain
  * --------------------
@@ -24,24 +37,36 @@
  * generic "Embedded content from <host>" string. Always set so the iframe
  * has an a11y label.
  */
-import { extractIframe, extractEmbedHost } from "./extractIframe";
+import { extractIframe, stripDimensionsFromStyle } from "./extractIframe";
 import type { EmbedAspectRatio } from "./schema";
 
 interface Props {
   code: string;
   aspectRatio?: EmbedAspectRatio;
   title?: string;
+  minHeight?: number;
+  maxWidth?: number;
 }
 
-const { code, aspectRatio = "auto", title } = Astro.props;
+const { code, aspectRatio = "auto", title, minHeight, maxWidth } = Astro.props;
 
 const parsed = extractIframe(code);
 const hasParseError = parsed === null;
 
 // Compute the final attribute set. We work on a fresh object so we can
 // override `title`, force `loading="lazy"`, and skip the (now-redundant)
-// width/height when an aspect ratio is enforced.
-const isRatioEnforced = !hasParseError && aspectRatio !== "auto";
+// width/height when a wrapper takes over sizing.
+const isExplicitRatio = !hasParseError && aspectRatio !== "auto";
+
+// Auto-detect only fires when both intrinsic dimensions are known; otherwise
+// we fall back to the passthrough branch (see header comment).
+const hasIntrinsicBox =
+  !hasParseError &&
+  aspectRatio === "auto" &&
+  parsed.intrinsicWidth !== null &&
+  parsed.intrinsicHeight !== null;
+
+const isWrapperSizing = isExplicitRatio || hasIntrinsicBox;
 
 /**
  * Astro's IframeHTMLAttributes types each attribute narrowly:
@@ -75,14 +100,14 @@ function narrowLoading(raw: string | undefined): IframeLoading {
 
 let attrs: IframeAttrs = {};
 let resolvedTitle = "";
+let wrapperStyle: string | undefined;
 
 if (parsed) {
   const source = parsed.attributes;
-  const host = extractEmbedHost(source.src);
   resolvedTitle =
     title?.trim() ||
     source.title?.trim() ||
-    (host ? `Embedded content from ${host}` : "Embedded content");
+    (parsed.host ? `Embedded content from ${parsed.host}` : "Embedded content");
 
   attrs = {
     src: source.src,
@@ -100,19 +125,46 @@ if (parsed) {
     allowfullscreen: source.allowfullscreen !== undefined ? true : undefined,
   };
 
-  // When we enforce an aspect ratio the wrapper sizes the iframe via
-  // `position: absolute; inset: 0; width: 100%; height: 100%;`. Stripping
-  // the inline width/height/style here avoids fighting the wrapper rules.
-  if (isRatioEnforced) {
+  // When a wrapper sizes the iframe via `position: absolute; inset: 0;
+  // width: 100%; height: 100%;` we strip anything from the iframe that
+  // would fight it. For inline `style="border:0; width:350px"` this means
+  // keeping the non-dimensional rules but dropping the width/height ones.
+  if (isWrapperSizing) {
     delete attrs.width;
     delete attrs.height;
-    delete attrs.style;
+    const cleanedStyle = stripDimensionsFromStyle(source.style);
+    if (cleanedStyle.length > 0) {
+      attrs.style = cleanedStyle;
+    } else {
+      delete attrs.style;
+    }
   }
-}
 
-// CSS custom property holds the ratio so the same .embed-ratio rule
-// applies for any value the author picks. Keeps the styles below static.
-const ratioStyle = isRatioEnforced ? `--embed-aspect-ratio: ${aspectRatio};` : undefined;
+  // Build the wrapper's inline style. Uses CSS custom properties so the
+  // static `.embed-ratio` rule handles both the explicit-ratio and the
+  // auto-detect cases identically.
+  const wrapperDecls: string[] = [];
+  if (isExplicitRatio) {
+    wrapperDecls.push(`--embed-aspect-ratio: ${aspectRatio}`);
+  } else if (hasIntrinsicBox) {
+    wrapperDecls.push(
+      `--embed-aspect-ratio: ${parsed.intrinsicWidth}/${parsed.intrinsicHeight}`,
+    );
+    // Intrinsic cap — unless the author overrides it with `maxWidth`.
+    const cap = typeof maxWidth === "number" ? maxWidth : parsed.intrinsicWidth;
+    if (cap !== null) {
+      wrapperDecls.push(`max-width: ${cap}px`);
+    }
+  }
+  // `maxWidth` on the explicit-ratio and passthrough branches too.
+  if (typeof maxWidth === "number" && !hasIntrinsicBox) {
+    wrapperDecls.push(`max-width: ${maxWidth}px`);
+  }
+  if (typeof minHeight === "number") {
+    wrapperDecls.push(`min-height: ${minHeight}px`);
+  }
+  wrapperStyle = wrapperDecls.length > 0 ? wrapperDecls.join("; ") : undefined;
+}
 ---
 
 {hasParseError ? (
@@ -120,12 +172,12 @@ const ratioStyle = isRatioEnforced ? `--embed-aspect-ratio: ${aspectRatio};` : u
     <strong>Embed code couldn't be parsed.</strong>
     <span>Paste the full <code>&lt;iframe&gt;</code> snippet from the service's "Share / Embed" UI.</span>
   </div>
-) : isRatioEnforced ? (
-  <div class="embed-wrapper embed-ratio" style={ratioStyle}>
+) : isWrapperSizing ? (
+  <div class="embed-wrapper embed-ratio" style={wrapperStyle}>
     <iframe {...attrs} />
   </div>
 ) : (
-  <div class="embed-wrapper">
+  <div class="embed-wrapper" style={wrapperStyle}>
     <iframe {...attrs} />
   </div>
 )}
@@ -150,7 +202,8 @@ const ratioStyle = isRatioEnforced ? `--embed-aspect-ratio: ${aspectRatio};` : u
   /*
    * Aspect-ratio wrapper: position the iframe to fill a box constrained
    * by `aspect-ratio`. Modern browsers (95%+) support `aspect-ratio` so
-   * we don't need the padding-bottom hack.
+   * we don't need the padding-bottom hack. Used both for explicit author
+   * ratios (16/9 etc.) and for the auto-detected intrinsic box.
    */
   .embed-ratio {
     position: relative;

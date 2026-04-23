@@ -404,7 +404,7 @@ Photo grid with lightbox support.
 Use CSS modules (`.module.css`). No CSS-in-JS.
 
 ### Boolean prop naming
-All boolean props must start with `is` or `has` (e.g. `isExternal`, `isRequired`, `isTextarea`).
+All boolean props must start with `is`, `are`, `has` (e.g. `isExternal`, `isRequired`, `isTextarea`).
 
 ### Breakpoints in @media queries
 CSS custom properties cannot be used in `@media` queries. Use literal pixel values with a comment:

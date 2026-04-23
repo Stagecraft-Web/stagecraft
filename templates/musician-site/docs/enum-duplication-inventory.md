@@ -54,7 +54,6 @@ than with the Zod schemas.
 | Heading level (h1–h4) | `HEADING_LEVELS` | `Section/schema.ts` + `FullscreenSection/schema.ts` local arrays, 2 hand-rolled selects |
 | Button variant | `BUTTON_VARIANTS` | `Button/schema.ts` local + select |
 | Columns layout (1-1, 1-2, 2-1, 1-1-1) | `COLUMNS_LAYOUTS` + `COLUMNS_LAYOUT_LABELS` record | `Columns/schema.ts` local + labelled select |
-| Tour dates filter (upcoming, all) | `TOUR_DATES_FILTERS` | `TourDatesList/schema.ts` local |
 | Posts list layout (grid, list) | `POSTS_LIST_LAYOUTS` | `PostsList/schema.ts` local |
 | Embed aspect ratio (auto, 16/9, 4/3, 1/1) | `EMBED_ASPECT_RATIOS` + labels record | `Embed/schema.ts` local + labelled select |
 | Newsletter service (4 services) | `NEWSLETTER_SERVICES` + labels record | `NewsletterSignup/schema.ts` local + labelled select |

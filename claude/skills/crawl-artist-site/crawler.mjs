@@ -44,6 +44,13 @@ const SKIP_PATH_PATTERNS = [
   /\/account\b/i,
   /\/login\b/i,
   /\.(pdf|zip|mp3|mp4|mov)$/i,
+  // Image-asset URLs — direct-to-image pages (Squarespace `/s/*.jpg`, WordPress
+  // `/wp-content/uploads/*`, generic image paths). Rendering an image in a
+  // browser tab gives a useless "page" (1 giant <img>, no content), and if
+  // harvested it bloats the manifest. Keep the URL in imageUrls (the harvester
+  // captures <img src>) but don't crawl it as a page.
+  /\.(jpe?g|png|gif|webp|svg|ico|bmp|tiff?)$/i,
+  /\/s\/[^/]+\.(jpe?g|png|gif|webp)/i,
 ];
 const PRIORITY_PATHS = [
   "/", "/about", "/about-1", "/bio", "/music", "/releases", "/discography",
@@ -71,8 +78,14 @@ const EXTERNAL_SERVICE_HOSTS = {
 
 // ---------- helpers ----------
 function slugifyPath(p) {
-  if (p === "/" || p === "") return "home";
-  return p.replace(/^\//, "").replace(/\/$/, "").replace(/\//g, "--").replace(/[^a-z0-9-]/gi, "-");
+  // Root and `/home` must not collide. Some Squarespace sites use a splash
+  // cover page at `/` and the real landing page at `/home` — if both slugify
+  // to "home/", the second write overwrites the first and the splash screenshot
+  // + "Enter site" button are lost. "root" is reserved for `/` so these stay
+  // distinct on disk.
+  if (p === "/" || p === "") return "root";
+  const s = p.replace(/^\//, "").replace(/\/$/, "").replace(/\//g, "--").replace(/[^a-z0-9-]/gi, "-");
+  return s || "root";
 }
 function originOf(u) { try { return new URL(u).origin; } catch { return null; } }
 function pathOf(u) { try { return new URL(u).pathname.replace(/\/+$/, "") || "/"; } catch { return null; } }
@@ -384,15 +397,29 @@ async function main() {
   // Without this, nav links harvested from the live DOM may be tagged external
   // because they use the post-redirect hostname while `origin` still holds the
   // pre-redirect one — producing a 1-page crawl with every internal link missed.
-  try {
-    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    const effective = originOf(page.url());
-    if (effective && effective !== origin) {
-      console.log(`[crawl] redirect detected: ${origin} → ${effective} (using effective origin)`);
-      origin = effective;
+  //
+  // The probe runs in a *throwaway* context. Running it in the main context
+  // poisoned the session for Squarespace cover-page sites: the first visit to
+  // `/` sets a "seen the splash" cookie, so the crawl-loop's subsequent visit
+  // to `/` silently served the non-splash home content instead — masking the
+  // splash page entirely. Isolating the probe keeps main-context cookies clean.
+  {
+    const probeContext = await browser.newContext({
+      viewport: VIEWPORT,
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    });
+    const probePage = await probeContext.newPage();
+    try {
+      await probePage.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      const effective = originOf(probePage.url());
+      if (effective && effective !== origin) {
+        console.log(`[crawl] redirect detected: ${origin} → ${effective} (using effective origin)`);
+        origin = effective;
+      }
+    } catch (e) {
+      console.error(`[crawl] initial probe failed: ${e.message}`);
     }
-  } catch (e) {
-    console.error(`[crawl] initial probe failed: ${e.message}`);
+    await probeContext.close();
   }
 
   const visited = new Set();

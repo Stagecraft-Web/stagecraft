@@ -4,12 +4,16 @@ import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  FONT_SIZE_SCALES,
+  FONT_SIZE_SCALE_LABELS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
   POST_STATUSES,
   RELEASE_TYPES,
   RELEASE_TYPE_LABELS,
+  SIZE_ADJUSTMENTS,
+  SIZE_ADJUSTMENT_LABELS,
   STORE_ITEM_FORMATS,
   STORE_ITEM_STATUSES,
   TOUR_DATE_STATUSES,
@@ -17,6 +21,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type FontSizeScale,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -349,6 +354,72 @@ export default config({
             label: "Typography",
             description:
               "Pick fonts and weights. Google Fonts are loaded with only the exact weights in use.",
+          },
+        ),
+        // -----------------------------------------------------------------
+        // Sizing — three composable knobs on top of theme.json's baseline.
+        //
+        //   1. fontSizeScale  — Compact / Regular / Spacious preset.
+        //   2. fontSizeAdjust — integer stepper (-2…+2), ~7% per step,
+        //                       applied uniformly to every size bucket.
+        //   3. headingScale   — integer stepper (-2…+2), same per-step
+        //                       scaling but applied ONLY to heading sizes
+        //                       (h1..h4 buckets).
+        //
+        // Values go through computeFontSizes() in src/lib/font-sizing.ts at
+        // render time; raw theme.json remains the baseline for dev-level
+        // edits (finer-grained bucket tweaks live there).
+        //
+        // All three selects persist their values as strings — Keystatic's
+        // `fields.select` only supports string option values. The Zod schema
+        // uses `z.coerce.number()` on the adjust/heading buckets so the
+        // round-trip from seed JSON → runtime state is clean.
+        // -----------------------------------------------------------------
+        sizing: fields.object(
+          {
+            fontSizeScale: fields.select({
+              label: "Font-size scale",
+              description: "Baseline scale preset applied to every size bucket.",
+              options: FONT_SIZE_SCALES.map((v) => ({
+                label: FONT_SIZE_SCALE_LABELS[v],
+                value: v,
+              })) as [
+                { label: string; value: FontSizeScale },
+                ...{ label: string; value: FontSizeScale }[],
+              ],
+              defaultValue: "regular",
+            }),
+            fontSizeAdjust: fields.select({
+              label: "Font-size adjust (all)",
+              description:
+                "Multiplicative nudge on top of the scale preset (~7% per step). Applies to every size bucket.",
+              options: SIZE_ADJUSTMENTS.map((v) => ({
+                label: SIZE_ADJUSTMENT_LABELS[String(v)]!,
+                value: String(v),
+              })) as [
+                { label: string; value: string },
+                ...{ label: string; value: string }[],
+              ],
+              defaultValue: "0",
+            }),
+            headingScale: fields.select({
+              label: "Heading scale",
+              description:
+                "Extra multiplier applied to heading sizes only (h1..h4). Stacks on top of Font-size adjust.",
+              options: SIZE_ADJUSTMENTS.map((v) => ({
+                label: SIZE_ADJUSTMENT_LABELS[String(v)]!,
+                value: String(v),
+              })) as [
+                { label: string; value: string },
+                ...{ label: string; value: string }[],
+              ],
+              defaultValue: "0",
+            }),
+          },
+          {
+            label: "Sizing",
+            description:
+              "Scale the type system. Compose these with raw theme.json for dev-level overrides.",
           },
         ),
       },

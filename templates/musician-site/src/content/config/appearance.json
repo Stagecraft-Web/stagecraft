@@ -32,5 +32,10 @@
       "h5": "600",
       "h6": "600"
     }
+  },
+  "sizing": {
+    "fontSizeScale": "regular",
+    "fontSizeAdjust": "0",
+    "headingScale": "0"
   }
 }

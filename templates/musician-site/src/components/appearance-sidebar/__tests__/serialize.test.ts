@@ -24,6 +24,11 @@ const splitState: AppearanceState = {
     heading: { category: "serif", family: "Merriweather" },
     weights: { body: 400, bodyBold: 700, h1: 700, h2: 700, h3: 700, h4: 700, h5: 600, h6: 600 },
   },
+  sizing: {
+    fontSizeScale: "regular",
+    fontSizeAdjust: 0,
+    headingScale: 0,
+  },
 };
 
 const singleState: AppearanceState = {
@@ -77,6 +82,31 @@ describe("serializeAppearanceForKeystatic", () => {
     const parsed = appearanceSchema.parse(JSON.parse(json));
     expect(parsed).toEqual(singleState);
   });
+
+  // §6.2 sizing block — must persist as strings (Keystatic select contract)
+  // and round-trip cleanly through the coerce-number schema.
+  it("writes the sizing block with string-valued adjust steps", () => {
+    const json = serializeAppearanceForKeystatic({
+      ...splitState,
+      sizing: { fontSizeScale: "compact", fontSizeAdjust: -1, headingScale: 2 },
+    });
+    const parsed = JSON.parse(json);
+    expect(parsed.sizing).toEqual({
+      fontSizeScale: "compact",
+      fontSizeAdjust: "-1",
+      headingScale: "2",
+    });
+  });
+
+  it("round-trips a fully-adjusted sizing block through the schema", () => {
+    const state: AppearanceState = {
+      ...splitState,
+      sizing: { fontSizeScale: "spacious", fontSizeAdjust: 1, headingScale: -2 },
+    };
+    const json = serializeAppearanceForKeystatic(state);
+    const parsed = appearanceSchema.parse(JSON.parse(json));
+    expect(parsed).toEqual(state);
+  });
 });
 
 describe("buildCommitMessage", () => {
@@ -128,5 +158,26 @@ describe("buildCommitMessage", () => {
     const { headline, body } = buildCommitMessage(splitState, next);
     expect(headline).toContain("h2 weight");
     expect(body).toContain("h2 weight: 700 → 500");
+  });
+
+  // §6.2 sizing knobs surfaced in the commit message.
+  it("names a scale-preset change in the headline/body", () => {
+    const next: AppearanceState = {
+      ...splitState,
+      sizing: { ...splitState.sizing, fontSizeScale: "spacious" },
+    };
+    const { headline, body } = buildCommitMessage(splitState, next);
+    expect(headline).toContain("font-size scale");
+    expect(body).toContain("font-size scale: regular → spacious");
+  });
+
+  it("names a heading-scale change in the headline/body", () => {
+    const next: AppearanceState = {
+      ...splitState,
+      sizing: { ...splitState.sizing, headingScale: 1 },
+    };
+    const { headline, body } = buildCommitMessage(splitState, next);
+    expect(headline).toContain("heading scale");
+    expect(body).toContain("heading scale: 0 → 1");
   });
 });

@@ -1,8 +1,15 @@
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
-import type { FontCategory } from "../../lib/schemas";
-import { FONT_CATEGORIES, FONT_CATEGORY_LABELS } from "../../lib/schemas";
+import type { FontCategory, FontSizeScale, SizeAdjustment } from "../../lib/schemas";
+import {
+  FONT_CATEGORIES,
+  FONT_CATEGORY_LABELS,
+  FONT_SIZE_SCALES,
+  FONT_SIZE_SCALE_LABELS,
+  SIZE_ADJUSTMENTS,
+  SIZE_ADJUSTMENT_LABELS,
+} from "../../lib/schemas";
 import {
   AuthExpiredError,
   commitFile,
@@ -63,10 +70,12 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
 
   // Re-project the draft onto the document on every change. CSS-variable
   // writes and single <link href> swap — both cheap and idempotent, so no
-  // debounce needed even on rapid keystrokes.
+  // debounce needed even on rapid keystrokes. `baseFontSizes` is the raw
+  // theme.json scale threaded through from BaseLayout — computeFontSizes
+  // applies the sizing knobs to it for the live preview.
   useEffect(() => {
-    applyPreview(document, draft);
-  }, [draft]);
+    applyPreview(document, draft, config.baseFontSizes);
+  }, [draft, config.baseFontSizes]);
 
   useEffect(() => {
     if (!token || config.saveMode !== "github-graphql") return;
@@ -280,6 +289,13 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
             Typography
           </h3>
           <TypographyFields draft={draft} onChange={updateDraft} />
+        </section>
+
+        <section className={styles.section} aria-labelledby="stagecraft-sizing">
+          <h3 id="stagecraft-sizing" className={styles.sectionTitle}>
+            Sizing
+          </h3>
+          <SizingFields draft={draft} onChange={updateDraft} />
         </section>
 
         <footer className={styles.footer}>
@@ -564,6 +580,105 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
 
 function categoryLabel(cat: FontCategory): string {
   return FONT_CATEGORY_LABELS[cat];
+}
+
+// ============================================================================
+// Sizing fields (§6.2) — three composable knobs layered on top of theme.json.
+//
+//   1. Scale preset (compact / regular / spacious)
+//   2. Font-size adjust (all sizes, -2..+2)
+//   3. Heading scale (heading buckets only, -2..+2)
+//
+// All three persist as strings in appearance.json; the schema coerces back
+// to the typed values on parse. See src/lib/font-sizing.ts for the math.
+// ============================================================================
+
+function SizingFields({ draft, onChange }: FieldProps) {
+  const { sizing } = draft;
+  return (
+    <>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="stagecraft-font-size-scale">
+          Font-size scale
+        </label>
+        <select
+          id="stagecraft-font-size-scale"
+          className={styles.select}
+          value={sizing.fontSizeScale}
+          onChange={(e) =>
+            onChange((prev) => ({
+              ...prev,
+              sizing: {
+                ...prev.sizing,
+                fontSizeScale: e.target.value as FontSizeScale,
+              },
+            }))
+          }
+        >
+          {FONT_SIZE_SCALES.map((scale) => (
+            <option key={scale} value={scale}>
+              {FONT_SIZE_SCALE_LABELS[scale]}
+            </option>
+          ))}
+        </select>
+        <p className={styles.hint}>Baseline preset applied to every size bucket.</p>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="stagecraft-font-size-adjust">
+          Font-size adjust (all)
+        </label>
+        <select
+          id="stagecraft-font-size-adjust"
+          className={styles.select}
+          value={String(sizing.fontSizeAdjust)}
+          onChange={(e) =>
+            onChange((prev) => ({
+              ...prev,
+              sizing: {
+                ...prev.sizing,
+                fontSizeAdjust: Number(e.target.value) as SizeAdjustment,
+              },
+            }))
+          }
+        >
+          {SIZE_ADJUSTMENTS.map((step) => (
+            <option key={step} value={String(step)}>
+              {SIZE_ADJUSTMENT_LABELS[String(step)]}
+            </option>
+          ))}
+        </select>
+        <p className={styles.hint}>Multiplicative nudge (~7% per step) on top of the scale preset.</p>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="stagecraft-heading-scale">
+          Heading scale
+        </label>
+        <select
+          id="stagecraft-heading-scale"
+          className={styles.select}
+          value={String(sizing.headingScale)}
+          onChange={(e) =>
+            onChange((prev) => ({
+              ...prev,
+              sizing: {
+                ...prev.sizing,
+                headingScale: Number(e.target.value) as SizeAdjustment,
+              },
+            }))
+          }
+        >
+          {SIZE_ADJUSTMENTS.map((step) => (
+            <option key={step} value={String(step)}>
+              {SIZE_ADJUSTMENT_LABELS[String(step)]}
+            </option>
+          ))}
+        </select>
+        <p className={styles.hint}>Extra multiplier applied to heading sizes only (h1–h4).</p>
+      </div>
+    </>
+  );
 }
 
 /** Coerce any CSS color to a 6-digit hex so <input type="color"> can display

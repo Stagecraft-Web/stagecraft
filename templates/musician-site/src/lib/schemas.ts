@@ -195,6 +195,49 @@ const weightsSchema = z.object({
   h6: fontWeightSchema.default(600),
 });
 
+// Font-size scale preset. Baseline multiplier applied to every bucket in the
+// theme.json fontSize scale. Compact / Regular / Spacious is intentionally a
+// small set — author-facing nudges, not every ratio on the number line. Dev
+// authors who need finer-grained control still edit theme.json directly.
+export const FONT_SIZE_SCALES = ["compact", "regular", "spacious"] as const;
+export type FontSizeScale = (typeof FONT_SIZE_SCALES)[number];
+export const FONT_SIZE_SCALE_LABELS: Record<FontSizeScale, string> = {
+  compact: "Compact (tighter, smaller)",
+  regular: "Regular (default)",
+  spacious: "Spacious (larger, breathier)",
+};
+
+// Integer step stepper for `fontSizeAdjust` + `headingScale`. Each step is a
+// ~7% multiplicative nudge (see SIZE_ADJUSTMENT_MULTIPLIER in font-sizing.ts).
+// Kept symmetric around 0 so the admin select reads as a natural "-2 … +2".
+export const SIZE_ADJUSTMENTS = [-2, -1, 0, 1, 2] as const;
+export type SizeAdjustment = (typeof SIZE_ADJUSTMENTS)[number];
+export const SIZE_ADJUSTMENT_LABELS: Record<string, string> = {
+  "-2": "Much smaller (−2)",
+  "-1": "Smaller (−1)",
+  "0": "Default (0)",
+  "1": "Larger (+1)",
+  "2": "Much larger (+2)",
+};
+
+// Sizing knobs — defaulted so existing `appearance.json` files (pre-§6.2)
+// continue to parse without a `sizing` block. Authors get Compact / Regular /
+// Spacious scale presets plus integer-stepper adjust on top (all sizes) and a
+// separate adjust for heading-sized buckets only. Values go through
+// `computeFontSizes` in lib/font-sizing.ts at render time; theme.json's
+// `typography.fontSize` remains the baseline for dev-level tweaks.
+//
+// `z.coerce.number()` is required because Keystatic's `fields.select` persists
+// option values as strings — the seed file will store "0", not 0, and this
+// coercion keeps both authoring surfaces in alignment.
+const sizingSchema = z
+  .object({
+    fontSizeScale: z.enum(FONT_SIZE_SCALES).default("regular"),
+    fontSizeAdjust: z.coerce.number().int().min(-2).max(2).default(0),
+    headingScale: z.coerce.number().int().min(-2).max(2).default(0),
+  })
+  .default({});
+
 export const appearanceSchema = z
   .object({
     colors: z.object({
@@ -219,6 +262,10 @@ export const appearanceSchema = z
       heading: headingSelectionSchema,
       weights: weightsSchema,
     }),
+    // Defaulting the whole object means existing appearance.json files
+    // without this block continue to parse (defaults: regular / 0 / 0 →
+    // identity transform in computeFontSizes).
+    sizing: sizingSchema,
   })
   .transform((input) => ({
     colors: {
@@ -236,10 +283,12 @@ export const appearanceSchema = z
       heading: input.typography.heading.heading,
       weights: input.typography.weights,
     },
+    sizing: input.sizing,
   }));
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];
+export type AppearanceSizing = Appearance["sizing"];
 
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),

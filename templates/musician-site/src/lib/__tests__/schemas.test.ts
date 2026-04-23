@@ -347,6 +347,106 @@ describe("appearanceSchema", () => {
     const result = appearanceSchema.parse(withLink);
     expect(result.colors.linkColor).toBe("#ff00aa");
   });
+
+  // ---- 6.2: sizing block --------------------------------------------------
+  it("defaults sizing to regular / 0 / 0 when the block is missing entirely", () => {
+    // Backwards-compat: pre-§6.2 appearance.json files have no `sizing` key.
+    // The schema defaults the whole object so those files still parse without
+    // author intervention.
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.sizing).toEqual({
+      fontSizeScale: "regular",
+      fontSizeAdjust: 0,
+      headingScale: 0,
+    });
+  });
+
+  it("accepts a fully-specified sizing block", () => {
+    const withSizing = {
+      ...splitInput,
+      sizing: {
+        fontSizeScale: "compact" as const,
+        fontSizeAdjust: -1,
+        headingScale: 2,
+      },
+    };
+    const result = appearanceSchema.parse(withSizing);
+    expect(result.sizing).toEqual({
+      fontSizeScale: "compact",
+      fontSizeAdjust: -1,
+      headingScale: 2,
+    });
+  });
+
+  it("coerces string-valued sizing adjusts (as Keystatic's select emits)", () => {
+    // Keystatic persists fields.select option values as strings. The seed
+    // file + round-tripped commits write "0" / "1" / "-2" etc., and the
+    // z.coerce.number() on fontSizeAdjust / headingScale turns them into
+    // typed numbers at parse time.
+    const withStringSizing = {
+      ...splitInput,
+      sizing: {
+        fontSizeScale: "spacious" as const,
+        fontSizeAdjust: "1",
+        headingScale: "-1",
+      },
+    };
+    const result = appearanceSchema.parse(withStringSizing);
+    expect(result.sizing.fontSizeAdjust).toBe(1);
+    expect(result.sizing.headingScale).toBe(-1);
+  });
+
+  it("rejects sizing adjusts outside the -2..+2 range", () => {
+    const withBadAdjust = {
+      ...splitInput,
+      sizing: {
+        fontSizeScale: "regular" as const,
+        fontSizeAdjust: 3,
+        headingScale: 0,
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadAdjust)).toThrow();
+  });
+
+  it("rejects non-integer sizing adjusts", () => {
+    const withFractional = {
+      ...splitInput,
+      sizing: {
+        fontSizeScale: "regular" as const,
+        fontSizeAdjust: 1.5,
+        headingScale: 0,
+      },
+    };
+    expect(() => appearanceSchema.parse(withFractional)).toThrow();
+  });
+
+  it("rejects unknown fontSizeScale values", () => {
+    const withBadScale = {
+      ...splitInput,
+      sizing: {
+        fontSizeScale: "enormous",
+        fontSizeAdjust: 0,
+        headingScale: 0,
+      },
+    };
+    expect(() => appearanceSchema.parse(withBadScale)).toThrow();
+  });
+
+  it("defaults individual sizing fields when a partial block is supplied", () => {
+    // A partial block (e.g. only fontSizeScale) should fill the rest with
+    // defaults — so authors can set one knob without having to write out all
+    // three.
+    const withPartialSizing = {
+      ...splitInput,
+      sizing: { fontSizeScale: "spacious" as const },
+    };
+    const result = appearanceSchema.parse(withPartialSizing);
+    expect(result.sizing).toEqual({
+      fontSizeScale: "spacious",
+      fontSizeAdjust: 0,
+      headingScale: 0,
+    });
+  });
 });
 
 describe("pageFrontmatterSchema", () => {

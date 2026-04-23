@@ -68,6 +68,14 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
         h6: String(state.typography.weights.h6),
       },
     },
+    // §6.2 sizing knobs. Numeric steps are serialised as strings to match
+    // Keystatic's select-option persistence; the reader-side schema uses
+    // `z.coerce.number()` to parse them back.
+    sizing: {
+      fontSizeScale: state.sizing.fontSizeScale,
+      fontSizeAdjust: String(state.sizing.fontSizeAdjust),
+      headingScale: String(state.sizing.headingScale),
+    },
   };
 
   return JSON.stringify(payload, null, 2) + "\n";
@@ -150,6 +158,31 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
         to: String(next.typography.weights[key]),
       });
     }
+  }
+
+  // §6.2 sizing knobs — named labels keep the commit-message diff readable
+  // ("font-size scale: regular → compact" is more self-explanatory than the
+  // raw field key).
+  if (prev.sizing.fontSizeScale !== next.sizing.fontSizeScale) {
+    changes.push({
+      label: "font-size scale",
+      from: prev.sizing.fontSizeScale,
+      to: next.sizing.fontSizeScale,
+    });
+  }
+  if (prev.sizing.fontSizeAdjust !== next.sizing.fontSizeAdjust) {
+    changes.push({
+      label: "font-size adjust",
+      from: String(prev.sizing.fontSizeAdjust),
+      to: String(next.sizing.fontSizeAdjust),
+    });
+  }
+  if (prev.sizing.headingScale !== next.sizing.headingScale) {
+    changes.push({
+      label: "heading scale",
+      from: String(prev.sizing.headingScale),
+      to: String(next.sizing.headingScale),
+    });
   }
 
   return changes;

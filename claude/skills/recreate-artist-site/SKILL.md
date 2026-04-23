@@ -20,10 +20,11 @@ If the crawl is missing or the manifest lacks essentials (pages, imageUrls), sto
 
 When the caller provides a slug without an explicit path, search in this order:
 
-1. `.claude/runs/*/crawls/<slug>/` — pick the most recent by mtime.
-2. `.claude/site-crawls/<slug>/` — legacy location.
+1. `.claude/crawls/<slug>/` — pick the most recent dated subdir (ISO-minute names sort correctly as plain strings). This is the canonical site-keyed crawl location.
+2. `.claude/runs/*/crawls/<slug>/` where the match is a real directory (not a symlink) — legacy, pre-reorg.
+3. `.claude/site-crawls/<slug>/` — legacy, pre-`runs/` era.
 
-If multiple candidates exist and the caller is the pipeline, prefer the run-dir it passed. If no candidates exist, stop and tell the user the slug isn't crawled yet.
+If multiple candidates exist and the caller is the pipeline, prefer the one the pipeline explicitly symlinked into the run-dir (the pipeline has already done staleness checks by that point — don't second-guess). If no candidates exist anywhere, stop and tell the user the slug isn't crawled yet.
 
 ## Prerequisites
 
@@ -53,13 +54,17 @@ The sandbox is deterministic: if the sanity write fails, every subsequent write 
 
 1. Read `manifest.json` completely. Note: pages, image URLs, external services, fonts, notable observations.
 2. View a sample of screenshots per page — at minimum the first scroll of home, about, music, and one gallery-style page if present. Use these to ground design decisions.
-3. Create `<target-dir>/_working-notes.md` and start logging as you go. You'll consume it in step 10 to produce the final report. Entries should be tagged:
+3. Create `<target-dir>/_working-notes.md` and start logging as you go. It's a **living document**, not a deliverable: the evaluate skill (`evaluate-artist-site-recreation`) appends a frontend-review pass and its adjustment-pass outcomes to the same file before scoring, and the final `RECREATION_REPORT.md` consolidates everything. Write entries with that downstream consumer in mind — terse, tagged, greppable.
+
+   Recreation-phase tags:
    - `[ease]` — general observations about how smoothly the process is going
    - `[friction]` — a specific thing that slowed you down or needed a workaround
    - `[gap]` — a framework capability that was missing or didn't fit
    - `[opportunity]` — a concrete proposed framework improvement (component, schema field, theme token, etc.)
    - `[fidelity-risk]` — something about the output you're unsure matches the original
-   
+
+   The evaluate skill will later add `[review]` (specific fidelity improvements, or intentional-divergence justifications tagged `[keep]`) and `[adjustment]` (outcomes — applied / blocked / skipped). Do not pre-fill those tags yourself.
+
    Format each entry as a one-liner or short paragraph. Don't over-invest in prose — just capture the signal.
 4. Produce a short written plan for yourself (not as a deliverable — just to organize the work): for each crawled page, which stagecraft page will it map to, and which content components will compose the body.
 

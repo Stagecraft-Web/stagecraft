@@ -1,11 +1,18 @@
 ---
 name: evaluate-artist-site-recreation
-description: Use when the user wants to score how closely a stagecraft site recreation matches its original source. Crawls the recreation using the same crawl-artist-site tooling that captured the original (same viewport, same interaction-capture) for a true apples-to-apples comparison, diffs typography / palette / structure / content / interactions, then scores against a 6-dimension rubric (Visual Fidelity, Content Completeness, Interaction Fidelity, Component Coverage, Schema Fit, Asset Pipeline) and writes a final report. Trigger phrases include "evaluate the recreation", "score this recreation", "compare recreation to original", "how close did the recreation get", or a reference to a completed recreation directory that needs grading.
+description: Use when the user wants to score how closely a stagecraft site recreation matches its original source. Crawls the recreation, runs a frontend-expert review + adjustment pass to close obvious fidelity gaps, re-crawls the refined recreation, then diffs typography / palette / structure / content / interactions against the original and scores against a 6-dimension rubric (Visual Fidelity, Content Completeness, Interaction Fidelity, Component Coverage, Schema Fit, Asset Pipeline). Trigger phrases include "evaluate the recreation", "score this recreation", "compare recreation to original", "how close did the recreation get", or a reference to a completed recreation directory that needs grading.
 ---
 
 # Evaluate Artist Site Recreation
 
-Score a stagecraft site recreation by crawling it with the same tool that captured the original, diffing the structured artifacts, and writing a report.
+Score a stagecraft site recreation by:
+
+1. Crawling it with the same tool that captured the original.
+2. Running an expert frontend review against the initial crawl + the recreation agent's working notes, then applying the review's concrete improvements in place.
+3. Re-crawling the refined recreation.
+4. Diffing the final crawl against the original, scoring, and writing a report.
+
+The review + adjust + re-crawl loop is mandatory — it's the difference between scoring the first-draft recreation (unfair to the template) and scoring what the template can actually produce with one focused refinement pass. Skip the loop only if the caller explicitly passes `skip-refine` (rare; almost always wrong).
 
 Run this after `recreate-artist-site` has produced output. It can also be re-run after manual tweaks to the recreation — just rerun end-to-end.
 
@@ -21,10 +28,13 @@ If either required input is missing or incomplete (manifest malformed, no screen
 
 When the caller provides a slug without explicit paths, search in this order for each:
 
-- **Crawl:** `.claude/runs/*/crawls/<slug>/` (most recent by mtime) → `.claude/site-crawls/<slug>/`.
+- **Crawl:**
+  1. `.claude/crawls/<slug>/` — most recent dated subdir (canonical, site-keyed).
+  2. `.claude/runs/*/crawls/<slug>/` where the match is a real directory (legacy, pre-reorg).
+  3. `.claude/site-crawls/<slug>/` (legacy, pre-`runs/` era).
 - **Recreation:** `.claude/runs/*/recreations/<slug>/` (most recent by mtime) → `.claude/site-recreations/<slug>/`.
 
-If the caller is the pipeline, prefer the run-dir it passed. If the recreation isn't found, stop and tell the user — don't guess by regenerating.
+If the caller is the pipeline, prefer the run-dir it passed (the pipeline already resolved the right crawl and symlinked it in). If the recreation isn't found, stop and tell the user — don't guess by regenerating.
 
 ### Re-evaluation housekeeping
 
@@ -49,15 +59,81 @@ If `<recreation-dir>/RECREATION_REPORT.md` already exists (re-evaluation case), 
 6. Run the server as a background process so you can kill it after the crawl.
 7. **Always kill your server before returning,** including on error paths. Parallel evaluations leave orphaned servers on 4322–4326 otherwise; the next batch will hit "address in use". A `trap` on your background PID or an explicit kill in a `finally`-style step works.
 
-### 2. Crawl the recreation
+### 2. Crawl the recreation (initial)
 
-Invoke the `crawl-artist-site` workflow pointed at `http://localhost:<PORT>/`, with output directory `<run-dir>/crawls/<slug>--recreation/` (note the `--recreation` suffix to distinguish from the source crawl). Use the **exact same viewport and interaction-capture settings** as the original crawl.
+Invoke the `crawl-artist-site` workflow pointed at `http://localhost:<PORT>/`, with output directory `<run-dir>/crawls/<slug>--recreation-pre-refine/` (this preserves the pre-refinement crawl as a trace so the refinement's value can be seen; the **final** post-refine crawl will land at `<slug>--recreation/` in step 5). Use the **exact same viewport and interaction-capture settings** as the original crawl.
 
 Read the original crawl's `manifest.json.viewport` and use those dimensions explicitly so the computed styles are comparable. Cap pages to whatever the original crawl captured (don't over-crawl the recreation).
 
-When the crawl finishes, kill the local server.
+When the crawl finishes, kill the local server — it'll be rebooted after the adjustment pass.
 
-### 3. Diff the two crawls
+### 3. Expert frontend review
+
+**Goal:** produce a concrete, actionable refinement plan for the recreation before it gets scored. The scoring pass should measure what the template+author can realistically achieve, not just the recreation agent's first draft.
+
+**Inputs:**
+- Screenshots from the original crawl (`<run-dir>/crawls/<slug>/*/scroll-*.png`)
+- Screenshots from the initial recreation crawl (`<run-dir>/crawls/<slug>--recreation-pre-refine/*/scroll-*.png`)
+- `<recreation-dir>/_working-notes.md` (the recreation agent's thought process, with `[ease]` / `[friction]` / `[gap]` / `[opportunity]` / `[fidelity-risk]` entries)
+- Optional: original + recreation `styles.json` and `text.md` from matching pages if a judgment call needs grounding in the data
+
+**How to run it:** treat this as an expert frontend-designer pass. If the overall pipeline is fanning out per-site subagents and each subagent is already running this skill end-to-end, do the review in-line — you (the per-site agent) already have the context. If you're running this skill standalone for a single site and the user wants an extra set of eyes, you may dispatch a subagent; not required.
+
+**What the review should produce (per page, or site-wide where appropriate):**
+
+1. **Specific fidelity improvements.** Each improvement must name a concrete change: "reduce h1 weight from 700 to 500 to match the original's lighter display treatment", "move hero title from centered to top-left to match source composition", "palette accent should be #b85450, not #cc5a4a (original is more muted)". Vague suggestions ("make it look more like the original") are forbidden — every entry must be something a subsequent agent can try in a single edit.
+2. **Intentional divergence justifications.** When the recreation diverges from the original and that divergence is *correct* or *better* (e.g. the original uses a decorative cursor that we've skipped for a11y, or the original's stacked layout is objectively harder to scan than the recreation's grid), say so explicitly. These protect the recreation from being penalized for a deliberate choice.
+3. **Prioritization.** Tag each improvement as `priority: high | medium | low` based on visual impact × ease of adjustment. High = big visual gap + easy edit. Low = small gap, or big gap that clearly needs a framework change (bubble those up instead of trying).
+
+**Output format — append to `_working-notes.md`:**
+
+```
+## Expert frontend review — <ISO timestamp>
+
+- [review] [priority: high] home: Hero title alignment — original has wordmark top-left over photo, recreation has centered text. Change to top-left via a `titlePosition` attribute (framework gap: FullscreenSection lacks this → log [opportunity]).
+- [review] [priority: high] home: Accent color drift — original is #b85450, recreation has #cc5a4a. Update appearance.json.
+- [review] [priority: medium] about: Body leading feels tight compared to original. Bump line-height from 1.4 to 1.55.
+- [review] [priority: low] music: Release grid column gap is larger in original. Minor.
+- [review] [keep] photos: Lightbox styling differs but recreation's is cleaner + more accessible — keep as-is, don't penalize.
+```
+
+Use the `[keep]` variant for intentional divergences to signal "don't try to adjust this."
+
+Keep each entry to one line. If a proposed improvement is blocked by a missing framework feature (no attribute, no schema field, no token), do NOT try to hack around it here — log a standard `[opportunity]` entry at the end of the review pointing to what would unblock it, and leave the visual as-is.
+
+### 4. Adjustment pass
+
+Work through the `[review]` entries tagged `priority: high` first, then `medium`. Low-priority entries can be addressed if time allows but don't block progress.
+
+For each `[review]` entry attempted, append an `[adjustment]` entry to `_working-notes.md` recording the outcome:
+
+```
+- [adjustment] home hero alignment — tried titlePosition prop: blocked (FullscreenSection schema doesn't expose one). Left as-is; [opportunity] entry covers the proposed schema addition.
+- [adjustment] accent color drift — updated src/content/config/appearance.json colors.accent #cc5a4a → #b85450. Rebuild + spot-check: ✓.
+- [adjustment] about body leading — updated theme.json fontSizeScale entry for body line-height 1.4 → 1.55. Rebuild: ✓.
+```
+
+Possible outcomes for each:
+- `applied` — change made, rebuild still green, visual closer to source. Include the file(s) touched.
+- `skipped` — low priority, no time, or judged not worth it. State why.
+- `blocked` — framework capability missing. Log (or strengthen an existing) `[opportunity]` entry explaining what change would unblock it. Do NOT hack around the missing feature with inline styles, ad-hoc components, or schema-violating data; that defeats the point of evaluating the framework honestly.
+
+After all adjustments:
+
+1. Run `npx astro check`, `npm run validate:content`, and `npm run build` in the recreation directory. Fix anything the adjustments broke.
+2. If a change didn't apply cleanly (e.g. a color token didn't propagate), debug once, and if still stuck, revert and mark `blocked`. Don't leave the site in a half-refined state.
+
+The adjustment pass's job is to move the score up *without* cheating the framework. If the score only improves because you bypassed the framework (inline style overrides, one-off components, hardcoded assets), the evaluation becomes a lie. Prefer leaving visible fidelity gaps over faking fixes.
+
+### 5. Re-crawl the refined recreation
+
+1. Reboot the local server from the recreation dir (same port, fresh `npm run build` + `serve dist`; or `npm run dev` if you used dev mode in step 1).
+2. Invoke `crawl-artist-site` again with the same viewport / interaction-capture settings, this time writing to `<run-dir>/crawls/<slug>--recreation/`. This is the **canonical post-refine crawl** that step 6 diffs against.
+3. Kill the server when the crawl finishes.
+
+Both `<slug>--recreation-pre-refine/` and `<slug>--recreation/` now exist under `<run-dir>/crawls/`. The pre-refine one is kept as a trace of what the first-draft recreation looked like; the post-refine one is what gets scored.
+
+### 6. Diff the two crawls
 
 For each page in the original, find the matching page in the recreation crawl. Match by path; apply fuzzy matching when paths differ (e.g. original `/about-the-band` ↔ recreation `/about`). Record matches in a small map before diffing.
 
@@ -88,28 +164,32 @@ Match column values: `✓` exact, `✓ sub` intentional font substitution, `≈`
 
 **Interaction parity** — for each `interactions[]` kind captured in the original, is there an equivalent in the recreation?
 
-### 4. Consolidate recreation's working notes
+### 7. Consolidate recreation's working notes
 
-If `_working-notes.md` exists in the recreation directory:
-- Read entries, group by tag (`[ease]`, `[friction]`, `[gap]`, `[opportunity]`, `[fidelity-risk]`)
-- Collapse near-duplicates
-- These populate two report sections: **Notes from the recreation process** and **Framework Improvement Opportunities**
+`_working-notes.md` now contains entries from both the recreation agent (steps 1–10 of `recreate-artist-site`) and the review+adjust pass (steps 3–4 above):
+- Read entries, group by tag (`[ease]`, `[friction]`, `[gap]`, `[opportunity]`, `[fidelity-risk]`, `[review]`, `[adjustment]`).
+- Collapse near-duplicates across the recreation-phase and review-phase entries (e.g. a `[gap]` logged during recreation that a `[review]` entry later echoed, or an `[opportunity]` reinforced by a `[adjustment] … blocked` outcome — the repetition is signal, but only one entry needs to appear in the report).
+- The `[review]` + `[adjustment]` pair for a single fidelity item should be collapsed into a single bullet in the report's refinement section, not listed twice.
+- These populate three report sections: **Notes from the recreation process**, **Refinement pass**, and **Framework Improvement Opportunities**.
 
-If the file doesn't exist, note it in the report and rely on diff-based evidence alone.
+If the file doesn't exist, note it in the report and rely on diff-based evidence alone. (This should be rare after step 3–4 — if you ran them, the file exists.)
 
-### 5. Score
+### 8. Score
 
-Score each rubric dimension 1–5 (see **Evaluation rubric**). Each score must cite evidence from step 3 (the diff tables) or step 4 (working notes). Do not score without evidence. Keep rationale to one sentence per dimension.
+Score each rubric dimension 1–5 (see **Evaluation rubric**). Each score must cite evidence from step 6 (the diff tables) or step 7 (consolidated working notes). Do not score without evidence. Keep rationale to one sentence per dimension.
 
-### 6. Write the report
+Score against the **post-refine** recreation (what's captured in `<slug>--recreation/`). The pre-refine crawl is useful for the report's "what the refinement pass changed" commentary but is not the scoring surface.
+
+### 9. Write the report
 
 `<recreation-dir>/RECREATION_REPORT.md` — template below. If a previous report exists from an earlier evaluation run, archive it as `RECREATION_REPORT-<previous-timestamp>.md` before writing the new one. Derive `<previous-timestamp>` from the existing report's "Evaluated:" line (fall back to the file's mtime if not parseable). See the Inputs section's "Re-evaluation housekeeping" note.
 
-### 7. Summary to user (verbal response)
+### 10. Summary to user (verbal response)
 
 - Quality X/15, Ease X/15, Total X/30
-- The single biggest visual difference between original and recreation (one sentence)
-- Top 1-3 framework improvement opportunities (not all — the most impactful)
+- The single biggest visual difference between original and post-refine recreation (one sentence)
+- Refinement-pass impact: how many `[review]` items were `applied` / `blocked` / `skipped`, and whether the blocked ones pointed to a repeat framework gap
+- Top 1-3 framework improvement opportunities (not all — the most impactful; favor the ones the adjustment pass confirmed by getting `blocked` on them)
 - Recommended next step (e.g. "tweak the heading weight and re-evaluate", "the recreation is close enough; ship it", "three opportunities are worth filing as framework issues")
 
 ## Evaluation rubric
@@ -172,9 +252,10 @@ Score each dimension 1–5 using the anchors below. Use the whole scale — a 5 
 ```markdown
 # Recreation Report: <Artist Name>
 
-- **Source crawl:** `.claude/site-crawls/<slug>/`
-- **Recreation:** `.claude/site-recreations/<slug>/`
-- **Recreation crawl:** `.claude/site-crawls/<slug>--recreation/`
+- **Source crawl:** `<run-dir>/crawls/<slug>/`
+- **Recreation:** `<run-dir>/recreations/<slug>/`
+- **Recreation crawl (pre-refine):** `<run-dir>/crawls/<slug>--recreation-pre-refine/`
+- **Recreation crawl (final, scored):** `<run-dir>/crawls/<slug>--recreation/`
 - **Evaluated:** <ISO date>
 - **Stagecraft version:** <git short SHA of HEAD at evaluation time>
 - **Recreation mode:** build+serve | dev
@@ -246,7 +327,7 @@ Side-by-side: `site-crawls/<slug>/home/scroll-01.png` vs. `site-crawls/<slug>--r
 
 ## Notes from the recreation process
 
-(Consolidated from `_working-notes.md`, grouped by tag)
+(Consolidated from `_working-notes.md` entries written during the recreation phase, grouped by tag)
 
 ### [ease]
 - ...
@@ -256,6 +337,17 @@ Side-by-side: `site-crawls/<slug>/home/scroll-01.png` vs. `site-crawls/<slug>--r
 
 ### [fidelity-risk]
 - ...
+
+## Refinement pass
+
+(Consolidated `[review]` + `[adjustment]` pairs from `_working-notes.md`. One bullet per fidelity item, summarizing what the review flagged and whether the adjustment applied / was blocked / was skipped.)
+
+- **Home hero alignment** — review flagged centered vs. top-left wordmark; blocked — FullscreenSection lacks `titlePosition`; framework gap logged.
+- **Accent color drift** — applied; `appearance.json` accent #cc5a4a → #b85450, confirmed in post-refine crawl.
+- **About body leading** — applied; line-height 1.4 → 1.55 on body role.
+- **Photos lightbox styling** — kept intentionally; recreation's version is cleaner + more accessible.
+
+Summary: `<N applied> / <N blocked> / <N skipped> / <N kept-intentionally>`.
 
 ## Framework Improvement Opportunities
 
@@ -284,3 +376,6 @@ Side-by-side: `site-crawls/<slug>/home/scroll-01.png` vs. `site-crawls/<slug>--r
 - **Fuzzy path matching** — log the page-match decisions in the report. If `/about-the-band` ↔ `/about` seems wrong, the user will catch it.
 - **Fonts look fine in the styles.json but wrong in the screenshot** — fonts load asynchronously. If the crawl happened before fonts finished loading, computed styles will show fallback fonts. Re-crawl with a longer settle time (5s instead of 2s) and flag in the report.
 - **Generated HTML differs structurally from original** — that's expected (our framework produces different DOM than Squarespace). The diff is on design tokens and content, not DOM structure.
+- **Refinement pass turns into a rewrite** — the adjustment pass is one focused iteration over the `[review]` items, not a second recreation. If you find yourself rebuilding pages from scratch, stop and mark the outstanding items `blocked` — that signals the first draft needed a rethink, and the real fix belongs in `recreate-artist-site`, not here.
+- **"Cheating" the score with hacks** — if a fidelity gap can only be closed by an inline style override, a one-off component outside `src/content-components/`, or data that violates the schema, do NOT apply it. Mark `blocked` and let the score reflect the framework's real ceiling. The pipeline's value depends on honest signal.
+- **Pre-refine crawl accidentally overwritten** — the initial crawl goes to `<slug>--recreation-pre-refine/` (step 2) and the final crawl goes to `<slug>--recreation/` (step 5). Re-running steps 2 and 5 on an already-evaluated site is fine, but make sure the output dirs match — mixing them up silently breaks the diff's "before vs. after" commentary.

@@ -1,6 +1,6 @@
 ---
 name: crawl-artist-site
-description: Use when the user wants to visit and capture a musician's (or any) website for later design recreation in the stagecraft musician-site template. Crawls every unique internal page at desktop resolution, takes full-page screenshots, and exercises interactive elements (photo lightboxes, video players, expandable sections, hover states) to capture their playback states. Output is organized under .claude/site-crawls/<domain>/ with a manifest.json. Trigger phrases include "crawl this site", "capture this artist's site", "take screenshots of...", "visit and screenshot", or any task where the user provides one or more URLs and wants visual reference material before recreating the design.
+description: Use when the user wants to visit and capture a musician's (or any) website for later design recreation in the stagecraft musician-site template. Crawls every unique internal page at desktop resolution, takes full-page screenshots, and exercises interactive elements (photo lightboxes, video players, expandable sections, hover states) to capture their playback states. Output is organized under .claude/crawls/<site-slug>/<YYYY-MM-DDTHH-MM>/ with a manifest.json, so repeat crawls of the same site accumulate as dated subdirs rather than overwriting. Trigger phrases include "crawl this site", "capture this artist's site", "take screenshots of...", "visit and screenshot", or any task where the user provides one or more URLs and wants visual reference material before recreating the design.
 ---
 
 # Crawl Artist Site
@@ -33,30 +33,39 @@ For ad-hoc interactive browsing (not exhaustive crawls), `mcp__Claude_in_Chrome_
 - One or more URLs (homepage URLs are ideal starting points)
 - Optional caps: max pages (default 30), max depth (default 2)
 - Optional: a list of must-capture sub-URLs the user calls out
-- Optional: `run-dir=<path>` — base directory for this run. When provided, output goes to `<run-dir>/crawls/<slug>/`. When omitted, auto-generate a run directory at `.claude/runs/<YYYY-MM-DDTHH-MM>/` using the current local time, and output to `<run-dir>/crawls/<slug>/`. Emit the resolved `run-dir` in your summary so downstream skills (recreate, evaluate) can reuse it.
+- Optional: `output-dir=<path>` — explicit override for this crawl's output directory. When omitted (the usual case), output lands at `.claude/crawls/<site-slug>/<YYYY-MM-DDTHH-MM>/` using the current local time. Emit the resolved output directory in your summary so downstream skills can reference it.
 
-**This skill always crawls.** It is the producer of crawl data. If the user wants to reuse an existing crawl (skip this phase), they should invoke the `artist-site-pipeline` skill with `skip-crawl` or invoke `recreate-artist-site` directly with `crawl-dir=<path>` or `run-dir=<path>` pointing at the existing crawl.
+**This skill always crawls.** It is the producer of crawl data. If the user wants to reuse an existing crawl (skip this phase), they should invoke the `artist-site-pipeline` skill with `skip-crawl` or invoke `recreate-artist-site` directly with `crawl-dir=<path>` pointing at the existing crawl.
 
-If `<run-dir>/crawls/<slug>/` already contains output from a previous crawl and the user re-invokes this skill without clearing it, overwrite in place — a fresh crawl supersedes the old one. Don't merge partial results.
+Each invocation produces a **new dated subdirectory** under `.claude/crawls/<site-slug>/`. Never overwrite a prior crawl in place — the dated subdir preserves history so stale crawls can be distinguished from fresh ones (and the pipeline's staleness check relies on it). If the exact minute collides (rare), append `-2`, `-3`, etc.
 
 ## Output layout
 
-Outputs go inside the run directory. `<run-dir>` is either the value passed in or an auto-generated path like `.claude/runs/2026-04-19T23-16/`.
+Outputs go under the canonical top-level `crawls/` directory, grouped by site slug, with one dated subdir per crawl:
 
 ```
-<run-dir>/crawls/artistname-com/
-  manifest.json
-  home/
-    scroll-01.png
-    scroll-02.png
-    lightbox-01.png
-    video-01.png
-  about/
-    scroll-01.png
-    ...
-  music/
-    ...
+.claude/crawls/
+  artistname-com/
+    2026-04-19T23-16/        ← one crawl
+      manifest.json
+      home/
+        scroll-01.png
+        scroll-02.png
+        lightbox-01.png
+        video-01.png
+      about/
+        scroll-01.png
+        ...
+      music/
+        ...
+    2026-05-20T10-00/        ← a later re-crawl of the same site
+      manifest.json
+      ...
 ```
+
+The site slug is the domain's hostname with `.` → `-` (e.g. `conorhearnmusic.com` → `conorhearnmusic-com`). Dotfile and `www.` prefix removed.
+
+**Run directories** (`.claude/runs/<id>/`) do not own crawl data — they only symlink the specific crawl chosen for that run into `<run-dir>/crawls/<slug>/`. Run-dir-scoped crawls (eval-phase `--recreation-pre-refine/` and `--recreation/` dirs) are the exception — those stay inside the run-dir because they're tied to a specific recreation version.
 
 ## Workflow
 
@@ -224,7 +233,7 @@ For each page, **exercise representative interactive elements** — not exhausti
 
 ### 6. Manifest
 
-Write `<run-dir>/crawls/<slug>/manifest.json`:
+Write `<output-dir>/manifest.json` (i.e. `.claude/crawls/<slug>/<YYYY-MM-DDTHH-MM>/manifest.json` by default):
 
 ```json
 {
@@ -286,7 +295,7 @@ Summarize to the user:
 - Number of pages captured per site
 - Number of interactive states captured
 - Notable patterns or tech detected (WebGL, custom fonts, video-heavy hero, e-commerce embed, etc.)
-- **Run directory:** `<run-dir>` — include this explicitly so the user can pass it to the recreate and evaluate skills
+- **Crawl output path(s):** absolute path to `.claude/crawls/<slug>/<timestamp>/` for each site — include this explicitly so the user (or the pipeline) can feed it to the recreate and evaluate skills
 - Anything skipped and why
 
 Do NOT propose recreating the site in the same turn. Wait for the user's go-ahead.

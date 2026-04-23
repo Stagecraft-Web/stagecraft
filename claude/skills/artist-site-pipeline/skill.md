@@ -101,41 +101,62 @@ Do this only once the pipeline is **complete** — moving mid-run would leave su
   mkdir -p "$RUN_DIR"
   ```
 
+### Crawl discovery (used by skip-crawl, re-evaluate, and the staleness check)
+
+The canonical crawl storage is `.claude/crawls/<slug>/<YYYY-MM-DDTHH-MM>/` — one dated subdir per crawl of that site, accumulated over time. This is the first place to look; legacy paths remain as fallbacks.
+
+**For a given slug, resolve the "latest crawl" as follows:**
+
+1. `.claude/crawls/<slug>/` — pick the most recent dated subdir (sort by name; ISO-minute format sorts correctly as plain strings).
+2. Fallback (legacy): `.claude/runs/*/crawls/<slug>/` that is a **real directory** (not a symlink) — pick the most recent by mtime.
+3. Fallback (legacy): `.claude/site-crawls/<slug>/`.
+
+If all three come up empty, the slug has never been crawled.
+
+#### Staleness check
+
+Before using a discovered crawl, check its age. Parse `manifest.json.crawledAt` (ISO timestamp); fall back to the directory's name (for canonical dated subdirs) or mtime (for legacy locations) if the manifest is missing.
+
+**If the latest crawl is ≥ 30 days old, STOP and ask the user:**
+
+> `conorhearnmusic-com`'s latest crawl is from 2026-03-10 (43 days old). Re-crawl now, or continue with the stale data?
+
+Do this per-slug, batched into one question if multiple slugs are stale ("2 of the 5 requested sites have stale crawls: …"). Only proceed once the user has answered. If they want a re-crawl, invoke `crawl-artist-site` for those slugs (output lands in `.claude/crawls/<slug>/<new-timestamp>/`), then re-run discovery to pick up the fresh subdir.
+
+This check exists to catch cases where the source site has meaningfully changed since the last capture — stale source crawls produce recreations of a site that no longer exists.
+
 ### Skip-crawl
 
 **Two sub-cases depending on whether the user passed an explicit `run-dir`:**
 
 **Case A — `run-dir=<path>` is explicit (iteration mode):**
 - Use the passed run-dir as the working directory. New recreations will land in `<run-dir>/recreations/<slug>/`, overwriting anything already there. This is the intended behavior when the user is iterating on the recreate step for the same batch.
-- For each requested slug, verify `<run-dir>/crawls/<slug>/manifest.json` exists. If any slug is missing its crawl there, offer to auto-discover and symlink from elsewhere (see Case B's discovery logic), or tell the user which ones need crawling first.
+- For each requested slug, verify `<run-dir>/crawls/<slug>/` resolves to a valid crawl (follow the symlink if it is one; check `manifest.json` exists at the end). If any slug is missing or broken, auto-discover per the **Crawl discovery** rules above and repoint the symlink — skipping the staleness check is fine here since the user explicitly chose to reuse this run-dir.
 
 **Case B — no explicit `run-dir` (fresh comparison mode, default):**
-- **Always create a fresh run-dir** and symlink existing crawls into it. This preserves the prior run's outputs and makes the new run self-contained:
+- **Always create a fresh run-dir** and symlink existing crawls into it. This preserves prior runs' outputs and makes the new run self-contained:
   ```bash
   RUN_ID=$(date '+%Y-%m-%dT%H-%M')
   RUN_DIR=".claude/runs/$RUN_ID"
   mkdir -p "$RUN_DIR/crawls"
   ```
-- For each slug, auto-discover the existing crawl in this order:
-  1. `.claude/runs/*/crawls/<slug>/` — if multiple match, pick the most recent by directory mtime.
-  2. `.claude/site-crawls/<slug>/` — legacy pre-`run-dir` location, still supported as a read-only source.
-- Symlink each discovered crawl into the fresh run-dir:
+- For each slug, use the **Crawl discovery** rules above to find the latest crawl. Run the **Staleness check** before committing. Once confirmed, symlink into the fresh run-dir:
   ```bash
-  ln -s "<absolute path to source crawl>" "$RUN_DIR/crawls/<slug>"
+  ln -s "<absolute path to chosen crawl>" "$RUN_DIR/crawls/<slug>"
   ```
   Symlinks keep disk use minimal and preserve the source crawl as immutable. If the filesystem doesn't support symlinks (rare), fall back to `cp -R`.
-- If **any** requested slug has no existing crawl, **stop** and tell the user which sites are missing and need to be crawled first. Do not silently re-crawl — that defeats the purpose of `skip-crawl`.
+- If **any** requested slug has no crawl anywhere, **stop** and tell the user which sites are missing. Do not silently re-crawl — that defeats the purpose of `skip-crawl`. (The staleness-prompt above is the one place re-crawling is offered inside `skip-crawl` mode, and only with explicit user confirmation.)
 
 ### Skip-crawl + skip-recreate (re-evaluate)
 
 **Case A — `run-dir=<path>` is explicit (iteration mode, typical):**
 - Use the passed run-dir. Re-evaluation archives existing reports before writing new ones (see `evaluate-artist-site-recreation`'s housekeeping), so overwriting in place is safe.
-- Verify each slug has both `<run-dir>/crawls/<slug>/` and `<run-dir>/recreations/<slug>/`. If either is missing for any slug, auto-discover per the rules below and symlink in.
+- Verify each slug has both `<run-dir>/crawls/<slug>/` and `<run-dir>/recreations/<slug>/`. If either is missing for any slug, auto-discover per the rules below and symlink in. Staleness check does **not** apply to re-evaluate mode (we're scoring the existing recreation against the crawl it was built from — that crawl is the correct reference regardless of age).
 
 **Case B — no explicit `run-dir` (fresh comparison mode, default):**
 - Create a fresh run-dir (same as skip-crawl Case B).
 - For each slug, auto-discover **both** the crawl and the recreation, and symlink each into the fresh run-dir:
-  - Crawl search order: `.claude/runs/*/crawls/<slug>/` (most recent by mtime) → `.claude/site-crawls/<slug>/`.
+  - Crawl search order: use the **Crawl discovery** rules above (no staleness check in re-evaluate — see above).
   - Recreation search order: `.claude/runs/*/recreations/<slug>/` (most recent by mtime) → `.claude/site-recreations/<slug>/`.
 - Symlinks preserve the source artifacts as immutable. Do not modify them.
 - If any recreation or crawl is missing for a requested slug, **stop** and tell the user what needs to exist first — don't silently re-run the skipped phase.
@@ -177,13 +198,17 @@ Update the status map as phases complete or fail.
 
 **Skipped entirely in skip-crawl and re-evaluate modes.**
 
-For each URL, follow the `crawl-artist-site` workflow, passing `run-dir=<run-dir>`. Crawl in parallel (Playwright handles concurrent contexts); for batches of > 5 sites, crawl in waves of 3–4.
+For each URL, follow the `crawl-artist-site` workflow. Crawls land at the canonical location `.claude/crawls/<slug>/<YYYY-MM-DDTHH-MM>/` (not under the run-dir — see the `crawl-artist-site` skill for the rationale). Crawl in parallel (Playwright handles concurrent contexts); for batches of > 5 sites, crawl in waves of 3–4.
 
-Output lands at `<run-dir>/crawls/<slug>/`.
+After each crawl completes, symlink it into the run-dir so downstream phases see the familiar `<run-dir>/crawls/<slug>/` path:
+
+```bash
+ln -s "$(pwd)/.claude/crawls/<slug>/<timestamp>" "<run-dir>/crawls/<slug>"
+```
 
 Update `index.json` after all crawls complete. If a crawl failed for one site, note the error and continue — don't abort the batch.
 
-If `crawl-only` was set, stop here and summarize.
+If `crawl-only` was set, stop here and summarize. The canonical dated subdirs remain under `.claude/crawls/<slug>/` for future runs to pick up.
 
 ## Phase 2 — Recreate
 
@@ -208,16 +233,25 @@ Each subagent needs at minimum:
 - The template source path (can be in a different repo — Bash reads work)
 - A unique evaluation port (see Phase 3's convention)
 - A reminder that writes outside the main agent's cwd tree are denied
-- Instructions to follow the `recreate-artist-site` and `evaluate-artist-site-recreation` skills at `~/.claude/skills/<skill-name>/SKILL.md`
+- Instructions to follow the `recreate-artist-site` and `evaluate-artist-site-recreation` skills at `<repo>/claude/skills/<skill-name>/SKILL.md`
+- Explicit mention that `evaluate-artist-site-recreation` now includes a review + adjust + re-crawl loop between the initial recreation crawl and scoring; the subagent should not short-circuit that loop
 - A short report-back template (under ~300 words) so they don't over-narrate
 
 Output lands at `<run-dir>/recreations/<slug>/`.
 
 Update `index.json` as each subagent reports back.
 
-## Phase 3 — Evaluate
+## Phase 3 — Evaluate (includes refinement loop)
 
-For each slug, follow the `evaluate-artist-site-recreation` workflow, passing `run-dir=<run-dir>`.
+For each slug, follow the `evaluate-artist-site-recreation` workflow, passing `run-dir=<run-dir>`. As of the refinement-loop update, that skill internally runs:
+
+1. Boot server + initial recreation crawl (`<run-dir>/crawls/<slug>--recreation-pre-refine/`)
+2. Expert frontend review — appends `[review]` entries to `<recreation-dir>/_working-notes.md`, calling out specific, concrete fidelity improvements *or* intentional-divergence justifications
+3. Adjustment pass — applies the review's improvements in place, logging `[adjustment]` outcomes (`applied` / `blocked` / `skipped`) back to `_working-notes.md`. Framework-blocked items surface as `[opportunity]` entries, not workarounds
+4. Re-boot server + re-crawl the refined recreation (`<run-dir>/crawls/<slug>--recreation/`) — this is the **scoring** crawl
+5. Diff, consolidate and review notes, score, write `RECREATION_REPORT.md`
+
+The per-site subagent that owns this phase needs enough time budget for two crawls plus the adjustment work between them. Expect ~1.3–1.6x the wall-clock of a no-refine evaluation per site.
 
 ### Port assignment for parallel evaluations
 
@@ -264,30 +298,50 @@ In skip-crawl / re-evaluate modes, also note what was reused and what was regene
 
 ## Directory layout reference
 
+Source crawls are **site-keyed** and live outside any specific run. Runs are **date-keyed** workspaces that symlink to the crawl they're working against, plus hold the run-specific recreation and eval crawls.
+
 ```
-.claude/runs/<YYYY-MM-DDTHH-MM>/
-  index.json                         ← batch metadata and status
-  crawls/
-    aidanscrimgeour-com/             ← source crawl (real dir or symlink)
-      manifest.json
-      home/
-        scroll-01.png
+.claude/
+  crawls/                              ← canonical, site-keyed crawl storage
+    aidanscrimgeour-com/
+      2026-04-19T23-16/                ← one crawl
+        manifest.json
+        home/
+          scroll-01.png
+          ...
+      2026-05-20T10-00/                ← a later re-crawl of the same site
+        manifest.json
         ...
-    aidanscrimgeour-com--recreation/ ← evaluation crawl (always real)
-      manifest.json
-      ...
     conorhearnmusic-com/
-    conorhearnmusic-com--recreation/
-  recreations/
-    aidanscrimgeour-com/             ← full Astro project (real dir or symlink)
-      src/
-      _working-notes.md
-      RECREATION_REPORT.md
-    conorhearnmusic-com/
+      2026-04-19T23-16/
+      2026-04-22T16-00/                ← newer crawl picked up by later runs
+  runs/
+    <YYYY-MM-DDTHH-MM>/                ← one batch / iteration
+      index.json                       ← batch metadata and status
+      crawls/
+        aidanscrimgeour-com            → ../../crawls/aidanscrimgeour-com/2026-04-19T23-16/   (symlink)
+        aidanscrimgeour-com--recreation-pre-refine/  ← eval's initial crawl (real dir, run-scoped)
+          manifest.json
+          ...
+        aidanscrimgeour-com--recreation/             ← eval's post-refine crawl (real dir, run-scoped; scoring surface)
+          manifest.json
+          ...
+        conorhearnmusic-com            → ../../crawls/conorhearnmusic-com/2026-04-22T16-00/   (symlink — newer crawl)
+        conorhearnmusic-com--recreation-pre-refine/
+        conorhearnmusic-com--recreation/
+      recreations/
+        aidanscrimgeour-com/           ← full Astro project (real dir)
+          src/
+          _working-notes.md            ← spans recreate phase + eval's review+adjust phase
+          RECREATION_REPORT.md
+        conorhearnmusic-com/
 ```
 
-Legacy locations still read as fallbacks in Step 0 auto-discovery:
-- `.claude/site-crawls/<slug>/` for crawls
+The eval-phase crawls (`--recreation-pre-refine/`, `--recreation/`) stay inside the run-dir because they're tied to that run's specific recreation version and aren't reusable across runs. Only the source-site crawl is cross-run shareable, and that one lives in the top-level `crawls/`.
+
+Legacy locations still read as fallbacks in auto-discovery:
+- `.claude/runs/*/crawls/<slug>/` when the crawl is a **real directory** (pre-reorg runs that embedded their source crawl)
+- `.claude/site-crawls/<slug>/` (pre-`runs/` era)
 - `.claude/site-recreations/<slug>/` for recreations
 
 ## Example invocations
@@ -322,5 +376,6 @@ If the pipeline was interrupted mid-way, pass the existing `run-dir=<path>` and 
 - **Crawl fails for one site:** log the error in `index.json`, skip recreate + evaluate for that site, continue with the others.
 - **Recreate fails (build error):** log it, skip evaluate for that site.
 - **Evaluate fails (server won't start):** log it, continue.
+- **Refinement loop exceeds budget / adjustments break the build:** the evaluate skill's adjustment pass should revert and mark outstanding items `blocked` rather than leave a half-refined site. If a subagent reports an un-recoverable mid-refine state, skip scoring for that site, keep the pre-refine crawl as the trace, and flag for manual follow-up.
 - **Auto-discovery can't find a required crawl/recreation:** stop and tell the user — don't silently re-run the phase they asked to skip.
 - Never abort the entire batch due to one site's failure.

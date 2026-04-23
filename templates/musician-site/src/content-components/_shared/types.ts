@@ -211,3 +211,48 @@ export const CARD_MEDIA_KIND_LABELS: Record<CardMediaKind, string> = {
   icon: "Generic file icon",
   none: "None (no media)",
 };
+
+// ---------------------------------------------------------------------------
+// Center-alignment primitives
+//
+// Three independent enums that together cover the common "center this" needs:
+//
+//   - BLOCKQUOTE_VARIANTS       — `{% blockquote %}` tag variants. "featured"
+//                                 is centered + larger; "normal" inherits the
+//                                 default flow-text blockquote style.
+//   - CENTERED_BLOCK_MAX_WIDTHS — `{% centered-block %}` tag width presets.
+//   - TEXT_ALIGNMENTS           — `textAlign` attribute shared by `section`,
+//                                 `fullscreen-section`, and `column` wrappers.
+// ---------------------------------------------------------------------------
+
+/** Visual variant for `{% blockquote %}`. */
+export const BLOCKQUOTE_VARIANTS = ["normal", "featured"] as const;
+export type BlockquoteVariant = (typeof BLOCKQUOTE_VARIANTS)[number];
+
+export const BLOCKQUOTE_VARIANT_LABELS: Record<BlockquoteVariant, string> = {
+  normal: "Normal",
+  featured: "Featured (centered, large)",
+};
+
+/** Max-width preset for `{% centered-block %}`. */
+export const CENTERED_BLOCK_MAX_WIDTHS = ["narrow", "regular"] as const;
+export type CenteredBlockMaxWidth = (typeof CENTERED_BLOCK_MAX_WIDTHS)[number];
+
+export const CENTERED_BLOCK_MAX_WIDTH_LABELS: Record<CenteredBlockMaxWidth, string> = {
+  narrow: "Narrow (~60ch)",
+  regular: "Regular (max-text)",
+};
+
+/**
+ * Horizontal text alignment for wrapper tags (`section`, `fullscreen-section`,
+ * `column`). `start` is the default — no-op at render time — and preserves
+ * existing output.
+ */
+export const TEXT_ALIGNMENTS = ["start", "center", "end"] as const;
+export type TextAlignment = (typeof TEXT_ALIGNMENTS)[number];
+
+export const TEXT_ALIGNMENT_LABELS: Record<TextAlignment, string> = {
+  start: "Start (default)",
+  center: "Center",
+  end: "End",
+};

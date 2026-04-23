@@ -1,0 +1,58 @@
+---
+import type { BlockquoteVariant } from "../_shared/types";
+
+interface Props {
+  /** Visual variant — "normal" inherits flow styling; "featured" centers + enlarges. */
+  variant?: BlockquoteVariant;
+  /** Optional attribution rendered as `<cite>` below the quote (featured only). */
+  attribution?: string;
+}
+
+const { variant = "normal", attribution } = Astro.props;
+---
+
+<blockquote class:list={["blockquote", `blockquote--variant-${variant}`]}>
+  <div class="blockquote-body"><slot /></div>
+  {variant === "featured" && attribution && (
+    <cite class="blockquote-attribution">{attribution}</cite>
+  )}
+</blockquote>
+
+<style>
+  /* Normal variant — flow-text blockquote. Kept minimal so authored prose
+     inside it keeps the document's default typography rather than growing
+     a bespoke quote card. */
+  .blockquote--variant-normal {
+    margin: 1.25rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--color-primary);
+    font-style: italic;
+    color: var(--color-text);
+  }
+
+  /* Featured variant — centered pull quote, larger. */
+  .blockquote--variant-featured {
+    text-align: center;
+    max-width: 45rem;
+    margin-inline: auto;
+    margin-block: 2rem;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.4;
+    font-style: italic;
+    color: var(--color-primary);
+  }
+
+  .blockquote-attribution {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-normal);
+    font-style: normal;
+    color: var(--color-text-muted);
+  }
+
+  .blockquote-attribution::before {
+    content: "— ";
+  }
+</style>

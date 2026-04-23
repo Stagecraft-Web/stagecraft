@@ -35,6 +35,8 @@ export * as ContactForm from "./ContactForm";
 export * as Embed from "./Embed";
 export * as PostsList from "./PostsList";
 export * as NewsletterSignup from "./NewsletterSignup";
+export * as Blockquote from "./Blockquote";
+export * as CenteredBlock from "./CenteredBlock";
 
 import * as Section from "./Section";
 import * as FullscreenSection from "./FullscreenSection";
@@ -54,6 +56,8 @@ import * as ContactForm from "./ContactForm";
 import * as Embed from "./Embed";
 import * as PostsList from "./PostsList";
 import * as NewsletterSignup from "./NewsletterSignup";
+import * as Blockquote from "./Blockquote";
+import * as CenteredBlock from "./CenteredBlock";
 
 /**
  * Ordered list of every content-component. The order affects nothing at
@@ -79,4 +83,6 @@ export const components = [
   Embed,
   PostsList,
   NewsletterSignup,
+  Blockquote,
+  CenteredBlock,
 ] as const;

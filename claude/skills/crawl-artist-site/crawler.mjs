@@ -368,7 +368,7 @@ function dedupeAndPrioritize(candidates, origin, alreadyVisited) {
 }
 
 async function main() {
-  const origin = originOf(startUrl);
+  let origin = originOf(startUrl);
   if (!origin) { console.error("invalid start URL"); process.exit(2); }
   await ensureDir(outputDir);
 
@@ -379,6 +379,21 @@ async function main() {
     userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
   });
   const page = await context.newPage();
+
+  // Probe the start URL once to resolve redirects (http→https, bare→www, etc.).
+  // Without this, nav links harvested from the live DOM may be tagged external
+  // because they use the post-redirect hostname while `origin` still holds the
+  // pre-redirect one — producing a 1-page crawl with every internal link missed.
+  try {
+    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const effective = originOf(page.url());
+    if (effective && effective !== origin) {
+      console.log(`[crawl] redirect detected: ${origin} → ${effective} (using effective origin)`);
+      origin = effective;
+    }
+  } catch (e) {
+    console.error(`[crawl] initial probe failed: ${e.message}`);
+  }
 
   const visited = new Set();
   const queue = [pathOf(startUrl) || "/"];

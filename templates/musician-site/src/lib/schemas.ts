@@ -78,7 +78,12 @@ export const siteConfigSchema = z.object({
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
   contactEmail: z.string().email(),
-  copyright: z.string(),
+  // Who holds copyright for the site. The footer renders
+  //   "© {current year} {copyrightName || artistName}. All rights reserved."
+  // Authors only need to set this when copyright is held under a name
+  // that differs from the performer's stage name (e.g. legal entity or
+  // civil name); leaving it blank falls back to `artistName`.
+  copyrightName: z.string().optional(),
   // Hide the site-level social-links/copyright footer across every page.
   // Per-page frontmatter may override (`isFooterHidden` in pageFrontmatterSchema).
   // Default false = footer visible (common-sense default).

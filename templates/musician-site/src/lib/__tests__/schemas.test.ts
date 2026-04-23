@@ -51,12 +51,22 @@ describe("siteConfigSchema", () => {
     siteDescription: "Official site",
     socialLinks: { instagram: "https://instagram.com/janedoe" },
     contactEmail: "jane@example.com",
-    copyright: "2024 Jane Doe",
   };
 
   it("accepts a valid config", () => {
     // `isFooterHidden` defaults to false, so the parsed result is a superset.
     expect(siteConfigSchema.parse(valid)).toMatchObject(valid);
+  });
+
+  // ---- Copyright holder ---------------------------------------------------
+  it("parses without copyrightName (optional)", () => {
+    const result = siteConfigSchema.parse(valid);
+    expect(result.copyrightName).toBeUndefined();
+  });
+
+  it("accepts an explicit copyrightName", () => {
+    const result = siteConfigSchema.parse({ ...valid, copyrightName: "Jane Doe LLC" });
+    expect(result.copyrightName).toBe("Jane Doe LLC");
   });
 
   it("rejects missing artistName", () => {

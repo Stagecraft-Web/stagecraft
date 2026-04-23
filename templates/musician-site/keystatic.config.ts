@@ -249,7 +249,11 @@ export default config({
           { label: "Social Links" },
         ),
         contactEmail: fields.text({ label: "Contact Email", validation: { isRequired: true } }),
-        copyright: fields.text({ label: "Copyright Line" }),
+        copyrightName: fields.text({
+          label: "Copyright holder",
+          description:
+            "Name shown in the footer's copyright line. Leave blank to use your artist name. Set this only when copyright is held under a different name (legal entity, civil name, etc.). The year and \"All rights reserved.\" boilerplate are filled in automatically.",
+        }),
         isFooterHidden: fields.checkbox({
           label: "Hide footer site-wide",
           description:

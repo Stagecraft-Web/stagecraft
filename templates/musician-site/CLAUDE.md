@@ -164,7 +164,7 @@ Use this to find where any piece of content lives.
 | Artist name, site title, description | `src/content/config/site.json` | `siteConfigSchema` |
 | Social links (Instagram, Spotify, etc.) | `src/content/config/site.json` → `socialLinks` | `siteConfigSchema` |
 | Contact email | `src/content/config/site.json` → `contactEmail` | `siteConfigSchema` |
-| Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
+| Copyright holder name | `src/content/config/site.json` → `copyrightName` | `siteConfigSchema` |
 | Navigation order + labels | `src/content/config/nav.json` → `items` | `navConfigSchema` |
 | Colors + typography (Google Fonts) | `src/content/config/appearance.json` | `appearanceSchema` |
 | Font-size scale, spacing, breakpoints (dev-level) | `src/content/config/theme.json` | `themeSchema` |

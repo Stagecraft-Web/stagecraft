@@ -1,5 +1,5 @@
 import { fields } from "@keystatic/core";
-import { block } from "@keystatic/core/content-components";
+import { wrapper } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
@@ -20,10 +20,22 @@ import { NewsletterSignupPreview } from "./preview";
  *
  * Single discriminator (`service`) selects the newsletter provider; the
  * renderer emits the service-specific form field names at build time so a
- * Mailchimp form gets `EMAIL`/`FNAME`, ConvertKit gets `email_address`/
- * `first_name`, etc. The discriminator is required (no default) so authors
- * explicitly pick a target — silently defaulting to one service would mask
- * a misconfigured action URL.
+ * Mailchimp form gets `EMAIL`, ConvertKit gets `email_address`, etc. The
+ * discriminator is required (no default) so authors explicitly pick a
+ * target — silently defaulting to one service would mask a misconfigured
+ * action URL.
+ *
+ * Wrapper tag: authors nest `{% newsletter-field %}` children for extra
+ * inputs (first name, last name, referral source, …). The email input is
+ * always rendered by the parent — never configurable — so the form always
+ * has the mandatory primary field.
+ *
+ * Markdoc's `Schema.children` array filters by AST *node type* ("tag",
+ * "paragraph", "heading", etc.) — not by tag name — so we can't narrow to
+ * `newsletter-field` at the markdoc layer. The Keystatic wrapper provides
+ * the authoring-surface constraint: the admin's "insert block" menu inside
+ * this wrapper offers every registered block, but in practice editors pick
+ * Newsletter Field because that's what makes sense for the rendered form.
  */
 
 /**
@@ -35,7 +47,6 @@ export type NewsletterService = (typeof NEWSLETTER_SERVICES)[number];
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/NewsletterSignup/NewsletterSignup.astro",
-  selfClosing: true,
   attributes: {
     service: {
       type: String,
@@ -58,17 +69,13 @@ export const markdoc: MarkdocTagDefinition = {
       type: String,
       default: "Thanks for subscribing!",
     },
-    captureName: {
-      type: Boolean,
-      default: false,
-    },
   },
 };
 
-export const keystatic: KeystaticContentComponent = block({
+export const keystatic: KeystaticContentComponent = wrapper({
   label: "Newsletter Signup",
   description:
-    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
+    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Nest `Newsletter Field` blocks inside to add extra inputs (first name, referral source, etc.) — the email field is always rendered by this block. Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
   schema: {
     service: fields.select({
       label: "Service",
@@ -101,11 +108,6 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Success message",
       description: "Shown inline after a successful submit.",
       defaultValue: "Thanks for subscribing!",
-    }),
-    captureName: fields.checkbox({
-      label: "Capture first name",
-      description: "Adds a first-name input alongside the email field.",
-      defaultValue: false,
     }),
   },
   ContentView: NewsletterSignupPreview,

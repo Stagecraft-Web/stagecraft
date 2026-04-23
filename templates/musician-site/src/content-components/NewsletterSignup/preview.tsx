@@ -20,7 +20,6 @@ type NewsletterSignupValue = {
   title: string;
   submitLabel: string;
   successMessage: string;
-  captureName: boolean;
 };
 
 const SERVICE_BADGE_LABEL: Record<NewsletterService, string> = {
@@ -36,13 +35,19 @@ const SERVICE_BADGE_LABEL: Record<NewsletterService, string> = {
  * shell doesn't load site CSS). The top-right badge shows which service
  * is wired so editors can tell at a glance whether the current block is
  * targeting Mailchimp, ConvertKit, etc.
+ *
+ * Child `newsletter-field` blocks render via the `children` slot above the
+ * always-present email row; the preview uses Keystatic's own rendering of
+ * nested blocks, so the admin list of field children stays editable inline.
  */
 export function NewsletterSignupPreview({
   value,
+  children,
 }: {
   value: NewsletterSignupValue;
+  children: ReactNode;
 }): ReactNode {
-  const { service, title, submitLabel, captureName } = value;
+  const { service, title, submitLabel } = value;
   const badgeLabel = SERVICE_BADGE_LABEL[service] ?? "Newsletter";
 
   return (
@@ -89,9 +94,8 @@ export function NewsletterSignupPreview({
           {title || "Newsletter"}
         </div>
 
-        {captureName && (
-          <StockInputRow label="First name" placeholder="Your name" />
-        )}
+        {children}
+
         <StockInputRow label="Email" placeholder="you@example.com" />
 
         <div style={{ marginTop: "0.25rem" }}>

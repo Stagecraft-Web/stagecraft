@@ -10,6 +10,12 @@
  * the success message on fetch completion. If JS is disabled, the native
  * form still submits (the service handles the confirmation page).
  *
+ * Wrapper tag: authors nest `{% newsletter-field %}` children inside this
+ * block to add arbitrary extra inputs (first name, referral source, etc.).
+ * The email input is always rendered first by this component — it's the
+ * mandatory primary field every newsletter provider needs, and its
+ * per-service field name is hardcoded here rather than in the child tag.
+ *
  * Anti-spam: two honeypot fields.
  *   1. Universal `_gotcha` — hidden off-screen. Checked client-side: if
  *      non-empty, we silently pretend to succeed instead of POSTing.
@@ -26,7 +32,6 @@ interface Props {
   title?: string;
   submitLabel?: string;
   successMessage?: string;
-  captureName?: boolean;
 }
 
 const {
@@ -35,20 +40,20 @@ const {
   title = "Newsletter",
   submitLabel = "Subscribe",
   successMessage = "Thanks for subscribing!",
-  captureName = false,
 } = Astro.props;
 
-// Service-specific field names. Keep this object exhaustive over
-// `NewsletterService` so adding a new provider to the union fails
-// typecheck here first.
-const FIELD_NAMES: Record<NewsletterService, { email: string; name: string }> = {
-  mailchimp: { email: "EMAIL", name: "FNAME" },
-  convertkit: { email: "email_address", name: "first_name" },
-  buttondown: { email: "email", name: "metadata__name" },
-  generic: { email: "email", name: "name" },
+// Service-specific field name for the primary email input. Keep this object
+// exhaustive over `NewsletterService` so adding a new provider to the union
+// fails typecheck here first. (Custom child fields bypass this map — the
+// author passes the raw provider field name via the `name` attribute.)
+const EMAIL_FIELD_NAMES: Record<NewsletterService, string> = {
+  mailchimp: "EMAIL",
+  convertkit: "email_address",
+  buttondown: "email",
+  generic: "email",
 };
 
-const fieldNames = FIELD_NAMES[service];
+const emailFieldName = EMAIL_FIELD_NAMES[service];
 
 // Unique id per block instance so multiple newsletter-signup blocks on
 // one page don't collide on form / status element ids.
@@ -56,7 +61,6 @@ const instanceId = `newsletter-signup-${Math.random().toString(36).slice(2, 10)}
 const formId = `${instanceId}-form`;
 const statusId = `${instanceId}-status`;
 const emailInputId = `${instanceId}-email`;
-const nameInputId = `${instanceId}-name`;
 ---
 
 <div class="newsletter-signup">
@@ -69,25 +73,14 @@ const nameInputId = `${instanceId}-name`;
     method="post"
     data-success-message={successMessage}
   >
-    {captureName && (
-      <div class="newsletter-signup-group">
-        <label for={nameInputId}>First name</label>
-        <input
-          id={nameInputId}
-          type="text"
-          name={fieldNames.name}
-          autocomplete="given-name"
-          required
-        />
-      </div>
-    )}
+    <slot />
 
     <div class="newsletter-signup-group">
       <label for={emailInputId}>Email</label>
       <input
         id={emailInputId}
         type="email"
-        name={fieldNames.email}
+        name={emailFieldName}
         autocomplete="email"
         required
       />

@@ -117,14 +117,24 @@ export default {
       },
     },
     "newsletter-signup": {
-      selfClosing: true,
       attributes: {
         "service": { type: String, required: true, matches: ["mailchimp","convertkit","buttondown","generic"] },
         "actionUrl": { type: String, required: true },
         "title": { type: String, default: "Newsletter" },
         "submitLabel": { type: String, default: "Subscribe" },
         "successMessage": { type: String, default: "Thanks for subscribing!" },
-        "captureName": { type: Boolean, default: false },
+      },
+    },
+    "newsletter-field": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, required: true },
+        "label": { type: String, required: true },
+        "type": { type: String, default: "text", matches: ["text","email","tel","select"] },
+        "isRequired": { type: Boolean, default: false },
+        "options": { type: String },
+        "placeholder": { type: String },
+        "autocomplete": { type: String },
       },
     },
   },

@@ -12,8 +12,13 @@ interface Props {
   rows?: number;
   /** Whether the field is required */
   isRequired?: boolean;
-  /** Autocomplete attribute */
-  autocomplete?: "name" | "email" | "tel" | "organization" | "street-address" | "address-line1" | "address-line2" | "city" | "state" | "postal-code" | "country" | "off" | "on";
+  /** Autocomplete attribute. `string` is permitted so content-component
+   * authors can pass arbitrary tokens (e.g. `given-name`, `family-name`) —
+   * the built-in first-party forms still benefit from the narrowed union
+   * via direct prop usage. */
+  autocomplete?: string;
+  /** Optional placeholder text. */
+  placeholder?: string;
 }
 
 const {
@@ -24,6 +29,7 @@ const {
   rows = 5,
   isRequired = false,
   autocomplete,
+  placeholder,
 } = Astro.props;
 ---
 
@@ -33,9 +39,9 @@ const {
     {isRequired && <span class="form-group-required">*</span>}
   </label>
   {isTextarea ? (
-    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} />
+    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   ) : (
-    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} />
+    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   )}
 </div>
 

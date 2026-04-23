@@ -55,7 +55,8 @@ describe("siteConfigSchema", () => {
   };
 
   it("accepts a valid config", () => {
-    expect(siteConfigSchema.parse(valid)).toEqual(valid);
+    // `isFooterHidden` defaults to false, so the parsed result is a superset.
+    expect(siteConfigSchema.parse(valid)).toMatchObject(valid);
   });
 
   it("rejects missing artistName", () => {
@@ -100,6 +101,48 @@ describe("siteConfigSchema", () => {
         wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
       }),
     ).toThrow();
+  });
+
+  // ---- Favicon ------------------------------------------------------------
+  it("parses without a favicon (optional field)", () => {
+    expect(siteConfigSchema.parse(valid).favicon).toBeUndefined();
+  });
+
+  it("accepts a favicon with just src (alt is optional)", () => {
+    const withFavicon = {
+      ...valid,
+      favicon: { src: "../../assets/favicons/favicon.svg" },
+    };
+    const result = siteConfigSchema.parse(withFavicon);
+    expect(result.favicon).toEqual({ src: "../../assets/favicons/favicon.svg" });
+  });
+
+  it("accepts a favicon with src + alt", () => {
+    const withFavicon = {
+      ...valid,
+      favicon: { src: "../../assets/favicons/favicon.svg", alt: "Logo mark" },
+    };
+    const result = siteConfigSchema.parse(withFavicon);
+    expect(result.favicon?.alt).toBe("Logo mark");
+  });
+
+  it("rejects a favicon with an empty src", () => {
+    expect(() =>
+      siteConfigSchema.parse({
+        ...valid,
+        favicon: { src: "" },
+      }),
+    ).toThrow();
+  });
+
+  // ---- isFooterHidden -----------------------------------------------------
+  it("defaults isFooterHidden to false when omitted", () => {
+    expect(siteConfigSchema.parse(valid).isFooterHidden).toBe(false);
+  });
+
+  it("accepts an explicit isFooterHidden=true", () => {
+    const result = siteConfigSchema.parse({ ...valid, isFooterHidden: true });
+    expect(result.isFooterHidden).toBe(true);
   });
 });
 
@@ -366,6 +409,15 @@ describe("pageFrontmatterSchema", () => {
   it("ignores extra fields", () => {
     const result = pageFrontmatterSchema.parse({ title: "Home", extra: "field" });
     expect(result.title).toBe("Home");
+  });
+
+  it("accepts optional isFooterHidden", () => {
+    const hidden = pageFrontmatterSchema.parse({ title: "Home", isFooterHidden: true });
+    expect(hidden.isFooterHidden).toBe(true);
+    const visible = pageFrontmatterSchema.parse({ title: "Home", isFooterHidden: false });
+    expect(visible.isFooterHidden).toBe(false);
+    const unset = pageFrontmatterSchema.parse({ title: "Home" });
+    expect(unset.isFooterHidden).toBeUndefined();
   });
 });
 

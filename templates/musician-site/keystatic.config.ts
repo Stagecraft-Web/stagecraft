@@ -208,6 +208,30 @@ export default config({
               "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
           },
         ),
+        // Optional site favicon (the icon shown in the browser tab). When
+        // unset, BaseLayout falls back to /favicons/favicon.svg in public/.
+        // Dedicated subdirectory so favicons don't mix with photo/cover
+        // assets; publicPath walks back two levels from site.json's location
+        // (src/content/config/) to reach src/assets/favicons/.
+        favicon: fields.object(
+          {
+            src: fields.image({
+              label: "Favicon Image",
+              directory: "src/assets/favicons",
+              publicPath: "../../assets/favicons/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Optional — browsers don't display favicon alt text, so this is informational only.",
+            }),
+          },
+          {
+            label: "Favicon",
+            description:
+              "Optional browser-tab icon. SVG recommended (scales crisply); PNG and JPG also supported. Leave Image blank to use the default favicon.",
+          },
+        ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(
@@ -226,6 +250,12 @@ export default config({
         ),
         contactEmail: fields.text({ label: "Contact Email", validation: { isRequired: true } }),
         copyright: fields.text({ label: "Copyright Line" }),
+        isFooterHidden: fields.checkbox({
+          label: "Hide footer site-wide",
+          description:
+            "When enabled, the site footer (social links + copyright) is hidden on every page. Individual pages can override this via their own 'Hide footer on this page' toggle.",
+          defaultValue: false,
+        }),
       },
     }),
 
@@ -376,6 +406,11 @@ export default config({
           label: "Splash page",
           description:
             'When enabled, this page appears at "/" (the site root) and renders without the site header or footer. Your regular home page automatically moves to "/home". Link the "Enter Site" button in this page\'s body to /home. Only one page can be marked as a splash.',
+          defaultValue: false,
+        }),
+        isFooterHidden: fields.checkbox({
+          label: "Hide footer on this page",
+          description: "Overrides the site-level setting for this page only.",
           defaultValue: false,
         }),
         content: fields.markdoc({

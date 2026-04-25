@@ -106,7 +106,7 @@ function formatDate(iso: string): { weekday: string; monthDay: string; year: str
 
 {hasPadded && (
   <div class="tour-dates-recent">
-    <h3 class="tour-dates-recent-heading">Recent shows</h3>
+    <h3 class="tour-dates-recent-heading">Past shows</h3>
     <ul class="tour-dates-list">
       {paddedPast.map((tourDate) => {
         const dateParts = formatDate(tourDate.date);
@@ -130,9 +130,6 @@ function formatDate(iso: string): { weekday: string; monthDay: string; year: str
             <div class="tour-date-action">
               {isSoldOut && <span class="tour-date-badge is-sold-out">Sold Out</span>}
               {isCanceled && <span class="tour-date-badge is-canceled-badge">Canceled</span>}
-              {!isSoldOut && !isCanceled && (
-                <span class="tour-date-badge is-past-badge">Past</span>
-              )}
             </div>
           </li>
         );

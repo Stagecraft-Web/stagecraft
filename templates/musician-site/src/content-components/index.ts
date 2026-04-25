@@ -33,6 +33,7 @@ export * as TourDatesList from "./TourDatesList";
 export * as StoreItemList from "./StoreItemList";
 export * as ContactForm from "./ContactForm";
 export * as Embed from "./Embed";
+export * as ResponsiveEmbed from "./ResponsiveEmbed";
 export * as PostsList from "./PostsList";
 export * as NewsletterSignup from "./NewsletterSignup";
 
@@ -52,6 +53,7 @@ import * as TourDatesList from "./TourDatesList";
 import * as StoreItemList from "./StoreItemList";
 import * as ContactForm from "./ContactForm";
 import * as Embed from "./Embed";
+import * as ResponsiveEmbed from "./ResponsiveEmbed";
 import * as PostsList from "./PostsList";
 import * as NewsletterSignup from "./NewsletterSignup";
 
@@ -77,6 +79,7 @@ export const components = [
   StoreItemList,
   ContactForm,
   Embed,
+  ResponsiveEmbed,
   PostsList,
   NewsletterSignup,
 ] as const;

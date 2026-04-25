@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractIframe, extractEmbedHost, stripDimensionsFromStyle } from "./extractIframe";
+import {
+  extractIframe,
+  extractEmbedHost,
+  stripDimensionsFromStyle,
+  buildIframeAttrs,
+} from "./extractIframe";
 
 // Real-world embed snippets gathered from each service's "Share / Embed" UI.
 // Kept verbatim so this test doubles as documentation of the input shapes
@@ -266,5 +271,72 @@ describe("stripDimensionsFromStyle", () => {
   it("is case-insensitive on the property name", () => {
     expect(stripDimensionsFromStyle("WIDTH: 350px; Height: 470px; border: 0"))
       .toBe("border: 0");
+  });
+});
+
+describe("buildIframeAttrs", () => {
+  it("preserves dimensions and inline style by default (Embed render)", () => {
+    const parsed = extractIframe(BANDCAMP_ALBUM)!;
+    const attrs = buildIframeAttrs(parsed);
+    expect(attrs.style).toContain("width: 350px");
+    expect(attrs.style).toContain("height: 470px");
+  });
+
+  it("strips width/height attribute and inline style with stripDimensions", () => {
+    const parsed = extractIframe(BANDCAMP_ALBUM)!;
+    const attrs = buildIframeAttrs(parsed, { stripDimensions: true });
+    expect(attrs.width).toBeUndefined();
+    expect(attrs.height).toBeUndefined();
+    expect(attrs.style).not.toContain("width");
+    expect(attrs.style).not.toContain("height");
+    // Bandcamp keeps `border: 0`; only the dimensional rules are stripped.
+    expect(attrs.style).toBe("border: 0");
+  });
+
+  it("drops the style attribute entirely when every rule was dimensional", () => {
+    const snippet = `<iframe src="https://example.com/x" style="width: 350px; height: 470px"></iframe>`;
+    const parsed = extractIframe(snippet)!;
+    const attrs = buildIframeAttrs(parsed, { stripDimensions: true });
+    expect(attrs.style).toBeUndefined();
+  });
+
+  it("preserves non-dimensional inline style with stripDimensions", () => {
+    // Spotify has `border-radius:12px` alongside no width/height in style.
+    const parsed = extractIframe(SPOTIFY_ALBUM)!;
+    const attrs = buildIframeAttrs(parsed, { stripDimensions: true });
+    expect(attrs.style).toBe("border-radius:12px");
+  });
+
+  it("uses author-supplied title in preference to iframe's own title", () => {
+    const parsed = extractIframe(YOUTUBE_VIDEO)!;
+    expect(buildIframeAttrs(parsed, { title: "Live at NPR Tiny Desk" }).title)
+      .toBe("Live at NPR Tiny Desk");
+    expect(buildIframeAttrs(parsed).title).toBe("YouTube video player");
+  });
+
+  it("falls back to host-based generic title when neither author nor iframe sets one", () => {
+    const snippet = `<iframe src="https://example.com/x"></iframe>`;
+    const parsed = extractIframe(snippet)!;
+    expect(buildIframeAttrs(parsed).title).toBe("Embedded content from example.com");
+  });
+
+  it("narrows loading to lazy by default and honors eager", () => {
+    const lazy = `<iframe src="https://example.com/x" loading="lazy"></iframe>`;
+    const eager = `<iframe src="https://example.com/x" loading="eager"></iframe>`;
+    const noAttr = `<iframe src="https://example.com/x"></iframe>`;
+    expect(buildIframeAttrs(extractIframe(lazy)!).loading).toBe("lazy");
+    expect(buildIframeAttrs(extractIframe(eager)!).loading).toBe("eager");
+    expect(buildIframeAttrs(extractIframe(noAttr)!).loading).toBe("lazy");
+  });
+
+  it("converts allowfullscreen=\"\" to true so Astro keeps the bare attribute", () => {
+    const parsed = extractIframe(YOUTUBE_VIDEO)!;
+    const attrs = buildIframeAttrs(parsed);
+    expect(attrs.allowfullscreen).toBe(true);
+  });
+
+  it("leaves allowfullscreen undefined when the iframe doesn't ship it", () => {
+    const snippet = `<iframe src="https://example.com/x"></iframe>`;
+    expect(buildIframeAttrs(extractIframe(snippet)!).allowfullscreen).toBeUndefined();
   });
 });

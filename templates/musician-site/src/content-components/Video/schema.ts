@@ -13,14 +13,14 @@ import { VideoPreview } from "./preview";
  *
  * The video can come from either the `videos` collection (the author picks a
  * slug and the renderer looks up title/url/type/description) OR the author can
- * paste a URL directly in-place (with type + optional title). The two modes
- * are surfaced as a Keystatic `fields.conditional` discriminated by `source`.
+ * paste a URL directly in-place (with type + optional title).
  *
- * Markdoc tag attributes intentionally diverge from the Keystatic schema —
- * markdoc doesn't model conditionals, so `slug`, `url`, `type`, `title` are
- * all flat-and-optional and Video.astro validates the (slug XOR url) shape at
- * render time. The cross-schema consistency test takes the bridge keys
- * (`source`) from `exemptKeys` so the parity check still passes.
+ * Both Markdoc and Keystatic schemas use the same flat shape: `slug`, `url`,
+ * `type`, `title`, `caption`. Keystatic's `block()` content-component API has
+ * no parse/serialize hook to bridge a `fields.conditional` to flat Markdoc
+ * tag attributes, so a conditional in the Keystatic schema would fail to load
+ * existing tags ("Key on object value 'slug' is not allowed"). The (slug XOR
+ * url) constraint is enforced at render time in Video.astro instead.
  *
  * NOTE on the VIDEO_URL_TYPES vs VIDEO_TYPES split: the `videos` *collection*
  * (src/lib/schemas.ts) accepts "youtube" | "vimeo" | "other" — "other"
@@ -54,61 +54,38 @@ export const markdoc: MarkdocTagDefinition = {
 export const keystatic: KeystaticContentComponent = block({
   label: "Video",
   description:
-    "A single video, embedded inline. Pick a video from the Videos collection " +
-    "or paste a YouTube / Vimeo URL directly.",
+    "A single video, embedded inline. Either pick a video from the Videos " +
+    "collection by filling in 'Video slug', or paste a YouTube / Vimeo URL " +
+    "with 'Video URL' + 'Type'. Don't fill both — the renderer enforces a " +
+    "slug-or-url choice and will error if both are set.",
   schema: {
-    source: fields.conditional(
-      fields.select({
-        label: "Source",
-        description:
-          "Pull from the Videos collection (re-use a video listed elsewhere) " +
-          "or paste a URL just for this spot.",
-        options: [
-          { label: "Videos collection", value: "collection" },
-          { label: "Direct URL", value: "url" },
-        ],
-        defaultValue: "collection",
-      }),
-      {
-        collection: fields.object(
-          {
-            slug: fields.text({
-              label: "Video slug",
-              description:
-                "Filename (without .yaml) of an entry in src/content/collections/videos. " +
-                "E.g. 'live-session' for live-session.yaml.",
-              validation: { length: { min: 1 } },
-            }),
-          },
-          { label: "Collection entry" },
-        ),
-        url: fields.object(
-          {
-            url: fields.url({
-              label: "Video URL",
-              description: "Full YouTube or Vimeo URL.",
-              validation: { isRequired: true },
-            }),
-            type: fields.select({
-              label: "Type",
-              options: VIDEO_URL_TYPES.map((v) => ({
-                label: VIDEO_URL_TYPE_LABELS[v],
-                value: v,
-              })) as [
-                { label: string; value: VideoUrlType },
-                ...{ label: string; value: VideoUrlType }[],
-              ],
-              defaultValue: "youtube" satisfies VideoUrlType,
-            }),
-            title: fields.text({
-              label: "Title",
-              description: "Used as the iframe accessible name.",
-            }),
-          },
-          { label: "Direct URL" },
-        ),
-      },
-    ),
+    slug: fields.text({
+      label: "Video slug (collection mode)",
+      description:
+        "Filename (without .yaml) of an entry in src/content/collections/videos " +
+        "— e.g. 'live-session' for live-session.yaml. Leave blank if using a direct URL.",
+    }),
+    url: fields.text({
+      label: "Video URL (URL mode)",
+      description:
+        "Full YouTube or Vimeo URL. Leave blank if using a collection slug.",
+    }),
+    type: fields.select({
+      label: "Type (URL mode)",
+      description: "Required when 'Video URL' is set. Ignored in collection mode.",
+      options: VIDEO_URL_TYPES.map((v) => ({
+        label: VIDEO_URL_TYPE_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: VideoUrlType },
+        ...{ label: string; value: VideoUrlType }[],
+      ],
+      defaultValue: "youtube" satisfies VideoUrlType,
+    }),
+    title: fields.text({
+      label: "Title (URL mode)",
+      description: "Used as the iframe's accessible name. Ignored in collection mode.",
+    }),
     caption: fields.text({
       label: "Caption",
       description: "Optional. Rendered as a <figcaption> below the video.",
@@ -118,11 +95,3 @@ export const keystatic: KeystaticContentComponent = block({
 });
 
 export const tagName = "video";
-
-/**
- * The cross-schema consistency test compares the *top-level* keys of each
- * schema. Markdoc lists the inline attributes flat (`slug`, `url`, `type`,
- * `title`); Keystatic groups them under a `source` conditional. Tell the test
- * to skip those keys so it still validates the rest (`caption`).
- */
-export const exemptKeys = ["slug", "url", "type", "title", "source"];

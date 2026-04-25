@@ -77,7 +77,7 @@ unions all derive from that const — never redeclare the values.
 - **UI / attribute enums** → `src/content-components/_shared/types.ts`. These
   are allowed-value sets for a Markdoc tag attribute or Keystatic
   content-component select. Examples: `HEADING_LEVELS`, `BUTTON_VARIANTS`,
-  `COLUMNS_LAYOUTS`, `TOUR_DATES_FILTERS`, `POSTS_LIST_LAYOUTS`,
+  `COLUMNS_LAYOUTS`, `POSTS_LIST_LAYOUTS`,
   `EMBED_ASPECT_RATIOS`, `NEWSLETTER_SERVICES`, `VIDEO_URL_TYPES`.
 
 Labels that differ from values (e.g. `"H1"` vs `"h1"`, `"Sold Out"` vs

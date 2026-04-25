@@ -301,6 +301,10 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
     border-radius: var(--radius);
   }
 
+  .tour-date[hidden] {
+    display: none;
+  }
+
   .tour-date.is-canceled,
   .tour-date.is-past {
     opacity: 0.65;

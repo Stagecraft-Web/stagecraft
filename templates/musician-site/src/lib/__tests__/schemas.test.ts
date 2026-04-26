@@ -113,6 +113,14 @@ describe("siteConfigSchema", () => {
     ).toThrow();
   });
 
+  it("coerces an empty wordmark object to undefined (Keystatic save artifact)", () => {
+    // Keystatic's fields.object writes `"wordmark": {}` when both the
+    // image and text inputs are blank. The schema treats this as "no
+    // wordmark set" rather than throwing.
+    const result = siteConfigSchema.parse({ ...valid, wordmark: {} });
+    expect(result.wordmark).toBeUndefined();
+  });
+
   // ---- Favicon ------------------------------------------------------------
   it("parses without a favicon (optional field)", () => {
     expect(siteConfigSchema.parse(valid).favicon).toBeUndefined();

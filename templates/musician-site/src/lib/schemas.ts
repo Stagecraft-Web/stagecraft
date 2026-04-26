@@ -63,7 +63,21 @@ export const wordmarkSchema = z.object({
 
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
-  wordmark: wordmarkSchema.optional(),
+  // Keystatic's fields.object writes `"wordmark": {}` when the inner
+  // image + text fields are both blank — indistinguishable from "no
+  // wordmark set". Coerce that to undefined so .optional() accepts it.
+  wordmark: z
+    .preprocess((val) => {
+      if (
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Object.keys(val).length === 0
+      ) {
+        return undefined;
+      }
+      return val;
+    }, wordmarkSchema.optional()),
   // Site favicon (path to uploaded asset). When set, the <link rel="icon">
   // in BaseLayout points here instead of the default `/favicons/favicon.svg`
   // shipped in `public/`.

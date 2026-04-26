@@ -72,23 +72,42 @@ export const pageBackgroundOverlaySchema = z.object({
 });
 export type PageBackgroundOverlay = z.infer<typeof pageBackgroundOverlaySchema>;
 
+// Header mode — a single discriminator that bundles the two valid
+// header configurations into one author-facing choice. Splitting style
+// (solid/transparent) and position (sticky/static) into two fields used
+// to expose an invalid combination: transparent + sticky paints the
+// surface back in as the user scrolls past the threshold, but content
+// that scrolls under the header reads through during the paint and
+// flashes. Collapsing to one field means transparent is always paired
+// with static, so the page-background-bleed-through case can't be
+// configured at all.
+//
+// Naming: each value reads "<style>-<position>" so the underlying CSS
+// modifiers are easy to derive in the renderer.
+export const HEADER_MODES = [
+  "solid-sticky",
+  "solid-static",
+  "transparent-static",
+] as const;
+export type HeaderMode = (typeof HEADER_MODES)[number];
+
+export const HEADER_MODE_LABELS: Record<HeaderMode, string> = {
+  "solid-sticky": "Solid, sticky (default)",
+  "solid-static": "Solid, scrolls with page",
+  "transparent-static": "Transparent, scrolls with page",
+};
+
+// Helpers so renderers can ask "is this transparent?" / "is this sticky?"
+// without re-parsing the discriminator string everywhere.
+export function isTransparentHeader(mode: HeaderMode): boolean {
+  return mode === "transparent-static";
+}
+export function isStickyHeader(mode: HeaderMode): boolean {
+  return mode === "solid-sticky";
+}
+
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
-  // Keystatic's fields.object writes `"wordmark": {}` when the inner
-  // image + text fields are both blank — indistinguishable from "no
-  // wordmark set". Coerce that to undefined so .optional() accepts it.
-  wordmark: z
-    .preprocess((val) => {
-      if (
-        val &&
-        typeof val === "object" &&
-        !Array.isArray(val) &&
-        Object.keys(val).length === 0
-      ) {
-        return undefined;
-      }
-      return val;
-    }, wordmarkSchema.optional()),
   // Site favicon (path to uploaded asset). When set, the <link rel="icon">
   // in BaseLayout points here instead of the default `/favicons/favicon.svg`
   // shipped in `public/`.
@@ -117,11 +136,41 @@ export const siteConfigSchema = z.object({
   isFooterHidden: z.boolean().default(false),
 });
 
-// Nav config — what's stored in nav.json.
-// An ordered array of page slugs. The Navigation singleton owns both
-// membership (which pages appear) and order (what sequence).
-// Uses fields.relationship in Keystatic, so each entry is a page slug.
-export const navConfigSchema = z.object({
+// Keystatic's fields.object writes `"wordmark": {}` when both the image and
+// text inputs are blank — indistinguishable from "no wordmark set". Coerce
+// that to undefined so .optional() accepts it. Reused inside the
+// headerAndNav singleton.
+const optionalWordmark = z.preprocess((val) => {
+  if (
+    val &&
+    typeof val === "object" &&
+    !Array.isArray(val) &&
+    Object.keys(val).length === 0
+  ) {
+    return undefined;
+  }
+  return val;
+}, wordmarkSchema.optional());
+
+// Header & Navigation config — what's stored in header.json.
+// Bundles the site header's brand mark (wordmark), appearance/position
+// settings, and nav membership/order in a single Keystatic singleton so
+// header authoring lives in one place.
+//
+// `items` is an ordered array of page slugs (managed via Keystatic's
+// relationship field) and owns both nav membership and order.
+export const headerAndNavSchema = z.object({
+  wordmark: optionalWordmark,
+  // Single header-behavior discriminator (style + position). Defaulted
+  // so existing config files without the key keep parsing — the admin
+  // UI surfaces it explicitly, but runtime consumers can treat it as
+  // always-present.
+  headerMode: z.enum(HEADER_MODES).default("solid-sticky"),
+  // Only meaningful when headerMode === "transparent-static". Colors
+  // nav links and the artist-name title against the page background
+  // (typically a hero image). Accepts hex / rgb() / rgba(). Empty
+  // string = unset; the renderer falls back to the usual token colors.
+  headerForegroundColor: z.string().optional(),
   items: z.array(z.string().min(1)),
 });
 
@@ -312,8 +361,8 @@ export const themeSchema = z.object({
 // Page-specific structured content (sections, images, buttons,
 // columns) lives in the Markdoc body as custom tags, not frontmatter.
 //
-// Navigation membership is controlled by the Navigation singleton
-// (nav.json), not by page frontmatter.
+// Navigation membership is controlled by the Header & Navigation
+// singleton (header.json), not by page frontmatter.
 // ============================================================
 
 export const pageFrontmatterSchema = z.object({
@@ -384,13 +433,6 @@ export const videoSchema = z.object({
   url: z.string().url(),
   type: z.enum(VIDEO_TYPES),
   description: z.string().optional(),
-});
-
-export const pressQuoteSchema = z.object({
-  quote: z.string().min(1),
-  source: z.string().min(1),
-  url: z.string().optional(),
-  date: z.string().optional(),
 });
 
 // Show status for a tour date. Matches the four states the TourDatesList
@@ -510,14 +552,13 @@ export const storeItemSchema = z.object({
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type Wordmark = z.infer<typeof wordmarkSchema>;
-export type NavConfig = z.infer<typeof navConfigSchema>;
+export type HeaderAndNavConfig = z.infer<typeof headerAndNavSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;
 export type Release = z.infer<typeof releaseSchema>;
 export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;
-export type PressQuote = z.infer<typeof pressQuoteSchema>;
 export type TourDate = z.infer<typeof tourDateSchema>;
 export type PostFrontmatter = z.infer<typeof postFrontmatterSchema>;
 export type StoreItem = z.infer<typeof storeItemSchema>;

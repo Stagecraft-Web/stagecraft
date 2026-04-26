@@ -8,7 +8,7 @@ import {
   previewTextMuted,
 } from "../_shared/previewTokens";
 import { PlaceholderImage } from "../_shared/previewChrome";
-import type { HeadingLevel } from "../_shared/types";
+import type { HeadingLevel, TextAlignment } from "../_shared/types";
 
 /**
  * `fields.file` (used for the optional background video) returns the same
@@ -22,6 +22,7 @@ type FullscreenSectionValue = {
   isTitleHidden: boolean;
   image: KeystaticImageBlob;
   video: KeystaticImageBlob;
+  textAlign: TextAlignment;
 };
 
 export function FullscreenSectionPreview({
@@ -31,7 +32,11 @@ export function FullscreenSectionPreview({
   value: FullscreenSectionValue;
   children: ReactNode;
 }): ReactNode {
-  const { title, image, video, isTitleHidden } = value;
+  const { title, image, video, isTitleHidden, textAlign } = value;
+  // Fullscreen content is center-aligned by default. `start` preserves that
+  // to match the renderer; only explicit non-start values override it.
+  const effectiveAlign: TextAlignment =
+    textAlign === "start" ? "center" : textAlign;
   const imageUrl = useBlobObjectUrl(image);
   const hasImage = imageUrl !== null;
   const hasVideo = video !== null;
@@ -123,6 +128,7 @@ export function FullscreenSectionPreview({
           padding: "3rem 1.5rem 2rem",
           color: hasImage ? "#ffffff" : previewText,
           textShadow: hasImage ? "0 1px 3px rgba(0,0,0,0.6)" : undefined,
+          textAlign: effectiveAlign,
         }}
       >
         {title && !isTitleHidden && (

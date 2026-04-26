@@ -1,32 +1,58 @@
 ---
 import { Image } from "astro:assets";
-import { buildNav, getHomeHref, getSiteConfig } from "../lib/content";
+import { buildNav, getHomeHref, getHeaderAndNavConfig, getSiteConfig } from "../lib/content";
 import { resolveImage } from "../lib/resolve-image";
+import { isStickyHeader, isTransparentHeader } from "../lib/schemas";
 
 const nav = await buildNav();
 const site = getSiteConfig();
+const headerConfig = getHeaderAndNavConfig();
 const currentPath = Astro.url.pathname;
 
 // Resolve the wordmark image path (e.g. "../../assets/images/wordmark.svg")
 // into an Astro ImageMetadata object so Astro's <Image> can optimise it.
 // If the author hasn't set a wordmark, or the file no longer exists, we
 // fall through to the artist-name text below — safe default.
-const wordmarkImage = site.wordmark ? resolveImage(site.wordmark.src) : undefined;
-const hasWordmark = Boolean(site.wordmark && wordmarkImage);
+const wordmarkImage = headerConfig.wordmark ? resolveImage(headerConfig.wordmark.src) : undefined;
+const hasWordmark = Boolean(headerConfig.wordmark && wordmarkImage);
 
 // Logo targets the real home, not the splash page (which is meant to be
 // seen once on first visit — returning visitors shouldn't land on it again
 // when they click the logo).
 const homeHref = await getHomeHref();
+
+// Style + position derive from the single `headerMode` discriminator.
+// The schema enforces that `transparent-static` is the only transparent
+// mode — sticky is not offered for transparent because page content
+// scrolling under a partly-transparent pinned header flashes through.
+const isTransparent = isTransparentHeader(headerConfig.headerMode);
+const headerPosition = isStickyHeader(headerConfig.headerMode) ? "sticky" : "static";
+const headerForegroundColor = headerConfig.headerForegroundColor?.trim() ?? "";
+const hasHeaderForeground = isTransparent && headerForegroundColor.length > 0;
+
+// When an author supplies a foreground color, expose it as a custom
+// property so the nav-link / title CSS picks it up via var(--header-fg).
+// Keystatic stores an empty string when the field is blank; don't emit the
+// inline style in that case so the CSS fallback (muted/primary tokens)
+// wins.
+const headerStyle = hasHeaderForeground
+  ? `--header-fg: ${headerForegroundColor};`
+  : undefined;
+
+const headerClasses = [
+  "site-header",
+  `site-header--position-${headerPosition}`,
+  isTransparent ? "site-header--transparent" : null,
+];
 ---
 
-<header class="site-header">
+<header class:list={headerClasses} style={headerStyle}>
   <div class="container header-inner">
     <a href={homeHref} class="site-logo" aria-label={site.artistName}>
-      {hasWordmark && site.wordmark && wordmarkImage ? (
+      {hasWordmark && headerConfig.wordmark && wordmarkImage ? (
         <Image
           src={wordmarkImage}
-          alt={site.wordmark.alt}
+          alt={headerConfig.wordmark.alt}
           class="site-wordmark"
           height={40}
           widths={[40, 80]}
@@ -72,11 +98,30 @@ const homeHref = await getHomeHref();
 
 <style>
   .site-header {
-    position: sticky;
     top: 0;
     z-index: 100;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
+  }
+
+  /* Position modifiers — mutually exclusive. "static" is the CSS default
+     (no explicit `position`) but we set it anyway for symmetry and to
+     override any upstream rule. */
+  .site-header--position-static {
+    position: static;
+  }
+
+  .site-header--position-sticky {
+    position: sticky;
+  }
+
+  /* Transparent modifier — drop the surface paint + border so the page
+     background (typically a hero image) reads through. Schema enforces
+     that this can only pair with static positioning, so the header
+     scrolls away with the page rather than pinning over content. */
+  .site-header--transparent {
+    background: transparent;
+    border-bottom-color: transparent;
   }
 
   .header-inner {
@@ -126,6 +171,18 @@ const homeHref = await getHomeHref();
   .main-nav a:hover,
   .main-nav a.active {
     color: var(--color-secondary);
+  }
+
+  /* When a transparent header has a `--header-fg` custom property set
+     (from headerConfig.headerForegroundColor), prefer it for the title + nav
+     links. Falls back to the usual tokens so sites without a custom
+     color keep current behavior. */
+  .site-header--transparent .site-title {
+    color: var(--header-fg, var(--color-primary));
+  }
+
+  .site-header--transparent .main-nav a {
+    color: var(--header-fg, var(--color-text-muted));
   }
 
   .nav-toggle {

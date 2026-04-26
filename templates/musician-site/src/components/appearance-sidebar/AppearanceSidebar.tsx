@@ -731,10 +731,7 @@ interface WeightSelectRowProps {
 function WeightSelectRow({ bucket, label, value, onChange }: WeightSelectRowProps) {
   const id = useId();
   return (
-    <div className={styles.fieldRow}>
-      <label className={styles.labelInline} htmlFor={id}>
-        {label}
-      </label>
+    <FormGroup label={label} htmlFor={id}>
       <select
         id={id}
         className={styles.select}
@@ -748,7 +745,7 @@ function WeightSelectRow({ bucket, label, value, onChange }: WeightSelectRowProp
           </option>
         ))}
       </select>
-    </div>
+    </FormGroup>
   );
 }
 

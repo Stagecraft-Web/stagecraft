@@ -10,6 +10,7 @@ export default {
         "title": { type: String },
         "headingLevel": { type: String, default: "h2", matches: ["h1","h2","h3","h4"] },
         "isTitleHidden": { type: Boolean, default: false },
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
       },
     },
     "fullscreen-section": {
@@ -19,6 +20,7 @@ export default {
         "isTitleHidden": { type: Boolean, default: false },
         "image": { type: String },
         "video": { type: String },
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
       },
     },
     "button": {
@@ -35,7 +37,11 @@ export default {
         "layout": { type: String, default: "1-1", matches: ["1-1","1-2","2-1","1-1-1"] },
       },
     },
-    "column": {},
+    "column": {
+      attributes: {
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
+      },
+    },
     "content-image": {
       selfClosing: true,
       attributes: {
@@ -75,11 +81,17 @@ export default {
     "release-list": {
       selfClosing: true,
     },
-    "press-quotes": {
-      selfClosing: true,
-    },
     "photo-gallery": {
       selfClosing: true,
+    },
+    "image-carousel": {
+      selfClosing: true,
+      attributes: {
+        "photosCollection": { type: String, default: "all", matches: ["all","hero","about","release-cover","gallery","press","background","thumbnail"] },
+        "aspectRatio": { type: String, default: "16/9", matches: ["16/9","4/3","1/1","auto"] },
+        "areArrowsHidden": { type: Boolean, default: false },
+        "areDotsHidden": { type: Boolean, default: false },
+      },
     },
     "video-gallery": {
       selfClosing: true,
@@ -104,8 +116,17 @@ export default {
       selfClosing: true,
       attributes: {
         "code": { type: String, required: true },
+        "title": { type: String },
+      },
+    },
+    "embed-responsive": {
+      selfClosing: true,
+      attributes: {
+        "code": { type: String, required: true },
         "aspectRatio": { type: String, default: "auto", matches: ["auto","16/9","4/3","1/1"] },
         "title": { type: String },
+        "maxWidth": { type: Number },
+        "minHeight": { type: Number },
       },
     },
     "posts-list": {
@@ -117,14 +138,65 @@ export default {
       },
     },
     "newsletter-signup": {
-      selfClosing: true,
       attributes: {
         "service": { type: String, required: true, matches: ["mailchimp","convertkit","buttondown","generic"] },
         "actionUrl": { type: String, required: true },
         "title": { type: String, default: "Newsletter" },
         "submitLabel": { type: String, default: "Subscribe" },
         "successMessage": { type: String, default: "Thanks for subscribing!" },
-        "captureName": { type: Boolean, default: false },
+      },
+    },
+    "newsletter-email": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, default: "email" },
+        "label": { type: String, default: "Email" },
+        "autocomplete": { type: String, default: "email", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: true },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-phone": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, default: "phone" },
+        "label": { type: String, default: "Phone" },
+        "autocomplete": { type: String, default: "tel", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: false },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-text": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, required: true },
+        "label": { type: String, required: true },
+        "autocomplete": { type: String, default: "off", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: false },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-select": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, required: true },
+        "label": { type: String, required: true },
+        "options": { type: String, required: true },
+        "autocomplete": { type: String, default: "off", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: false },
+        "placeholder": { type: String },
+      },
+    },
+    "quote": {
+      selfClosing: true,
+      attributes: {
+        "text": { type: String, required: true },
+        "attribution": { type: String },
+      },
+    },
+    "centered-block": {
+      attributes: {
+        "maxWidth": { type: String, default: "narrow", matches: ["narrow","regular"] },
       },
     },
   },

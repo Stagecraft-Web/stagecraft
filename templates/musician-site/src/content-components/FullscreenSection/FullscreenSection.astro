@@ -2,7 +2,7 @@
 import { Image, getImage } from "astro:assets";
 import { resolveImage } from "../../lib/resolve-image";
 import { resolveVideo } from "../../lib/resolve-video";
-import type { HeadingLevel } from "../_shared/types";
+import type { HeadingLevel, TextAlignment } from "../_shared/types";
 
 interface Props {
   title?: string;
@@ -17,9 +17,22 @@ interface Props {
    * autoplay or for users with `prefers-reduced-motion: reduce`.
    */
   video?: string;
+  /**
+   * Inline text alignment inside the overlay. Defaults to "start" so the
+   * base `center`-aligned overlay behavior is preserved via a modifier class
+   * that only kicks in when the author explicitly opts for a non-start value.
+   */
+  textAlign?: TextAlignment;
 }
 
-const { title, headingLevel = "h2", isTitleHidden = false, image, video } = Astro.props;
+const {
+  title,
+  headingLevel = "h2",
+  isTitleHidden = false,
+  image,
+  video,
+  textAlign = "start",
+} = Astro.props;
 const Heading = headingLevel;
 const resolvedImage = resolveImage(image);
 const resolvedVideo = resolveVideo(video);
@@ -67,7 +80,12 @@ if (hasVideo && resolvedImage) {
     </video>
   )}
   <div class="fullscreen-overlay" />
-  <div class="fullscreen-content container">
+  <div
+    class:list={[
+      "fullscreen-content container",
+      textAlign !== "start" && `fullscreen-content--align-${textAlign}`,
+    ]}
+  >
     {title && (
       <Heading class:list={[isTitleHidden && "screenreader-only"]}>
         {title}
@@ -167,6 +185,17 @@ if (hasVideo && resolvedImage) {
     text-align: center;
     color: var(--color-white);
     padding-block: 4rem;
+  }
+
+  /* Overrides for the default text-align: center above. Only applied when
+     the author explicitly picks a non-start alignment — keeps the default
+     rendered output unchanged. */
+  .fullscreen-content--align-center {
+    text-align: center;
+  }
+
+  .fullscreen-content--align-end {
+    text-align: end;
   }
 
   .fullscreen-content :global(h1),

@@ -1,19 +1,26 @@
 ---
+/**
+ * Generic labelled form control. The `type` prop covers all three control
+ * shapes the form library renders: any standard `<input>` type
+ * (`text`, `email`, `tel`, `url`, `password`, …), `"textarea"`, and
+ * `"select"`. Internally the component switches on those three buckets so
+ * callers don't have to thread `isTextarea` / `isSelect` flags.
+ */
+type FormGroupType =
+  | astroHTML.JSX.HTMLInputTypeAttribute
+  | "textarea"
+  | "select";
+
 interface Props {
   /** Input label text */
   label: string;
   /** Input name and id attribute */
   name: string;
-  /** Input type (ignored for textarea / select) */
-  type?: astroHTML.JSX.HTMLInputTypeAttribute;
-  /** Render as textarea instead of input */
-  isTextarea?: boolean;
-  /** Number of rows for textarea */
+  /** Control shape — any standard `<input>` type, or `"textarea"` / `"select"`. */
+  type?: FormGroupType;
+  /** Number of rows for `type="textarea"`. */
   rows?: number;
-  /** Render as a `<select>` driven by `selectOptions`. Mutually exclusive
-   *  with `isTextarea`. */
-  isSelect?: boolean;
-  /** Choices for `isSelect`. Each string is used for both the option's
+  /** Choices for `type="select"`. Each string is used for both the option's
    *  value and its display label. */
   selectOptions?: string[];
   /** Whether the field is required */
@@ -32,9 +39,7 @@ const {
   label,
   name,
   type = "text",
-  isTextarea = false,
   rows = 5,
-  isSelect = false,
   selectOptions = [],
   isRequired = false,
   autocomplete,
@@ -47,14 +52,14 @@ const {
     {label}
     {isRequired && <span class="form-group-required">*</span>}
   </label>
-  {isSelect ? (
+  {type === "select" ? (
     <select id={name} name={name} required={isRequired} autocomplete={autocomplete}>
       {!isRequired && <option value="">{placeholder ?? "Select an option"}</option>}
       {selectOptions.map((opt) => (
         <option value={opt}>{opt}</option>
       ))}
     </select>
-  ) : isTextarea ? (
+  ) : type === "textarea" ? (
     <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   ) : (
     <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />

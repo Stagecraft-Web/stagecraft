@@ -226,14 +226,26 @@ export const FONT_SIZE_BUCKET_LABELS: Record<FontSizeBucket, string> = {
   "4xl": "4xl (h1)",
 };
 
-// rem string ("1.25rem", "0.875rem", etc.). An empty string means "fall back
-// to the theme.json baseline at render time" — Keystatic stores blank text
-// inputs as `""`, so authors who want the default just leave the field empty.
-const fontSizeRemSchema = z
-  .string()
-  .refine((v) => v === "" || /^\d+(?:\.\d+)?rem$/.test(v.trim()), {
-    message: 'Font size must be a rem value like "1.25rem" (or blank for the default).',
-  });
+// Per-bucket sizes are stored as integer pixels with a 16px = 1rem
+// convention. `0` means "fall back to the theme.json baseline at render
+// time" — the stepper UI in both surfaces treats 0 as "default" and steps
+// up to 8px (0.5rem) on first increment. Bounded to [0, 96] (0.5rem to
+// 6rem) so the steppers can't run off into ridiculous territory.
+//
+// Why pixels (not rem strings)? A constrained integer prevents authors
+// from typing free-form values like "1.347rem" or "16px" — the stepper
+// can only emit valid values, and `fields.integer` gives Keystatic a
+// native number input with +/− buttons.
+export const PX_PER_REM = 16;
+export const FONT_SIZE_PX_MIN = 0;
+export const FONT_SIZE_PX_MAX = 96;
+export const FONT_SIZE_PX_STEP_MIN = 8;
+
+const fontSizePxSchema = z.coerce
+  .number()
+  .int()
+  .min(FONT_SIZE_PX_MIN)
+  .max(FONT_SIZE_PX_MAX);
 
 // Builds a `{bucket: schema, ...}` map for a fixed set of buckets so the Zod
 // shape preserves the literal-union types. Without this helper the shape is
@@ -241,27 +253,27 @@ const fontSizeRemSchema = z
 // type-safety.
 const sizesShapeFor = <T extends FontSizeBucket>(
   buckets: readonly T[],
-): Record<T, ReturnType<typeof fontSizeRemSchema.default>> =>
+): Record<T, ReturnType<typeof fontSizePxSchema.default>> =>
   buckets.reduce(
     (acc, bucket) => {
-      acc[bucket] = fontSizeRemSchema.default("");
+      acc[bucket] = fontSizePxSchema.default(0);
       return acc;
     },
-    {} as Record<T, ReturnType<typeof fontSizeRemSchema.default>>,
+    {} as Record<T, ReturnType<typeof fontSizePxSchema.default>>,
   );
 
-// Helper: builds a `Record<bucket, "">` for the schema's top-level default.
-// Each individual bucket's `.default("")` would suffice when the parent block
+// Helper: builds a `Record<bucket, 0>` for the schema's top-level default.
+// Each individual bucket's `.default(0)` would suffice when the parent block
 // is supplied, but the parent itself also needs a default for the case where
 // `bodySizes` / `headingSizes` is missing entirely (e.g. an old
 // `appearance.json` from before the size block existed).
-const blankSizesFor = <T extends string>(buckets: readonly T[]): Record<T, string> =>
+const blankSizesFor = <T extends string>(buckets: readonly T[]): Record<T, number> =>
   buckets.reduce(
     (acc, bucket) => {
-      acc[bucket] = "";
+      acc[bucket] = 0;
       return acc;
     },
-    {} as Record<T, string>,
+    {} as Record<T, number>,
   );
 
 const bodySizesSchema = z

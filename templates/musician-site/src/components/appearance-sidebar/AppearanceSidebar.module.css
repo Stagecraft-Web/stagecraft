@@ -208,7 +208,6 @@
 
 .select,
 .textInput,
-.textInputCompact,
 .colorInput {
   width: 100%;
   padding: 0.375rem 0.625rem;
@@ -223,19 +222,71 @@
 
 .select:focus,
 .textInput:focus,
-.textInputCompact:focus,
 .colorInput:focus {
   outline: 2px solid #2563eb;
   outline-offset: -1px;
   border-color: transparent;
 }
 
-/* Compact text input used inside `.fieldRow` for per-bucket size editing.
-   Sized to look balanced next to the inline label. */
-.textInputCompact {
-  flex: 1;
-  max-width: 130px;
+/* Per-bucket size stepper: − [value] +. The `.stepper` group is sized to
+   match the width of the weight `.select` next to it so the rows in the
+   Sizes / Weights fieldsets line up vertically. */
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.stepperButton {
+  width: 28px;
+  padding: 0;
+  background: #f9fafb;
+  color: #111;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepperButton:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.stepperButton:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.stepperButton:first-child {
+  border-right: 1px solid #d1d5db;
+}
+
+.stepperButton:last-child {
+  border-left: 1px solid #d1d5db;
+}
+
+.stepperValue {
+  min-width: 64px;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-align: center;
+  color: #111;
+  background: #fff;
+}
+
+/* When the bucket is at "default" (px = 0) the value reads as `—` and the
+   text muts so authors can tell at a glance which buckets they've touched. */
+.stepperValue[data-default="true"] {
+  color: #9ca3af;
 }
 
 .fieldRow .select {

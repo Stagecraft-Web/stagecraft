@@ -11,8 +11,15 @@
 // so if the schema evolves we only have to change it here.
 // ============================================================
 
+import { pxToRem } from "../../lib/font-sizing";
 import { BODY_FONT_SIZE_BUCKETS, HEADING_FONT_SIZE_BUCKETS } from "../../lib/schemas";
 import type { AppearanceState } from "./types";
+
+/** Render a per-bucket pixel override for a commit-message diff line.
+ *  `0` reads as "(default)"; non-zero reads as the rem equivalent. */
+function formatSizeChange(px: number): string {
+  return px > 0 ? pxToRem(px) : "(default)";
+}
 
 /** Serialise an AppearanceState into the JSON string that belongs at
  *  `src/content/config/appearance.json`. Indent matches the existing file
@@ -39,12 +46,13 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
       : "";
 
   // Build size objects with explicit per-bucket entries so the on-disk shape
-  // matches the Keystatic schema exactly (field order = bucket order).
+  // matches the Keystatic schema exactly (field order = bucket order). Values
+  // are integer pixels — `0` means "use theme.json baseline".
   const bodySizesOut = Object.fromEntries(
-    BODY_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.bodySizes[b] ?? ""]),
+    BODY_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.bodySizes[b] ?? 0]),
   );
   const headingSizesOut = Object.fromEntries(
-    HEADING_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.headingSizes[b] ?? ""]),
+    HEADING_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.headingSizes[b] ?? 0]),
   );
 
   const payload = {
@@ -177,16 +185,16 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
   }
 
   // Per-bucket size overrides — surface each bucket distinctly so the diff
-  // reads naturally ("base size: 1rem → 1.125rem"). An override toggling
-  // between "" (use baseline) and a real value still shows up here.
+  // reads naturally ("base size: (default) → 1.125rem"). An override
+  // toggling between 0 (use baseline) and a real px value still shows up.
   for (const key of Object.keys(prev.typography.bodySizes) as Array<
     keyof AppearanceState["typography"]["bodySizes"]
   >) {
     if (prev.typography.bodySizes[key] !== next.typography.bodySizes[key]) {
       changes.push({
         label: `${key} size`,
-        from: prev.typography.bodySizes[key] || "(default)",
-        to: next.typography.bodySizes[key] || "(default)",
+        from: formatSizeChange(prev.typography.bodySizes[key]),
+        to: formatSizeChange(next.typography.bodySizes[key]),
       });
     }
   }
@@ -196,8 +204,8 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
     if (prev.typography.headingSizes[key] !== next.typography.headingSizes[key]) {
       changes.push({
         label: `${key} size`,
-        from: prev.typography.headingSizes[key] || "(default)",
-        to: next.typography.headingSizes[key] || "(default)",
+        from: formatSizeChange(prev.typography.headingSizes[key]),
+        to: formatSizeChange(next.typography.headingSizes[key]),
       });
     }
   }

@@ -340,46 +340,77 @@ describe("appearanceSchema", () => {
     expect(result.colors.linkColor).toBe("#ff00aa");
   });
 
-  // ---- per-bucket size overrides -----------------------------------------
-  it("defaults bodySizes/headingSizes to all-blank when missing", () => {
+  // ---- per-bucket size overrides (integer pixels) ------------------------
+  it("defaults bodySizes/headingSizes to all-zero when missing", () => {
     // Backwards-compat: pre-existing appearance.json files have no size
-    // blocks. The schema defaults each field to an empty string, which
-    // computeFontSizes treats as "use the theme.json baseline."
+    // blocks. Each field defaults to 0, which computeFontSizes treats as
+    // "use the theme.json baseline."
     const result = appearanceSchema.parse(splitInput);
-    expect(result.typography.bodySizes).toEqual({ xs: "", sm: "", base: "", lg: "" });
+    expect(result.typography.bodySizes).toEqual({ xs: 0, sm: 0, base: 0, lg: 0 });
     expect(result.typography.headingSizes).toEqual({
-      xl: "",
-      "2xl": "",
-      "3xl": "",
-      "4xl": "",
+      xl: 0,
+      "2xl": 0,
+      "3xl": 0,
+      "4xl": 0,
     });
   });
 
-  it("accepts explicit per-bucket overrides", () => {
+  it("accepts explicit per-bucket overrides as integer pixels", () => {
     const withSizes = {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
-        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
+        bodySizes: { xs: 11, sm: 0, base: 18, lg: 0 },
+        headingSizes: { xl: 26, "2xl": 0, "3xl": 0, "4xl": 64 },
       },
     };
     const result = appearanceSchema.parse(withSizes);
-    expect(result.typography.bodySizes.xs).toBe("0.7rem");
-    expect(result.typography.bodySizes.base).toBe("1.125rem");
-    expect(result.typography.headingSizes.xl).toBe("1.625rem");
-    expect(result.typography.headingSizes["4xl"]).toBe("4rem");
+    expect(result.typography.bodySizes.xs).toBe(11);
+    expect(result.typography.bodySizes.base).toBe(18);
+    expect(result.typography.headingSizes.xl).toBe(26);
+    expect(result.typography.headingSizes["4xl"]).toBe(64);
   });
 
-  it("rejects size overrides that aren't rem strings", () => {
-    const withBadSize = {
+  it("coerces string-valued sizes (as Keystatic's number input may emit)", () => {
+    const withStringSizes = {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        bodySizes: { base: "16px", xs: "", sm: "", lg: "" },
+        bodySizes: { base: "18", xs: 0, sm: 0, lg: 0 },
       },
     };
-    expect(() => appearanceSchema.parse(withBadSize)).toThrow();
+    const result = appearanceSchema.parse(withStringSizes);
+    expect(result.typography.bodySizes.base).toBe(18);
+  });
+
+  it("rejects non-integer sizes", () => {
+    const withFractional = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: 16.5, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withFractional)).toThrow();
+  });
+
+  it("rejects sizes outside the [0, 96]px range", () => {
+    const withTooBig = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: 200, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withTooBig)).toThrow();
+    const withNegative = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: -1, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withNegative)).toThrow();
   });
 
   it("treats per-bucket fields as optional within the size blocks", () => {
@@ -389,12 +420,12 @@ describe("appearanceSchema", () => {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        bodySizes: { base: "1.05rem" },
+        bodySizes: { base: 17 },
       },
     };
     const result = appearanceSchema.parse(withPartial);
-    expect(result.typography.bodySizes.base).toBe("1.05rem");
-    expect(result.typography.bodySizes.xs).toBe("");
+    expect(result.typography.bodySizes.base).toBe(17);
+    expect(result.typography.bodySizes.xs).toBe(0);
   });
 });
 

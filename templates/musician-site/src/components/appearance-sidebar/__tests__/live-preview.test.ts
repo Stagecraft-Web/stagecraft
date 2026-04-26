@@ -79,9 +79,9 @@ const baseAppearance: AppearanceState = {
     mode: "split",
     primary: { category: "sans-serif", family: "Inter" },
     heading: { category: "serif", family: "Merriweather" },
-    bodySizes: { xs: "", sm: "", base: "", lg: "" },
+    bodySizes: { xs: 0, sm: 0, base: 0, lg: 0 },
     bodyWeights: { body: 400, bodyBold: 700 },
-    headingSizes: { xl: "", "2xl": "", "3xl": "", "4xl": "" },
+    headingSizes: { xl: 0, "2xl": 0, "3xl": 0, "4xl": 0 },
     headingWeights: { h1: 700, h2: 600, h3: 600, h4: 500 },
   },
 };
@@ -146,14 +146,14 @@ describe("applyCssVariables", () => {
     expect(stub.style["--font-size-4xl"]).toBe("3.5rem");
   });
 
-  it("applies a body-bucket override and leaves other buckets untouched", () => {
+  it("applies a body-bucket override (px → rem) and leaves other buckets untouched", () => {
     applyCssVariables(
       stub.doc.documentElement,
       {
         ...baseAppearance,
         typography: {
           ...baseAppearance.typography,
-          bodySizes: { ...baseAppearance.typography.bodySizes, base: "1.125rem" },
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: 18 },
         },
       },
       BASE_FONT_SIZES,
@@ -170,7 +170,7 @@ describe("applyCssVariables", () => {
         ...baseAppearance,
         typography: {
           ...baseAppearance.typography,
-          headingSizes: { ...baseAppearance.typography.headingSizes, "4xl": "4rem" },
+          headingSizes: { ...baseAppearance.typography.headingSizes, "4xl": 64 },
         },
       },
       BASE_FONT_SIZES,
@@ -245,11 +245,12 @@ describe("applyPreview", () => {
         ...baseAppearance,
         typography: {
           ...baseAppearance.typography,
-          bodySizes: { ...baseAppearance.typography.bodySizes, base: "1.07rem" },
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: 17 },
         },
       },
       BASE_FONT_SIZES,
     );
-    expect(stub.style["--font-size-base"]).toBe("1.07rem");
+    // 17 / 16 = 1.0625 → rounded to 1.063rem.
+    expect(stub.style["--font-size-base"]).toBe("1.063rem");
   });
 });

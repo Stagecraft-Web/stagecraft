@@ -22,9 +22,9 @@ const splitState: AppearanceState = {
     mode: "split",
     primary: { category: "sans-serif", family: "Inter" },
     heading: { category: "serif", family: "Merriweather" },
-    bodySizes: { xs: "", sm: "", base: "", lg: "" },
+    bodySizes: { xs: 0, sm: 0, base: 0, lg: 0 },
     bodyWeights: { body: 400, bodyBold: 700 },
-    headingSizes: { xl: "", "2xl": "", "3xl": "", "4xl": "" },
+    headingSizes: { xl: 0, "2xl": 0, "3xl": 0, "4xl": 0 },
     headingWeights: { h1: 700, h2: 700, h3: 700, h4: 700 },
   },
 };
@@ -94,38 +94,39 @@ describe("serializeAppearanceForKeystatic", () => {
     expect(parsed).toEqual(singleState);
   });
 
-  // Per-bucket size blocks — must persist as-is and round-trip cleanly.
-  it("writes bodySizes / headingSizes blocks with explicit per-bucket entries", () => {
+  // Per-bucket size blocks — must persist as integer pixels and round-trip
+  // cleanly. `0` is the "use baseline" sentinel.
+  it("writes bodySizes / headingSizes blocks with explicit per-bucket px entries", () => {
     const json = serializeAppearanceForKeystatic({
       ...splitState,
       typography: {
         ...splitState.typography,
-        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
-        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
+        bodySizes: { xs: 11, sm: 0, base: 18, lg: 0 },
+        headingSizes: { xl: 26, "2xl": 0, "3xl": 0, "4xl": 64 },
       },
     });
     const parsed = JSON.parse(json);
     expect(parsed.typography.bodySizes).toEqual({
-      xs: "0.7rem",
-      sm: "",
-      base: "1.125rem",
-      lg: "",
+      xs: 11,
+      sm: 0,
+      base: 18,
+      lg: 0,
     });
     expect(parsed.typography.headingSizes).toEqual({
-      xl: "1.625rem",
-      "2xl": "",
-      "3xl": "",
-      "4xl": "4rem",
+      xl: 26,
+      "2xl": 0,
+      "3xl": 0,
+      "4xl": 64,
     });
   });
 
-  it("round-trips a state with per-bucket size overrides through the schema", () => {
+  it("round-trips a state with per-bucket px overrides through the schema", () => {
     const state: AppearanceState = {
       ...splitState,
       typography: {
         ...splitState.typography,
-        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
-        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
+        bodySizes: { xs: 11, sm: 0, base: 18, lg: 0 },
+        headingSizes: { xl: 26, "2xl": 0, "3xl": 0, "4xl": 64 },
       },
     };
     const json = serializeAppearanceForKeystatic(state);
@@ -190,7 +191,7 @@ describe("buildCommitMessage", () => {
       ...splitState,
       typography: {
         ...splitState.typography,
-        bodySizes: { ...splitState.typography.bodySizes, base: "1.125rem" },
+        bodySizes: { ...splitState.typography.bodySizes, base: 18 },
       },
     };
     const { headline, body } = buildCommitMessage(splitState, next);
@@ -203,7 +204,7 @@ describe("buildCommitMessage", () => {
       ...splitState,
       typography: {
         ...splitState.typography,
-        headingSizes: { ...splitState.typography.headingSizes, "4xl": "4rem" },
+        headingSizes: { ...splitState.typography.headingSizes, "4xl": 64 },
       },
     };
     const { headline, body } = buildCommitMessage(splitState, next);

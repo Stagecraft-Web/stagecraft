@@ -16,10 +16,10 @@
       "value": "Inter"
     },
     "bodySizes": {
-      "xs": "",
-      "sm": "",
-      "base": "",
-      "lg": ""
+      "xs": 0,
+      "sm": 0,
+      "base": 0,
+      "lg": 0
     },
     "bodyWeights": {
       "body": "400",
@@ -33,10 +33,10 @@
       }
     },
     "headingSizes": {
-      "xl": "",
-      "2xl": "",
-      "3xl": "",
-      "4xl": ""
+      "xl": 0,
+      "2xl": 0,
+      "3xl": 0,
+      "4xl": 0
     },
     "headingWeights": {
       "h1": "700",

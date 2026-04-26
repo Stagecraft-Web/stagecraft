@@ -6,6 +6,8 @@ import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
   FONT_SIZE_BUCKET_LABELS,
+  FONT_SIZE_PX_MAX,
+  FONT_SIZE_PX_MIN,
   HEADING_FONT_SIZE_BUCKETS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
@@ -114,10 +116,12 @@ const weightField = (label: string, defaultValue: number) =>
     defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
   });
 
-// Per-bucket font-size editor. Renders as a `fields.object` of free-text rem
-// inputs (one per bucket); any field left blank falls back to theme.json's
-// baseline at render time. Used twice in the Appearance singleton — once for
-// body buckets (xs/sm/base/lg), once for heading buckets (xl/2xl/3xl/4xl).
+// Per-bucket font-size editor. Renders as a `fields.object` of integer
+// number-inputs (one per bucket) — Keystatic gives them browser-native +/−
+// spinner buttons. Stored as pixels (1rem = 16px); `0` falls back to
+// theme.json's baseline at render time. Used twice in the Appearance
+// singleton — once for body buckets (xs/sm/base/lg), once for heading
+// buckets (xl/2xl/3xl/4xl).
 const sizesObject = <T extends FontSizeBucket>(
   buckets: readonly T[],
   label: string,
@@ -126,17 +130,18 @@ const sizesObject = <T extends FontSizeBucket>(
     Object.fromEntries(
       buckets.map((b) => [
         b,
-        fields.text({
+        fields.integer({
           label: FONT_SIZE_BUCKET_LABELS[b],
-          description: 'rem value (e.g. "1.25rem"), or blank for the theme.json default.',
-          defaultValue: "",
+          description: "Pixels (16 = 1rem). 0 inherits the theme.json default.",
+          defaultValue: 0,
+          validation: { min: FONT_SIZE_PX_MIN, max: FONT_SIZE_PX_MAX },
         }),
       ]),
-    ) as Record<T, ReturnType<typeof fields.text>>,
+    ) as Record<T, ReturnType<typeof fields.integer>>,
     {
       label,
       description:
-        "Per-bucket overrides on top of theme.json's font-size scale. Leave blank to inherit the default.",
+        "Per-bucket overrides on top of theme.json's font-size scale. Step the spinners or leave at 0 to inherit the default.",
     },
   );
 

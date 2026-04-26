@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { pxToRem } from "../../lib/font-sizing";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
 import type {
   BodyFontSizeBucket,
@@ -11,6 +12,9 @@ import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
   FONT_SIZE_BUCKET_LABELS,
+  FONT_SIZE_PX_MAX,
+  FONT_SIZE_PX_MIN,
+  FONT_SIZE_PX_STEP_MIN,
   HEADING_FONT_SIZE_BUCKETS,
 } from "../../lib/schemas";
 import {
@@ -212,15 +216,22 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
 
   return (
     <>
-      <button
-        type="button"
-        className={styles.trigger}
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="stagecraft-appearance-panel"
-      >
-        {open ? "Close" : "Appearance"}
-      </button>
+      {/* Trigger is hidden when the panel is open — the panel header's `×`
+          and the footer's Save/Revert buttons take over. The trigger sits
+          at z-index 9999 (above the panel) so leaving it visible would
+          obscure the bottom-right of the footer (real bug spotted in PR
+          review). */}
+      {!open && (
+        <button
+          type="button"
+          className={styles.trigger}
+          onClick={() => setOpen(true)}
+          aria-expanded={false}
+          aria-controls="stagecraft-appearance-panel"
+        >
+          Appearance
+        </button>
+      )}
 
       <aside
         id="stagecraft-appearance-panel"
@@ -472,15 +483,14 @@ function BodyFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Sizes</legend>
         <p className={styles.hint}>
-          rem values like <code>1.25rem</code>. Leave a field blank to inherit theme.json's default
-          (shown as the placeholder).
+          Step in 1px increments. <code>—</code> means "use the theme.json default".
         </p>
         {BODY_FONT_SIZE_BUCKETS.map((bucket) => (
-          <SizeInputRow
+          <SizeStepperRow
             key={bucket}
             bucket={bucket}
             value={typography.bodySizes[bucket]}
-            placeholder={baseFontSizes[bucket] ?? ""}
+            baseline={baseFontSizes[bucket] ?? ""}
             onChange={(next) =>
               onChange((prev) => ({
                 ...prev,
@@ -580,15 +590,14 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Sizes</legend>
         <p className={styles.hint}>
-          Per-bucket overrides in rem (e.g. <code>2.5rem</code>). Blank inherits theme.json's
-          default.
+          Step in 1px increments. <code>—</code> means "use the theme.json default".
         </p>
         {HEADING_FONT_SIZE_BUCKETS.map((bucket) => (
-          <SizeInputRow
+          <SizeStepperRow
             key={bucket}
             bucket={bucket}
             value={typography.headingSizes[bucket]}
-            placeholder={baseFontSizes[bucket] ?? ""}
+            baseline={baseFontSizes[bucket] ?? ""}
             onChange={(next) =>
               onChange((prev) => ({
                 ...prev,
@@ -633,36 +642,77 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
   );
 }
 
-// Single per-bucket size text input rendered as an inline label/input row to
-// keep the eight buckets compact. Empty value means "use the placeholder
-// (theme.json baseline)".
-interface SizeInputRowProps {
+// Per-bucket size stepper. Three controls in a row: − button, current value,
+// + button. Value is stored as integer pixels (1rem = 16px); the displayed
+// label is the rem equivalent ("1.125rem"). A `value` of 0 means "use the
+// theme.json baseline" — the display reads "—" and the first increment
+// snaps to FONT_SIZE_PX_STEP_MIN (8px = 0.5rem) instead of 1px so the
+// stepper can't dwell on tiny / unrenderable sizes.
+//
+// Free-form text input was removed in PR review — open-ended rem strings
+// invited typos like "1.347rem" or "16px" that the schema would reject on
+// save. Bounded integer steppers can't produce invalid values.
+interface SizeStepperRowProps {
   bucket: BodyFontSizeBucket | HeadingFontSizeBucket;
-  value: string;
-  placeholder: string;
-  onChange: (next: string) => void;
+  /** Current per-bucket override in pixels. `0` = use baseline. */
+  value: number;
+  /** rem string from theme.json — shown as a hint when `value === 0`. */
+  baseline: string;
+  onChange: (next: number) => void;
 }
 
-function SizeInputRow({ bucket, value, placeholder, onChange }: SizeInputRowProps) {
-  const id = useId();
+function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowProps) {
+  const isDefault = value === 0;
+  // First non-zero step jumps to STEP_MIN (8px) rather than 1px so the
+  // stepper isn't unusably tiny on its first click. Subsequent steps move
+  // by 1px in either direction.
+  const next = (delta: 1 | -1) => {
+    if (delta > 0) {
+      const candidate = isDefault ? FONT_SIZE_PX_STEP_MIN : value + 1;
+      onChange(Math.min(FONT_SIZE_PX_MAX, candidate));
+    } else {
+      const candidate = isDefault ? 0 : value - 1;
+      // Decrementing past STEP_MIN snaps back to "default" (0) so authors
+      // can return to the baseline without remembering its exact rem.
+      onChange(candidate < FONT_SIZE_PX_STEP_MIN ? 0 : candidate);
+    }
+  };
+  const display = isDefault ? "—" : pxToRem(value);
+  const titleHint = isDefault ? `default: ${baseline}` : `${value}px`;
   return (
     <div className={styles.fieldRow}>
-      <label className={styles.labelInline} htmlFor={id}>
-        {FONT_SIZE_BUCKET_LABELS[bucket]}
-      </label>
-      <input
-        id={id}
-        type="text"
-        className={styles.textInputCompact}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck={false}
-        inputMode="decimal"
-      />
+      <span className={styles.labelInline}>{FONT_SIZE_BUCKET_LABELS[bucket]}</span>
+      <div className={styles.stepper}>
+        <button
+          type="button"
+          className={styles.stepperButton}
+          onClick={() => next(-1)}
+          disabled={value <= FONT_SIZE_PX_MIN}
+          aria-label={`Decrease ${bucket} size`}
+        >
+          −
+        </button>
+        <output
+          className={styles.stepperValue}
+          title={titleHint}
+          data-default={isDefault ? "true" : "false"}
+        >
+          {display}
+        </output>
+        <button
+          type="button"
+          className={styles.stepperButton}
+          onClick={() => next(1)}
+          disabled={value >= FONT_SIZE_PX_MAX}
+          aria-label={`Increase ${bucket} size`}
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
+
 
 interface WeightSelectRowProps {
   bucket: string;

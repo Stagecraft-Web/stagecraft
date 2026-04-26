@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FONT_SIZE_KEYS, computeFontSizes } from "../font-sizing";
+import { FONT_SIZE_KEYS, computeFontSizes, pxToRem } from "../font-sizing";
 
 // Mirrors the default scale in src/content/config/theme.json. Keeping it here
 // keeps this test file hermetic (no fs reads) and makes the expected ratios
@@ -15,6 +15,20 @@ const BASE = {
   "4xl": "3.5rem",
 };
 
+describe("pxToRem", () => {
+  it("converts using the 16px-per-rem convention", () => {
+    expect(pxToRem(16)).toBe("1rem");
+    expect(pxToRem(8)).toBe("0.5rem");
+    expect(pxToRem(18)).toBe("1.125rem");
+    expect(pxToRem(96)).toBe("6rem");
+  });
+
+  it("rounds to 3 decimals", () => {
+    // 17px / 16 = 1.0625rem (exact)
+    expect(pxToRem(17)).toBe("1.063rem");
+  });
+});
+
 describe("computeFontSizes", () => {
   it("returns the baseline verbatim when no overrides are supplied", () => {
     // Identity invariant: empty override maps → output equals input
@@ -24,30 +38,25 @@ describe("computeFontSizes", () => {
     expect(out).toEqual(BASE);
   });
 
-  it("treats empty-string overrides as 'use the baseline'", () => {
-    const out = computeFontSizes(BASE, { base: "" }, { xl: "" });
+  it("treats `0` overrides as 'use the baseline'", () => {
+    const out = computeFontSizes(BASE, { base: 0 }, { xl: 0 });
     expect(out.base).toBe(BASE.base);
     expect(out.xl).toBe(BASE.xl);
   });
 
-  it("treats whitespace-only overrides as 'use the baseline'", () => {
-    const out = computeFontSizes(BASE, { base: "   " });
-    expect(out.base).toBe(BASE.base);
-  });
-
-  it("applies a body-bucket override when set", () => {
-    const out = computeFontSizes(BASE, { base: "1.125rem", lg: "1.375rem" });
-    expect(out.base).toBe("1.125rem");
-    expect(out.lg).toBe("1.375rem");
+  it("applies a body-bucket override, converting px → rem", () => {
+    const out = computeFontSizes(BASE, { base: 18, lg: 22 });
+    expect(out.base).toBe("1.125rem"); // 18 / 16
+    expect(out.lg).toBe("1.375rem"); // 22 / 16
     // Other buckets fall through.
     expect(out.xs).toBe(BASE.xs);
     expect(out["4xl"]).toBe(BASE["4xl"]);
   });
 
-  it("applies a heading-bucket override when set", () => {
-    const out = computeFontSizes(BASE, {}, { "4xl": "4rem", xl: "1.625rem" });
-    expect(out["4xl"]).toBe("4rem");
-    expect(out.xl).toBe("1.625rem");
+  it("applies a heading-bucket override", () => {
+    const out = computeFontSizes(BASE, {}, { "4xl": 64, xl: 26 });
+    expect(out["4xl"]).toBe("4rem"); // 64 / 16
+    expect(out.xl).toBe("1.625rem"); // 26 / 16
     // Body buckets unchanged.
     expect(out.base).toBe(BASE.base);
   });
@@ -58,16 +67,16 @@ describe("computeFontSizes", () => {
     // a value present in both wins from `bodyOverrides`.
     const out = computeFontSizes(
       BASE,
-      { base: "1.1rem" },
-      { xl: "1.75rem", "4xl": "4rem" },
+      { base: 18 },
+      { xl: 28, "4xl": 64 },
     );
-    expect(out.base).toBe("1.1rem");
+    expect(out.base).toBe("1.125rem");
     expect(out.xl).toBe("1.75rem");
     expect(out["4xl"]).toBe("4rem");
   });
 
   it("returns the same keys as the input map (no additions, no drops)", () => {
-    const out = computeFontSizes(BASE, { base: "1.125rem" });
+    const out = computeFontSizes(BASE, { base: 18 });
     expect(Object.keys(out).sort()).toEqual(Object.keys(BASE).sort());
   });
 

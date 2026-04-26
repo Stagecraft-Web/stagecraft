@@ -1,13 +1,20 @@
 import type { ImageMetadata } from "astro";
 
 /**
- * Pre-index all images in src/assets/images/ at build time.
- * Vite evaluates import.meta.glob statically during the build,
- * so every image file is resolved to an ImageMetadata object with
- * src, width, height, and format.
+ * Pre-index every image asset under src/assets/ at build time.
+ * Vite evaluates import.meta.glob statically during the build, so every
+ * image file is resolved to an ImageMetadata object with src, width,
+ * height, and format.
+ *
+ * Two roots are scanned:
+ *   - src/assets/images/   (photos, release covers, wordmark, etc.)
+ *   - src/assets/favicons/ (site favicon uploaded via Keystatic)
  */
 const imageModules = import.meta.glob<{ default: ImageMetadata }>(
-  "/src/assets/images/**/*.{png,jpg,jpeg,svg,webp,avif,gif}",
+  [
+    "/src/assets/images/**/*.{png,jpg,jpeg,svg,webp,avif,gif}",
+    "/src/assets/favicons/**/*.{png,jpg,jpeg,svg,webp,avif,gif}",
+  ],
   { eager: true },
 );
 

@@ -116,6 +116,46 @@ export const NEWSLETTER_SERVICE_LABELS: Record<NewsletterService, string> = {
 };
 
 /**
+ * Curated subset of HTML `autocomplete` tokens for newsletter-field tags.
+ * Limited to values that make sense for a newsletter signup so the keystatic
+ * picker stays scannable; the full HTML spec list is much longer but most of
+ * it (credit-card, shipping address, OTP, …) has no place on a mailing-list
+ * form. "off" disables autofill entirely for the field.
+ */
+export const AUTOCOMPLETE_TOKENS = [
+  "off",
+  "name",
+  "given-name",
+  "additional-name",
+  "family-name",
+  "nickname",
+  "email",
+  "tel",
+  "organization",
+  "organization-title",
+  "country-name",
+  "postal-code",
+  "bday",
+] as const;
+export type AutocompleteToken = (typeof AUTOCOMPLETE_TOKENS)[number];
+
+export const AUTOCOMPLETE_TOKEN_LABELS: Record<AutocompleteToken, string> = {
+  off: "Off (no autofill)",
+  name: "Full name",
+  "given-name": "First name",
+  "additional-name": "Middle name",
+  "family-name": "Last name",
+  nickname: "Nickname",
+  email: "Email",
+  tel: "Phone",
+  organization: "Organization / company",
+  "organization-title": "Job title",
+  "country-name": "Country",
+  "postal-code": "Postal / ZIP code",
+  bday: "Birthday",
+};
+
+/**
  * Embeddable video URL types for `{% video %}` — distinct from the
  * `VIDEO_TYPES` constant in `src/lib/schemas.ts`, which covers the
  * `videos` collection and includes "other" (rendered as a plain link).

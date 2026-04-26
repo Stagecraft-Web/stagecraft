@@ -647,11 +647,12 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
 // label is always the effective rem — when the override is `0`, the stepper
 // shows the theme.json baseline and steps from there (so a fresh stepper
 // doesn't read as "—" or "0", but as the size the bucket actually renders).
-// First step away from default seeds the override at `baseline ± 1px`.
 //
-// A small "×" reset button appears next to the value once an override has
-// been written, so authors can return the bucket to "inherit theme.json"
-// without remembering its exact rem.
+// Stepping that lands the value back exactly on the baseline px collapses
+// the override to `0` — i.e. the bucket is treated as "use theme.json
+// default" again, the value greys out between the +/− buttons, and the
+// on-disk JSON loses the redundant override. Authors revert by stepping
+// back to the original size; no separate reset button is needed.
 //
 // FONT_SIZE_PX_STEP_MIN (8px = 0.5rem) is the UI-level floor for stepping
 // so the stepper can't dwell on tiny / unrenderable sizes. The schema still
@@ -680,7 +681,10 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
   const next = (delta: 1 | -1) => {
     const candidate = effectivePx + delta;
     const clamped = Math.max(FONT_SIZE_PX_STEP_MIN, Math.min(FONT_SIZE_PX_MAX, candidate));
-    onChange(clamped);
+    // Round-trip back to "use the theme.json default" when the user steps
+    // exactly onto the baseline — keeps the on-disk JSON minimal and the
+    // muted-grey styling correctly reflects "this bucket inherits".
+    onChange(clamped === baselinePx ? 0 : clamped);
   };
   return (
     <div className={styles.fieldRow}>
@@ -712,19 +716,6 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
           +
         </button>
       </div>
-      {/* Reset surfaces only when the bucket carries an explicit override —
-          otherwise it's redundant with the muted-default styling. */}
-      {!isDefault && (
-        <button
-          type="button"
-          className={styles.resetButton}
-          onClick={() => onChange(0)}
-          title={`Reset to theme.json default (${baseline})`}
-          aria-label={`Reset ${bucket} size to default`}
-        >
-          ×
-        </button>
-      )}
     </div>
   );
 }

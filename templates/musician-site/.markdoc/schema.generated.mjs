@@ -179,9 +179,10 @@ export default {
         "placeholder": { type: String },
       },
     },
-    "blockquote": {
+    "quote": {
+      selfClosing: true,
       attributes: {
-        "variant": { type: String, default: "normal", matches: ["normal","featured"] },
+        "text": { type: String, required: true },
         "attribution": { type: String },
       },
     },

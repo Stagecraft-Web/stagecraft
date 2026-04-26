@@ -39,7 +39,7 @@ export * as NewsletterEmailField from "./NewsletterEmailField";
 export * as NewsletterPhoneField from "./NewsletterPhoneField";
 export * as NewsletterTextField from "./NewsletterTextField";
 export * as NewsletterSelectField from "./NewsletterSelectField";
-export * as Blockquote from "./Blockquote";
+export * as Quote from "./Quote";
 export * as CenteredBlock from "./CenteredBlock";
 
 import * as Section from "./Section";
@@ -64,7 +64,7 @@ import * as NewsletterEmailField from "./NewsletterEmailField";
 import * as NewsletterPhoneField from "./NewsletterPhoneField";
 import * as NewsletterTextField from "./NewsletterTextField";
 import * as NewsletterSelectField from "./NewsletterSelectField";
-import * as Blockquote from "./Blockquote";
+import * as Quote from "./Quote";
 import * as CenteredBlock from "./CenteredBlock";
 
 /**
@@ -95,6 +95,6 @@ export const components = [
   NewsletterPhoneField,
   NewsletterTextField,
   NewsletterSelectField,
-  Blockquote,
+  Quote,
   CenteredBlock,
 ] as const;

@@ -31,7 +31,7 @@ If multiple candidates exist and the caller is the pipeline, prefer the one the 
 Before starting, verify you can read the stagecraft template:
 
 - `templates/musician-site/` exists in the current repo (OR the invocation explicitly names a template path in another repo — cross-repo reads via Bash `cp -R` work even when the target-dir is elsewhere)
-- `templates/musician-site/src/content-components/` — enumerate the available content components (current set includes: `Section`, `FullscreenSection`, `Columns`, `Column`, `Button`, `Image`, `Card`, `ReleaseList`, `PhotoGallery`, `Blockquote`, `CenteredBlock`, `ContactForm`). Rely on this enumeration, not memory — the set evolves.
+- `templates/musician-site/src/content-components/` — enumerate the available content components (current set includes: `Section`, `FullscreenSection`, `Columns`, `Column`, `Button`, `Image`, `Card`, `ReleaseList`, `PhotoGallery`, `Quote`, `CenteredBlock`, `ContactForm`). Rely on this enumeration, not memory — the set evolves.
 - `templates/musician-site/src/content/` — existing example pages and singletons (site config, nav, theme) that show the expected shapes
 - `templates/musician-site/src/lib/schemas.*` — zod schemas for singletons; consult these when writing config files
 
@@ -99,7 +99,7 @@ For each crawled page, decide which stagecraft page it becomes and how its body 
 | Bio with side-by-side portrait + text | `section` → `columns` (`layout="1-2"` or `2-1`) containing `image` and paragraphs |
 | Grid of releases / album art | `section` → `release-list` |
 | Photo gallery / image grid | `section` → `photo-gallery` |
-| Press quotes / testimonials | `section` → one `blockquote variant="featured"` per quote (no separate collection) |
+| Press quotes / testimonials | `section` → one `quote` tag per quote (`text` + optional `attribution`; no separate collection) |
 | Tour dates / event list | `section` → (tour-dates collection, rendered via a page or component) |
 | Call-to-action buttons | `button` (variant `primary` or `outline`) |
 | Contact info / form | `section` → `contact-form` |
@@ -118,7 +118,7 @@ Pages that don't fit our component system: approximate with the closest availabl
    - `src/content/navigation/` or similar
    - `src/content/theme/` or similar
    - `src/content/pages/*.mdoc` — remove defaults, replace with pages from the plan
-   - `src/content/releases/`, `photos/`, `videos/`, `tour-dates/` — empty out and populate with crawled data (press quotes are authored inline on `press.mdoc` as `blockquote` tags, not a collection)
+   - `src/content/releases/`, `photos/`, `videos/`, `tour-dates/` — empty out and populate with crawled data (press quotes are authored inline on `press.mdoc` as `quote` tags, not a collection)
 3. Delete unused example content (but keep required singletons present with real values).
 
 ### 5. Write theme, site, and nav singletons

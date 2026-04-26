@@ -246,24 +246,12 @@ export const CARD_MEDIA_KIND_LABELS: Record<CardMediaKind, string> = {
 // ---------------------------------------------------------------------------
 // Center-alignment primitives
 //
-// Three independent enums that together cover the common "center this" needs:
+// Two independent enums that together cover the common "center this" needs:
 //
-//   - BLOCKQUOTE_VARIANTS       — `{% blockquote %}` tag variants. "featured"
-//                                 is centered + larger; "normal" inherits the
-//                                 default flow-text blockquote style.
 //   - CENTERED_BLOCK_MAX_WIDTHS — `{% centered-block %}` tag width presets.
 //   - TEXT_ALIGNMENTS           — `textAlign` attribute shared by `section`,
 //                                 `fullscreen-section`, and `column` wrappers.
 // ---------------------------------------------------------------------------
-
-/** Visual variant for `{% blockquote %}`. */
-export const BLOCKQUOTE_VARIANTS = ["normal", "featured"] as const;
-export type BlockquoteVariant = (typeof BLOCKQUOTE_VARIANTS)[number];
-
-export const BLOCKQUOTE_VARIANT_LABELS: Record<BlockquoteVariant, string> = {
-  normal: "Normal",
-  featured: "Featured (centered, large)",
-};
 
 /** Max-width preset for `{% centered-block %}`. */
 export const CENTERED_BLOCK_MAX_WIDTHS = ["narrow", "regular"] as const;

@@ -260,19 +260,19 @@ Introductory text for the press page.
 
 {% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
-{% blockquote variant="featured" attribution="Music Publication" %}
-A remarkable debut that showcases genuine artistry and emotional depth.
-{% /blockquote %}
+{% quote
+   text="A remarkable debut that showcases genuine artistry and emotional depth."
+   attribution="Music Publication" /%}
 
-{% blockquote variant="featured" attribution="Critic's Name, Magazine" %}
-A bold new voice in contemporary music — original, confident, and deeply moving.
-{% /blockquote %}
+{% quote
+   text="A bold new voice in contemporary music — original, confident, and deeply moving."
+   attribution="Critic's Name, Magazine" /%}
 
 {% /section %}
 ```
 
 - The `{% button %}` tag (with an EPK download URL) renders a download button. Remove the tag to hide it.
-- Each press quote is its own `{% blockquote variant="featured" %}` tag. Add or remove tags to manage the list — there's no separate Press Quotes collection.
+- Each press quote is its own `{% quote %}` tag. Add or remove tags to manage the list — there's no separate Press Quotes collection.
 
 ### Music — `src/content/pages/music.mdoc`
 
@@ -339,7 +339,7 @@ title: Tour Schedule
 
 {% section title="Upcoming Shows" %}
 
-Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, blockquote, photo-gallery, contact-form) for content blocks.
+Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, quote, photo-gallery, contact-form) for content blocks.
 
 {% /section %}
 ```
@@ -431,15 +431,15 @@ Valid type values: `youtube`, `vimeo`, `other`.
 
 ### Add a press quote — `src/content/pages/press.mdoc`
 
-Press quotes are authored inline on the press page using the `{% blockquote %}` tag. There is no separate collection.
+Press quotes are authored inline on the press page using the `{% quote %}` tag. There is no separate collection.
 
 ```markdoc
-{% blockquote variant="featured" attribution="Publication Name" %}
-A remarkable debut that showcases genuine artistry.
-{% /blockquote %}
+{% quote
+   text="A remarkable debut that showcases genuine artistry."
+   attribution="Publication Name" /%}
 ```
 
-Add as many `{% blockquote %}` tags as you have quotes. The `attribution` attribute is optional and only shown for `variant="featured"`.
+Add as many `{% quote %}` tags as you have quotes. The `attribution` attribute is optional.
 
 ---
 
@@ -497,7 +497,7 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `content-components/Column/` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
 | `content-components/Image/` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
 | `content-components/ReleaseList/` | Music releases grid (Markdoc tag: `{% release-list %}`) |
-| `content-components/Blockquote/` | Styled quotation, normal or featured (centered) variant (Markdoc tag: `{% blockquote %}`) |
+| `content-components/Quote/` | Featured pull-quote with optional attribution (Markdoc tag: `{% quote %}`) |
 | `content-components/CenteredBlock/` | Narrow or regular centered text column (Markdoc tag: `{% centered-block %}`) |
 | `content-components/PhotoGallery/` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
 | `content-components/ContactForm/` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |

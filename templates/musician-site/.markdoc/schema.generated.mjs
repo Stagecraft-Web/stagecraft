@@ -128,13 +128,13 @@ export default {
     "newsletter-field": {
       selfClosing: true,
       attributes: {
-        "name": { type: String, required: true },
-        "label": { type: String, required: true },
         "type": { type: String, default: "text", matches: ["text","email","tel","select"] },
+        "label": { type: String },
+        "name": { type: String },
+        "autocomplete": { type: String, matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
         "isRequired": { type: Boolean, default: false },
         "options": { type: String },
         "placeholder": { type: String },
-        "autocomplete": { type: String, matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
       },
     },
   },

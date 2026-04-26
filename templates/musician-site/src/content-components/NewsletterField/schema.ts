@@ -12,39 +12,54 @@ import {
   type AutocompleteToken,
   type FieldType,
 } from "../_shared/types";
+import {
+  DEFAULT_LABEL_FOR_TYPE,
+  DEFAULT_NAME_FOR_TYPE,
+} from "./typeDefaults";
 import { NewsletterFieldPreview } from "./preview";
 
 /**
  * Markdoc tag `newsletter-field`.
  *
- * Child of `{% newsletter-signup %}` — each instance emits one extra input
- * (beyond the always-rendered email field) into the subscribe form. The
- * `name` attribute is the form-field name the newsletter provider expects
- * (e.g. `FNAME` for Mailchimp, `first_name` for ConvertKit, `metadata__name`
- * for Buttondown). We don't remap per service — authors paste whatever their
- * provider's embed code uses verbatim.
+ * Child of `{% newsletter-signup %}` — each instance emits one input into the
+ * subscribe form. The `name` attribute is the form-field name the newsletter
+ * provider expects (e.g. `EMAIL` for Mailchimp, `email_address` for
+ * ConvertKit, `metadata__name` for Buttondown). We don't remap per service —
+ * authors paste whatever their provider's embed code uses verbatim.
  *
  * Self-closing, no body. When used outside a `newsletter-signup` wrapper the
  * tag still validates (markdoc doesn't enforce parent-child relationships by
  * tag name — only by AST node type) but renders nothing meaningful on its own.
  * Authoring-surface convention keeps the tag inside `newsletter-signup`.
+ *
+ * `name`, `label`, and `autocomplete` are markdoc-optional. For `type="email"`
+ * and `type="tel"` the renderer fills in sensible defaults from
+ * `typeDefaults.ts`, so the most common cases author as `{% newsletter-field
+ * type="email" /%}`. For `type="text"` and `type="select"` there's no obvious
+ * default name, so `validate` requires `name` and `label` explicitly. Why not
+ * push the defaulting into markdoc's `default:` field — keystatic shows a
+ * blank field when markdoc has a default, which makes "Email" creep into a
+ * 'Phone' field by accident. Defaults applied at render time stay invisible
+ * in the admin and only surface when the markdoc attribute is truly absent.
  */
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/NewsletterField/NewsletterField.astro",
   selfClosing: true,
   attributes: {
-    name: {
-      type: String,
-      required: true,
-    },
-    label: {
-      type: String,
-      required: true,
-    },
     type: {
       type: String,
       default: "text",
       matches: FIELD_TYPES as unknown as string[],
+    },
+    label: {
+      type: String,
+    },
+    name: {
+      type: String,
+    },
+    autocomplete: {
+      type: String,
+      matches: [...AUTOCOMPLETE_TOKENS],
     },
     isRequired: {
       type: Boolean,
@@ -56,32 +71,60 @@ export const markdoc: MarkdocTagDefinition = {
     placeholder: {
       type: String,
     },
-    autocomplete: {
-      type: String,
-      matches: [...AUTOCOMPLETE_TOKENS],
-    },
+  },
+  validate(node) {
+    const errors: Array<{
+      id: string;
+      level: "error";
+      message: string;
+    }> = [];
+    const type = (node.attributes?.type ?? "text") as FieldType;
+    const name = node.attributes?.name as string | undefined;
+    const label = node.attributes?.label as string | undefined;
+
+    if (!name && DEFAULT_NAME_FOR_TYPE[type] === undefined) {
+      errors.push({
+        id: "newsletter-field-missing-name",
+        level: "error",
+        message: `newsletter-field with type="${type}" must set a "name" attribute (only "email" and "tel" types fall back to a default name).`,
+      });
+    }
+    if (!label && DEFAULT_LABEL_FOR_TYPE[type] === undefined) {
+      errors.push({
+        id: "newsletter-field-missing-label",
+        level: "error",
+        message: `newsletter-field with type="${type}" must set a "label" attribute (only "email" and "tel" types fall back to a default label).`,
+      });
+    }
+    if (type === "select" && !node.attributes?.options) {
+      errors.push({
+        id: "newsletter-field-missing-options",
+        level: "error",
+        message:
+          'newsletter-field with type="select" must set an "options" attribute (pipe-separated, e.g. options="Friend|Social|Other").',
+      });
+    }
+    return errors;
   },
 };
 
+/**
+ * Keystatic schema. Field order is intentional — Type goes first because
+ * it's the most consequential decision (everything else flows from it),
+ * then Label and Name (the values authors most often customise), then
+ * Autocomplete + Required + Options + Placeholder. Descriptions on Label /
+ * Name / Autocomplete call out the per-type render-time defaults so authors
+ * know they can leave those fields blank for Email and Phone.
+ */
 export const keystatic: KeystaticContentComponent = block({
   label: "Newsletter Field",
   description:
-    "Extra input for the Newsletter Signup form. `Name` is the raw form-field name your provider expects (e.g. `FNAME` for Mailchimp, `first_name` for ConvertKit). Use type `select` plus a pipe-separated `Options` list for dropdowns.",
+    "One input in the Newsletter Signup form. Pick the type first — for Email and Phone you can leave Label, Name, and Autocomplete blank and the renderer fills in sensible defaults.",
   schema: {
-    name: fields.text({
-      label: "Name",
-      description:
-        "Form-field name sent to the newsletter provider. Match your provider's embed exactly — e.g. `FNAME`, `LNAME` (Mailchimp), `first_name` (ConvertKit), `metadata__name` (Buttondown).",
-      validation: { length: { min: 1 } },
-    }),
-    label: fields.text({
-      label: "Label",
-      description: "Shown next to the input in the rendered form.",
-      validation: { length: { min: 1 } },
-    }),
     type: fields.select({
       label: "Type",
-      description: "Input shape.",
+      description:
+        "Picking Email or Phone lets you leave Label, Name, and Autocomplete blank — the renderer falls back to common defaults.",
       options: FIELD_TYPES.map((v) => ({
         label: FIELD_TYPE_LABELS[v],
         value: v,
@@ -91,26 +134,22 @@ export const keystatic: KeystaticContentComponent = block({
       ],
       defaultValue: "text",
     }),
-    isRequired: fields.checkbox({
-      label: "Required",
-      description: "Browser blocks submit until this field has a value.",
-      defaultValue: false,
-    }),
-    options: fields.text({
-      label: "Options",
+    label: fields.text({
+      label: "Label",
       description:
-        "Pipe-separated choices for Type = Select (e.g. `Friend|Social|Other`). Ignored for other types.",
+        "Shown next to the input. For type=Email defaults to 'Email'; for type=Phone defaults to 'Phone'.",
       defaultValue: "",
     }),
-    placeholder: fields.text({
-      label: "Placeholder",
-      description: "Optional. Grey hint text shown inside an empty input.",
+    name: fields.text({
+      label: "Name",
+      description:
+        "Form-field name sent to the newsletter provider. Match your provider's embed exactly — e.g. `EMAIL` (Mailchimp uppercase), `email_address` (ConvertKit), `email` (Buttondown / generic), `FNAME` / `LNAME` (Mailchimp custom). For type=Email defaults to 'email'; for type=Phone defaults to 'phone'.",
       defaultValue: "",
     }),
     autocomplete: fields.select({
       label: "Autocomplete",
       description:
-        "HTML `autocomplete` token. Helps browsers prefill the field from saved profile data — pick the option that best matches what the field is asking for.",
+        "HTML `autocomplete` token — helps browsers prefill from saved profile data. For type=Email defaults to 'Email'; for type=Phone defaults to 'Phone'; otherwise 'Off'.",
       options: AUTOCOMPLETE_TOKENS.map((v) => ({
         label: AUTOCOMPLETE_TOKEN_LABELS[v],
         value: v,
@@ -119,6 +158,23 @@ export const keystatic: KeystaticContentComponent = block({
         ...{ label: string; value: AutocompleteToken }[],
       ],
       defaultValue: "off",
+    }),
+    isRequired: fields.checkbox({
+      label: "Required",
+      description: "Browser blocks submit until this field has a value.",
+      defaultValue: false,
+    }),
+    options: fields.text({
+      label: "Options",
+      description:
+        "Pipe-separated choices for type=Select (e.g. `Friend|Social|Other`). Required when type=Select; ignored otherwise.",
+      defaultValue: "",
+    }),
+    placeholder: fields.text({
+      label: "Placeholder",
+      description:
+        "Optional grey hint text inside an empty input. For type=Select, this becomes the empty-state prompt option.",
+      defaultValue: "",
     }),
   },
   ContentView: NewsletterFieldPreview,

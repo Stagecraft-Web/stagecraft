@@ -10,6 +10,10 @@ import {
 import type { FieldType } from "../_shared/types";
 import { FIELD_TYPE_LABELS } from "../_shared/types";
 import { parseFieldOptions } from "./parseFieldOptions";
+import {
+  DEFAULT_LABEL_FOR_TYPE,
+  DEFAULT_NAME_FOR_TYPE,
+} from "./typeDefaults";
 
 type NewsletterFieldValue = {
   name: string;
@@ -35,6 +39,12 @@ export function NewsletterFieldPreview({
 }): ReactNode {
   const { label, type, isRequired, options, placeholder, name } = value;
   const typeLabel = FIELD_TYPE_LABELS[type] ?? type;
+
+  // Mirror NewsletterField.astro's render-time defaults so the admin tile
+  // shows what the rendered form will actually display when the author left
+  // these fields blank for type=email / tel.
+  const effectiveLabel = label || DEFAULT_LABEL_FOR_TYPE[type] || "";
+  const effectiveName = name || DEFAULT_NAME_FOR_TYPE[type] || "";
 
   const selectChoices = type === "select" ? parseFieldOptions(options) : [];
 
@@ -65,7 +75,7 @@ export function NewsletterFieldPreview({
             color: previewText,
           }}
         >
-          {label || name || "Field"}
+          {effectiveLabel || effectiveName || "Field"}
           {isRequired && (
             <span style={{ color: "#dc2626", marginLeft: "0.25rem" }}>*</span>
           )}
@@ -95,7 +105,7 @@ export function NewsletterFieldPreview({
           ? selectChoices.length > 0
             ? selectChoices.join(" / ")
             : "(no options yet)"
-          : placeholder || `name=${name || "…"}`}
+          : placeholder || `name=${effectiveName || "…"}`}
       </div>
     </div>
   );

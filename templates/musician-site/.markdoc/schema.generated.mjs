@@ -81,9 +81,6 @@ export default {
     "release-list": {
       selfClosing: true,
     },
-    "press-quotes": {
-      selfClosing: true,
-    },
     "photo-gallery": {
       selfClosing: true,
     },

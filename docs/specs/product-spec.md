@@ -348,7 +348,6 @@ Organize content into two shapes:
 | Releases | `src/content/collections/releases/*.json` |
 | Photos | `src/content/collections/photos/gallery.json` |
 | Videos | `src/content/collections/videos/videos.json` |
-| Press quotes | `src/content/collections/pressQuotes/quotes.json` |
 | Tour dates | `src/content/collections/tourDates/dates.json` |
 
 ### 11.4 Stable field shapes

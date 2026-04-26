@@ -6,7 +6,7 @@
  *
  *   - `markdoc`  — markdoc tag definition consumed by markdoc.config.ts
  *   - `keystatic` — keystatic block/wrapper consumed by keystatic.config.ts
- *   - `tagName` — the markdoc tag slug (e.g. "content-image", "press-quotes")
+ *   - `tagName` — the markdoc tag slug (e.g. "content-image", "release-list")
  *
  * Add a new component by:
  *   1. Creating src/content-components/MyComponent/{MyComponent.astro,schema.ts,index.ts}
@@ -26,7 +26,6 @@ export * as Image from "./Image";
 export * as Video from "./Video";
 export * as Card from "./Card";
 export * as ReleaseList from "./ReleaseList";
-export * as PressQuotes from "./PressQuotes";
 export * as PhotoGallery from "./PhotoGallery";
 export * as VideoGallery from "./VideoGallery";
 export * as TourDatesList from "./TourDatesList";
@@ -47,7 +46,6 @@ import * as Image from "./Image";
 import * as Video from "./Video";
 import * as Card from "./Card";
 import * as ReleaseList from "./ReleaseList";
-import * as PressQuotes from "./PressQuotes";
 import * as PhotoGallery from "./PhotoGallery";
 import * as VideoGallery from "./VideoGallery";
 import * as TourDatesList from "./TourDatesList";
@@ -74,7 +72,6 @@ export const components = [
   Video,
   Card,
   ReleaseList,
-  PressQuotes,
   PhotoGallery,
   VideoGallery,
   TourDatesList,

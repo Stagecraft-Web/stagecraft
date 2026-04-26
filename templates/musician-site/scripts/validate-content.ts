@@ -11,7 +11,6 @@ import {
   releaseSchema,
   photoSchema,
   videoSchema,
-  pressQuoteSchema,
   tourDateSchema,
   postFrontmatterSchema,
   storeItemSchema,
@@ -224,7 +223,6 @@ function validateCollection(dirName: string, schema: any) {
 validateCollection("releases", releaseSchema);
 validateCollection("photos", photoSchema);
 validateCollection("videos", videoSchema);
-validateCollection("pressQuotes", pressQuoteSchema);
 validateCollection("tourDates", tourDateSchema);
 validateCollection("storeItems", storeItemSchema);
 

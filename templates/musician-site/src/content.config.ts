@@ -88,16 +88,6 @@ const videos = defineCollection({
   }),
 });
 
-const pressQuotes = defineCollection({
-  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/pressQuotes" }),
-  schema: z.object({
-    quote: z.string().min(1),
-    source: z.string().min(1),
-    url: z.string().optional(),
-    date: z.string().optional(),
-  }),
-});
-
 const tourDates = defineCollection({
   loader: glob({ pattern: "*.yaml", base: "./src/content/collections/tourDates" }),
   schema: z.object({
@@ -163,7 +153,6 @@ export const collections = {
   releases,
   photos,
   videos,
-  pressQuotes,
   tourDates,
   posts,
   storeItems,

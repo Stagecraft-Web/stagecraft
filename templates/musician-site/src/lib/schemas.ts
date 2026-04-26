@@ -344,13 +344,6 @@ export const videoSchema = z.object({
   description: z.string().optional(),
 });
 
-export const pressQuoteSchema = z.object({
-  quote: z.string().min(1),
-  source: z.string().min(1),
-  url: z.string().optional(),
-  date: z.string().optional(),
-});
-
 // Show status for a tour date. Matches the four states the TourDatesList
 // block filters / badges on. `sold_out` uses an underscore (rather than the
 // kebab style elsewhere) because it's an older field and authored content
@@ -475,7 +468,6 @@ export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;
 export type Release = z.infer<typeof releaseSchema>;
 export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;
-export type PressQuote = z.infer<typeof pressQuoteSchema>;
 export type TourDate = z.infer<typeof tourDateSchema>;
 export type PostFrontmatter = z.infer<typeof postFrontmatterSchema>;
 export type StoreItem = z.infer<typeof storeItemSchema>;

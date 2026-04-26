@@ -50,7 +50,6 @@ src/content/
     releases/       ← One YAML file per album/single/EP
     photos/         ← One YAML file per photo
     videos/         ← One YAML file per video
-    pressQuotes/    ← One YAML file per press quote
     tourDates/      ← One YAML file per tour date
 ```
 
@@ -261,13 +260,19 @@ Introductory text for the press page.
 
 {% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
-{% press-quotes /%}
+{% blockquote variant="featured" attribution="Music Publication" %}
+A remarkable debut that showcases genuine artistry and emotional depth.
+{% /blockquote %}
+
+{% blockquote variant="featured" attribution="Critic's Name, Magazine" %}
+A bold new voice in contemporary music — original, confident, and deeply moving.
+{% /blockquote %}
 
 {% /section %}
 ```
 
 - The `{% button %}` tag (with an EPK download URL) renders a download button. Remove the tag to hide it.
-- The `{% press-quotes %}` tag pulls in all quotes from the Press Quotes collection. Remove the tag to hide them.
+- Each press quote is its own `{% blockquote variant="featured" %}` tag. Add or remove tags to manage the list — there's no separate Press Quotes collection.
 
 ### Music — `src/content/pages/music.mdoc`
 
@@ -334,7 +339,7 @@ title: Tour Schedule
 
 {% section title="Upcoming Shows" %}
 
-Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
+Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, blockquote, photo-gallery, contact-form) for content blocks.
 
 {% /section %}
 ```
@@ -424,18 +429,17 @@ description: Optional description.
 
 Valid type values: `youtube`, `vimeo`, `other`.
 
-### Add a press quote — `src/content/collections/pressQuotes/`
+### Add a press quote — `src/content/pages/press.mdoc`
 
-Create a YAML file, e.g. `publication-name.yaml`:
+Press quotes are authored inline on the press page using the `{% blockquote %}` tag. There is no separate collection.
 
-```yaml
-quote: A remarkable debut that showcases genuine artistry.
-source: Publication Name
-url: https://publication.com/review
-date: "2024-04-01"
+```markdoc
+{% blockquote variant="featured" attribution="Publication Name" %}
+A remarkable debut that showcases genuine artistry.
+{% /blockquote %}
 ```
 
-`url` and `date` are optional.
+Add as many `{% blockquote %}` tags as you have quotes. The `attribution` attribute is optional and only shown for `variant="featured"`.
 
 ---
 
@@ -493,7 +497,8 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `content-components/Column/` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
 | `content-components/Image/` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
 | `content-components/ReleaseList/` | Music releases grid (Markdoc tag: `{% release-list %}`) |
-| `content-components/PressQuotes/` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
+| `content-components/Blockquote/` | Styled quotation, normal or featured (centered) variant (Markdoc tag: `{% blockquote %}`) |
+| `content-components/CenteredBlock/` | Narrow or regular centered text column (Markdoc tag: `{% centered-block %}`) |
 | `content-components/PhotoGallery/` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
 | `content-components/ContactForm/` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
 | `Header.astro` | Site navigation |

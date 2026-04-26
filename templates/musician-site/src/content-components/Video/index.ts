@@ -1,1 +1,1 @@
-export { markdoc, keystatic, tagName, exemptKeys } from "./schema";
+export { markdoc, keystatic, tagName } from "./schema";

@@ -47,17 +47,16 @@ const headingStack =
       )
     : bodyStack;
 
-const { colors, typography, sizing } = appearance;
+const { colors, typography } = appearance;
 
-// Layer the CMS-editable sizing knobs on top of theme.json's baseline scale.
-// The `sizing` defaults (regular / 0 / 0) make computeFontSizes an identity
-// transform, so a site that never touches the Keystatic Sizing controls gets
-// the same output as it did pre-§6.2.
+// Layer the CMS-editable per-bucket overrides on top of theme.json's baseline
+// scale. Empty / missing bucket values pass through to the baseline, so a
+// site that never touches the size controls gets the same output as
+// theme.json alone.
 const fontSizes = computeFontSizes(
   theme.typography.fontSize,
-  sizing.fontSizeScale,
-  sizing.fontSizeAdjust,
-  sizing.headingScale,
+  typography.bodySizes,
+  typography.headingSizes,
 );
 
 // Configuration the in-page sidebar needs on mount. Read from env at build
@@ -133,14 +132,12 @@ const sidebarConfig: SidebarConfig = {
         --font-body: ${bodyStack};
         --font-heading: ${headingStack};
 
-        --font-weight-body: ${typography.weights.body};
-        --font-weight-body-bold: ${typography.weights.bodyBold};
-        --font-weight-h1: ${typography.weights.h1};
-        --font-weight-h2: ${typography.weights.h2};
-        --font-weight-h3: ${typography.weights.h3};
-        --font-weight-h4: ${typography.weights.h4};
-        --font-weight-h5: ${typography.weights.h5};
-        --font-weight-h6: ${typography.weights.h6};
+        --font-weight-body: ${typography.bodyWeights.body};
+        --font-weight-body-bold: ${typography.bodyWeights.bodyBold};
+        --font-weight-h1: ${typography.headingWeights.h1};
+        --font-weight-h2: ${typography.headingWeights.h2};
+        --font-weight-h3: ${typography.headingWeights.h3};
+        --font-weight-h4: ${typography.headingWeights.h4};
 
         --font-size-xs: ${fontSizes.xs};
         --font-size-sm: ${fontSizes.sm};

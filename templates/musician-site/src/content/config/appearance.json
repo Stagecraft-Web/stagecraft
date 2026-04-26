@@ -15,6 +15,16 @@
       "discriminant": "sans-serif",
       "value": "Inter"
     },
+    "bodySizes": {
+      "xs": "",
+      "sm": "",
+      "base": "",
+      "lg": ""
+    },
+    "bodyWeights": {
+      "body": "400",
+      "bodyBold": "700"
+    },
     "heading": {
       "discriminant": "split",
       "value": {
@@ -22,20 +32,17 @@
         "value": "Merriweather"
       }
     },
-    "weights": {
-      "body": "400",
-      "bodyBold": "700",
+    "headingSizes": {
+      "xl": "",
+      "2xl": "",
+      "3xl": "",
+      "4xl": ""
+    },
+    "headingWeights": {
       "h1": "700",
       "h2": "700",
       "h3": "700",
-      "h4": "700",
-      "h5": "600",
-      "h6": "600"
+      "h4": "700"
     }
-  },
-  "sizing": {
-    "fontSizeScale": "regular",
-    "fontSizeAdjust": "0",
-    "headingScale": "0"
   }
 }

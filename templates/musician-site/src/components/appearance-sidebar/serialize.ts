@@ -11,6 +11,7 @@
 // so if the schema evolves we only have to change it here.
 // ============================================================
 
+import { BODY_FONT_SIZE_BUCKETS, HEADING_FONT_SIZE_BUCKETS } from "../../lib/schemas";
 import type { AppearanceState } from "./types";
 
 /** Serialise an AppearanceState into the JSON string that belongs at
@@ -37,6 +38,15 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
       ? state.colors.linkColor
       : "";
 
+  // Build size objects with explicit per-bucket entries so the on-disk shape
+  // matches the Keystatic schema exactly (field order = bucket order).
+  const bodySizesOut = Object.fromEntries(
+    BODY_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.bodySizes[b] ?? ""]),
+  );
+  const headingSizesOut = Object.fromEntries(
+    HEADING_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.headingSizes[b] ?? ""]),
+  );
+
   const payload = {
     colors: {
       primary: state.colors.primary,
@@ -54,27 +64,21 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
         discriminant: state.typography.primary.category,
         value: state.typography.primary.family,
       },
-      heading,
-      weights: {
+      bodySizes: bodySizesOut,
+      bodyWeights: {
         // Weights are stored as strings because Keystatic's <select> emits
         // strings; the reader-side schema coerces to number.
-        body: String(state.typography.weights.body),
-        bodyBold: String(state.typography.weights.bodyBold),
-        h1: String(state.typography.weights.h1),
-        h2: String(state.typography.weights.h2),
-        h3: String(state.typography.weights.h3),
-        h4: String(state.typography.weights.h4),
-        h5: String(state.typography.weights.h5),
-        h6: String(state.typography.weights.h6),
+        body: String(state.typography.bodyWeights.body),
+        bodyBold: String(state.typography.bodyWeights.bodyBold),
       },
-    },
-    // §6.2 sizing knobs. Numeric steps are serialised as strings to match
-    // Keystatic's select-option persistence; the reader-side schema uses
-    // `z.coerce.number()` to parse them back.
-    sizing: {
-      fontSizeScale: state.sizing.fontSizeScale,
-      fontSizeAdjust: String(state.sizing.fontSizeAdjust),
-      headingScale: String(state.sizing.headingScale),
+      heading,
+      headingSizes: headingSizesOut,
+      headingWeights: {
+        h1: String(state.typography.headingWeights.h1),
+        h2: String(state.typography.headingWeights.h2),
+        h3: String(state.typography.headingWeights.h3),
+        h4: String(state.typography.headingWeights.h4),
+      },
     },
   };
 
@@ -138,51 +142,64 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
     changes.push({ label: "heading font", from: prevHeadingFamily, to: nextHeadingFamily });
   }
 
-  const weightLabels: Record<keyof AppearanceState["typography"]["weights"], string> = {
+  const bodyWeightLabels: Record<keyof AppearanceState["typography"]["bodyWeights"], string> = {
     body: "body weight",
     bodyBold: "body-bold weight",
-    h1: "h1 weight",
-    h2: "h2 weight",
-    h3: "h3 weight",
-    h4: "h4 weight",
-    h5: "h5 weight",
-    h6: "h6 weight",
   };
-  for (const key of Object.keys(prev.typography.weights) as Array<
-    keyof AppearanceState["typography"]["weights"]
+  for (const key of Object.keys(prev.typography.bodyWeights) as Array<
+    keyof AppearanceState["typography"]["bodyWeights"]
   >) {
-    if (prev.typography.weights[key] !== next.typography.weights[key]) {
+    if (prev.typography.bodyWeights[key] !== next.typography.bodyWeights[key]) {
       changes.push({
-        label: weightLabels[key],
-        from: String(prev.typography.weights[key]),
-        to: String(next.typography.weights[key]),
+        label: bodyWeightLabels[key],
+        from: String(prev.typography.bodyWeights[key]),
+        to: String(next.typography.bodyWeights[key]),
       });
     }
   }
 
-  // §6.2 sizing knobs — named labels keep the commit-message diff readable
-  // ("font-size scale: regular → compact" is more self-explanatory than the
-  // raw field key).
-  if (prev.sizing.fontSizeScale !== next.sizing.fontSizeScale) {
-    changes.push({
-      label: "font-size scale",
-      from: prev.sizing.fontSizeScale,
-      to: next.sizing.fontSizeScale,
-    });
+  const headingWeightLabels: Record<keyof AppearanceState["typography"]["headingWeights"], string> = {
+    h1: "h1 weight",
+    h2: "h2 weight",
+    h3: "h3 weight",
+    h4: "h4 weight",
+  };
+  for (const key of Object.keys(prev.typography.headingWeights) as Array<
+    keyof AppearanceState["typography"]["headingWeights"]
+  >) {
+    if (prev.typography.headingWeights[key] !== next.typography.headingWeights[key]) {
+      changes.push({
+        label: headingWeightLabels[key],
+        from: String(prev.typography.headingWeights[key]),
+        to: String(next.typography.headingWeights[key]),
+      });
+    }
   }
-  if (prev.sizing.fontSizeAdjust !== next.sizing.fontSizeAdjust) {
-    changes.push({
-      label: "font-size adjust",
-      from: String(prev.sizing.fontSizeAdjust),
-      to: String(next.sizing.fontSizeAdjust),
-    });
+
+  // Per-bucket size overrides — surface each bucket distinctly so the diff
+  // reads naturally ("base size: 1rem → 1.125rem"). An override toggling
+  // between "" (use baseline) and a real value still shows up here.
+  for (const key of Object.keys(prev.typography.bodySizes) as Array<
+    keyof AppearanceState["typography"]["bodySizes"]
+  >) {
+    if (prev.typography.bodySizes[key] !== next.typography.bodySizes[key]) {
+      changes.push({
+        label: `${key} size`,
+        from: prev.typography.bodySizes[key] || "(default)",
+        to: next.typography.bodySizes[key] || "(default)",
+      });
+    }
   }
-  if (prev.sizing.headingScale !== next.sizing.headingScale) {
-    changes.push({
-      label: "heading scale",
-      from: String(prev.sizing.headingScale),
-      to: String(next.sizing.headingScale),
-    });
+  for (const key of Object.keys(prev.typography.headingSizes) as Array<
+    keyof AppearanceState["typography"]["headingSizes"]
+  >) {
+    if (prev.typography.headingSizes[key] !== next.typography.headingSizes[key]) {
+      changes.push({
+        label: `${key} size`,
+        from: prev.typography.headingSizes[key] || "(default)",
+        to: next.typography.headingSizes[key] || "(default)",
+      });
+    }
   }
 
   return changes;

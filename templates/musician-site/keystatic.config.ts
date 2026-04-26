@@ -2,18 +2,17 @@ import { config, fields, collection, singleton } from "@keystatic/core";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
 import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
+  BODY_FONT_SIZE_BUCKETS,
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
-  FONT_SIZE_SCALES,
-  FONT_SIZE_SCALE_LABELS,
+  FONT_SIZE_BUCKET_LABELS,
+  HEADING_FONT_SIZE_BUCKETS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
   POST_STATUSES,
   RELEASE_TYPES,
   RELEASE_TYPE_LABELS,
-  SIZE_ADJUSTMENTS,
-  SIZE_ADJUSTMENT_LABELS,
   STORE_ITEM_FORMATS,
   STORE_ITEM_STATUSES,
   TOUR_DATE_STATUSES,
@@ -21,7 +20,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
-  type FontSizeScale,
+  type FontSizeBucket,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -114,6 +113,32 @@ const weightField = (label: string, defaultValue: number) =>
     options: weightOptions,
     defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
   });
+
+// Per-bucket font-size editor. Renders as a `fields.object` of free-text rem
+// inputs (one per bucket); any field left blank falls back to theme.json's
+// baseline at render time. Used twice in the Appearance singleton — once for
+// body buckets (xs/sm/base/lg), once for heading buckets (xl/2xl/3xl/4xl).
+const sizesObject = <T extends FontSizeBucket>(
+  buckets: readonly T[],
+  label: string,
+) =>
+  fields.object(
+    Object.fromEntries(
+      buckets.map((b) => [
+        b,
+        fields.text({
+          label: FONT_SIZE_BUCKET_LABELS[b],
+          description: 'rem value (e.g. "1.25rem"), or blank for the theme.json default.',
+          defaultValue: "",
+        }),
+      ]),
+    ) as Record<T, ReturnType<typeof fields.text>>,
+    {
+      label,
+      description:
+        "Per-bucket overrides on top of theme.json's font-size scale. Leave blank to inherit the default.",
+    },
+  );
 
 // Build a curated "Usage Slot" select that exposes only the subset of
 // IMAGE_USAGE_SLOTS relevant to a given collection (e.g. photos rarely need
@@ -261,17 +286,18 @@ export default config({
     // -----------------------------------------------------------------
     // Appearance — colors and typography (Google Fonts).
     //
-    // Typography picker is category-first: choose Sans-serif/Serif/
+    // Typography is split into a Body group and a Headings group; each
+    // owns its font family, per-bucket sizes, and weights. Per-bucket
+    // size fields accept rem values ("1.25rem"); leave a field blank
+    // to inherit from theme.json's baseline.
+    //
+    // The font picker is category-first: choose Sans-serif/Serif/
     // Monospace/Display/Handwriting to get a curated list, or choose
     // "Custom" to type any family name from fonts.google.com.
     //
-    // By default the same font is used site-wide. Switching "Font
-    // Strategy" to "Separate heading + body" activates the Heading
-    // font picker.
-    //
-    // Weight pickers exist per heading level and for body/body-bold,
-    // so the Google Fonts URL emitted at runtime requests ONLY the
-    // weights actually in use (keeps page weight small).
+    // Heading mode is single (same font as body) or split (own family);
+    // weight pickers per heading level let the runtime fetch only the
+    // exact weights actually in use.
     // -----------------------------------------------------------------
 
     appearance: singleton({
@@ -307,16 +333,32 @@ export default config({
         ),
         typography: fields.object(
           {
+            // Body font picker. The body's family is the fallback when
+            // headings use "Same as body".
             primary: fontPicker("Body font", {
               category: "sans-serif",
               family: "Inter",
             }),
+            // Body sizes — xs / sm / base / lg map to body / small body /
+            // captions and h6 / h5 in global.css. Empty string means "use
+            // theme.json baseline" (the default).
+            bodySizes: sizesObject(BODY_FONT_SIZE_BUCKETS, "Body sizes"),
+            bodyWeights: fields.object(
+              {
+                body: weightField("Body", 400),
+                bodyBold: weightField("Body bold", 700),
+              },
+              {
+                label: "Body weights",
+                description:
+                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+              },
+            ),
             // `mode` is the discriminant: "single" hides the heading picker
-            // entirely; "split" reveals it (Keystatic conditional UX). This
-            // replaces the older parallel `mode` + `heading` fields.
+            // entirely; "split" reveals it (Keystatic conditional UX).
             heading: fields.conditional(
               fields.select({
-                label: "Headings",
+                label: "Heading font",
                 description: "Use the same font as the body, or pick a different font for headings.",
                 options: [
                   { label: "Same as body", value: "single" },
@@ -332,94 +374,26 @@ export default config({
                 }),
               },
             ),
-            weights: fields.object(
+            // Heading sizes — xl / 2xl / 3xl / 4xl map to h4..h1 in global.css.
+            headingSizes: sizesObject(HEADING_FONT_SIZE_BUCKETS, "Heading sizes"),
+            headingWeights: fields.object(
               {
-                body: weightField("Body", 400),
-                bodyBold: weightField("Body bold", 700),
                 h1: weightField("H1", 700),
                 h2: weightField("H2", 700),
                 h3: weightField("H3", 700),
                 h4: weightField("H4", 700),
-                h5: weightField("H5", 600),
-                h6: weightField("H6", 600),
               },
               {
-                label: "Font weights",
+                label: "Heading weights",
                 description:
-                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+                  "Only the weights you pick here are downloaded. h5 and h6 inherit sensible defaults — edit theme.json directly if you need to change them.",
               },
             ),
           },
           {
             label: "Typography",
             description:
-              "Pick fonts and weights. Google Fonts are loaded with only the exact weights in use.",
-          },
-        ),
-        // -----------------------------------------------------------------
-        // Sizing — three composable knobs on top of theme.json's baseline.
-        //
-        //   1. fontSizeScale  — Compact / Regular / Spacious preset.
-        //   2. fontSizeAdjust — integer stepper (-2…+2), ~7% per step,
-        //                       applied uniformly to every size bucket.
-        //   3. headingScale   — integer stepper (-2…+2), same per-step
-        //                       scaling but applied ONLY to heading sizes
-        //                       (h1..h4 buckets).
-        //
-        // Values go through computeFontSizes() in src/lib/font-sizing.ts at
-        // render time; raw theme.json remains the baseline for dev-level
-        // edits (finer-grained bucket tweaks live there).
-        //
-        // All three selects persist their values as strings — Keystatic's
-        // `fields.select` only supports string option values. The Zod schema
-        // uses `z.coerce.number()` on the adjust/heading buckets so the
-        // round-trip from seed JSON → runtime state is clean.
-        // -----------------------------------------------------------------
-        sizing: fields.object(
-          {
-            fontSizeScale: fields.select({
-              label: "Font-size scale",
-              description: "Baseline scale preset applied to every size bucket.",
-              options: FONT_SIZE_SCALES.map((v) => ({
-                label: FONT_SIZE_SCALE_LABELS[v],
-                value: v,
-              })) as [
-                { label: string; value: FontSizeScale },
-                ...{ label: string; value: FontSizeScale }[],
-              ],
-              defaultValue: "regular",
-            }),
-            fontSizeAdjust: fields.select({
-              label: "Font-size adjust (all)",
-              description:
-                "Multiplicative nudge on top of the scale preset (~7% per step). Applies to every size bucket.",
-              options: SIZE_ADJUSTMENTS.map((v) => ({
-                label: SIZE_ADJUSTMENT_LABELS[String(v)]!,
-                value: String(v),
-              })) as [
-                { label: string; value: string },
-                ...{ label: string; value: string }[],
-              ],
-              defaultValue: "0",
-            }),
-            headingScale: fields.select({
-              label: "Heading scale",
-              description:
-                "Extra multiplier applied to heading sizes only (h1..h4). Stacks on top of Font-size adjust.",
-              options: SIZE_ADJUSTMENTS.map((v) => ({
-                label: SIZE_ADJUSTMENT_LABELS[String(v)]!,
-                value: String(v),
-              })) as [
-                { label: string; value: string },
-                ...{ label: string; value: string }[],
-              ],
-              defaultValue: "0",
-            }),
-          },
-          {
-            label: "Sizing",
-            description:
-              "Scale the type system. Compose these with raw theme.json for dev-level overrides.",
+              "Body group then headings — each owns a font family, per-bucket sizes, and weights. Leave any size blank to inherit the theme.json default.",
           },
         ),
       },

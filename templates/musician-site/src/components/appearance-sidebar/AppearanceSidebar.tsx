@@ -1,14 +1,17 @@
-import type { ReactElement } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
-import type { FontCategory, FontSizeScale, SizeAdjustment } from "../../lib/schemas";
+import type {
+  BodyFontSizeBucket,
+  FontCategory,
+  HeadingFontSizeBucket,
+} from "../../lib/schemas";
 import {
+  BODY_FONT_SIZE_BUCKETS,
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
-  FONT_SIZE_SCALES,
-  FONT_SIZE_SCALE_LABELS,
-  SIZE_ADJUSTMENTS,
-  SIZE_ADJUSTMENT_LABELS,
+  FONT_SIZE_BUCKET_LABELS,
+  HEADING_FONT_SIZE_BUCKETS,
 } from "../../lib/schemas";
 import {
   AuthExpiredError,
@@ -72,7 +75,7 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
   // writes and single <link href> swap — both cheap and idempotent, so no
   // debounce needed even on rapid keystrokes. `baseFontSizes` is the raw
   // theme.json scale threaded through from BaseLayout — computeFontSizes
-  // applies the sizing knobs to it for the live preview.
+  // applies the per-bucket overrides to it for the live preview.
   useEffect(() => {
     applyPreview(document, draft, config.baseFontSizes);
   }, [draft, config.baseFontSizes]);
@@ -236,67 +239,73 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
           </button>
         </header>
 
-        {isGitHub && repoInfoError && (
-          <div className={styles.errorBanner} role="alert">
-            Couldn't load branches: {repoInfoError}
-          </div>
-        )}
+        <div className={styles.panelBody}>
+          {isGitHub && repoInfoError && (
+            <div className={styles.errorBanner} role="alert">
+              Couldn't load branches: {repoInfoError}
+            </div>
+          )}
 
-        {isGitHub ? (
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="stagecraft-branch">
-              Editing on branch
-            </label>
-            <select
-              id="stagecraft-branch"
-              className={styles.select}
-              value={branch ?? ""}
-              onChange={(e) => setBranch(e.target.value)}
-              disabled={branches.length === 0}
-            >
-              {branches.length === 0 && <option>Loading…</option>}
-              {branches.map((b) => (
-                <option key={b.name} value={b.name}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            <p className={styles.hint}>
-              Commits land on this branch. Use{" "}
-              <a href={`/keystatic/branch/${branch ?? "main"}`}>Keystatic</a> to create a new branch
-              or open a pull request.
-            </p>
-          </div>
-        ) : (
-          <div className={styles.field}>
-            <p className={styles.hint}>
-              <strong>Local dev mode.</strong> Saves write directly to{" "}
-              <code>{config.appearancePath}</code>; Vite picks up the change and refreshes the
-              page. In production this sidebar commits to GitHub instead.
-            </p>
-          </div>
-        )}
+          {isGitHub ? (
+            <FormGroup label="Editing on branch">
+              <select
+                className={styles.select}
+                value={branch ?? ""}
+                onChange={(e) => setBranch(e.target.value)}
+                disabled={branches.length === 0}
+              >
+                {branches.length === 0 && <option>Loading…</option>}
+                {branches.map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <p className={styles.hint}>
+                Commits land on this branch. Use{" "}
+                <a href={`/keystatic/branch/${branch ?? "main"}`}>Keystatic</a> to create a new branch
+                or open a pull request.
+              </p>
+            </FormGroup>
+          ) : (
+            <div className={styles.field}>
+              <p className={styles.hint}>
+                <strong>Local dev mode.</strong> Saves write directly to{" "}
+                <code>{config.appearancePath}</code>; Vite picks up the change and refreshes the
+                page. In production this sidebar commits to GitHub instead.
+              </p>
+            </div>
+          )}
 
-        <section className={styles.section} aria-labelledby="stagecraft-colors">
-          <h3 id="stagecraft-colors" className={styles.sectionTitle}>
-            Colors
-          </h3>
-          <ColorFields draft={draft} onChange={updateDraft} />
-        </section>
+          <section className={styles.section} aria-labelledby="stagecraft-colors">
+            <h3 id="stagecraft-colors" className={styles.sectionTitle}>
+              Colors
+            </h3>
+            <ColorFields draft={draft} onChange={updateDraft} />
+          </section>
 
-        <section className={styles.section} aria-labelledby="stagecraft-typography">
-          <h3 id="stagecraft-typography" className={styles.sectionTitle}>
-            Typography
-          </h3>
-          <TypographyFields draft={draft} onChange={updateDraft} />
-        </section>
+          <section className={styles.section} aria-labelledby="stagecraft-typography-body">
+            <h3 id="stagecraft-typography-body" className={styles.sectionTitle}>
+              Body
+            </h3>
+            <BodyFields
+              draft={draft}
+              onChange={updateDraft}
+              baseFontSizes={config.baseFontSizes}
+            />
+          </section>
 
-        <section className={styles.section} aria-labelledby="stagecraft-sizing">
-          <h3 id="stagecraft-sizing" className={styles.sectionTitle}>
-            Sizing
-          </h3>
-          <SizingFields draft={draft} onChange={updateDraft} />
-        </section>
+          <section className={styles.section} aria-labelledby="stagecraft-typography-headings">
+            <h3 id="stagecraft-typography-headings" className={styles.sectionTitle}>
+              Headings
+            </h3>
+            <HeadingFields
+              draft={draft}
+              onChange={updateDraft}
+              baseFontSizes={config.baseFontSizes}
+            />
+          </section>
+        </div>
 
         <footer className={styles.footer}>
           {saveStatus.kind === "error" && (
@@ -345,12 +354,44 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
 }
 
 // ============================================================================
+// FormGroup — labelled form-field wrapper. Mirrors the Astro `FormGroup`
+// component used elsewhere on the public site (label above input, consistent
+// spacing). Lives here rather than in `src/components/` because the sidebar's
+// styling is intentionally self-contained — admin chrome shouldn't restyle
+// itself when the user changes the site's tokens.
+// ============================================================================
+
+interface FormGroupProps {
+  label: string;
+  children: ReactNode;
+  /** Accessible id linking the label to the control inside `children`. */
+  htmlFor?: string;
+}
+
+function FormGroup({ label, children, htmlFor }: FormGroupProps) {
+  const reactId = useId();
+  const id = htmlFor ?? reactId;
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// ============================================================================
 // Field subcomponents
 // ============================================================================
 
 interface FieldProps {
   draft: AppearanceState;
   onChange: (patch: (prev: AppearanceState) => AppearanceState) => void;
+}
+
+interface SizingFieldProps extends FieldProps {
+  baseFontSizes: Record<string, string>;
 }
 
 function ColorFields({ draft, onChange }: FieldProps) {
@@ -411,16 +452,96 @@ function ColorFields({ draft, onChange }: FieldProps) {
   );
 }
 
-function TypographyFields({ draft, onChange }: FieldProps) {
+// Body section — body font, body sizes (xs/sm/base/lg), body weights.
+// Sizes precede weights to match the Keystatic admin layout.
+function BodyFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
   const { typography } = draft;
   return (
     <>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="stagecraft-font-mode">
-          Headings
-        </label>
+      <FontPickerField
+        label="Body font"
+        value={typography.primary}
+        onChange={(next) =>
+          onChange((prev) => ({
+            ...prev,
+            typography: { ...prev.typography, primary: next },
+          }))
+        }
+      />
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Sizes</legend>
+        <p className={styles.hint}>
+          rem values like <code>1.25rem</code>. Leave a field blank to inherit theme.json's default
+          (shown as the placeholder).
+        </p>
+        {BODY_FONT_SIZE_BUCKETS.map((bucket) => (
+          <SizeInputRow
+            key={bucket}
+            bucket={bucket}
+            value={typography.bodySizes[bucket]}
+            placeholder={baseFontSizes[bucket] ?? ""}
+            onChange={(next) =>
+              onChange((prev) => ({
+                ...prev,
+                typography: {
+                  ...prev.typography,
+                  bodySizes: { ...prev.typography.bodySizes, [bucket]: next },
+                },
+              }))
+            }
+          />
+        ))}
+      </fieldset>
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Weights</legend>
+        <p className={styles.hint}>
+          Only the weights you pick here are downloaded. Some fonts don't ship every weight —
+          check fonts.google.com if a weight looks wrong after saving.
+        </p>
+        <WeightSelectRow
+          bucket="body"
+          label="Body"
+          value={typography.bodyWeights.body}
+          onChange={(next) =>
+            onChange((prev) => ({
+              ...prev,
+              typography: {
+                ...prev.typography,
+                bodyWeights: { ...prev.typography.bodyWeights, body: next },
+              },
+            }))
+          }
+        />
+        <WeightSelectRow
+          bucket="bodyBold"
+          label="Body bold"
+          value={typography.bodyWeights.bodyBold}
+          onChange={(next) =>
+            onChange((prev) => ({
+              ...prev,
+              typography: {
+                ...prev.typography,
+                bodyWeights: { ...prev.typography.bodyWeights, bodyBold: next },
+              },
+            }))
+          }
+        />
+      </fieldset>
+    </>
+  );
+}
+
+// Headings section — mode (single/split), heading font (when split), heading
+// sizes (xl/2xl/3xl/4xl), heading weights (h1..h4). h5/h6 weights are
+// intentionally not surfaced; global.css handles them.
+function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
+  const { typography } = draft;
+  return (
+    <>
+      <FormGroup label="Heading font">
         <select
-          id="stagecraft-font-mode"
           className={styles.select}
           value={typography.mode}
           onChange={(e) =>
@@ -441,22 +562,11 @@ function TypographyFields({ draft, onChange }: FieldProps) {
           <option value="single">Same font as body</option>
           <option value="split">Different font for headings</option>
         </select>
-      </div>
-
-      <FontPickerField
-        label="Body font"
-        value={typography.primary}
-        onChange={(next) =>
-          onChange((prev) => ({
-            ...prev,
-            typography: { ...prev.typography, primary: next },
-          }))
-        }
-      />
+      </FormGroup>
 
       {typography.mode === "split" && typography.heading && (
         <FontPickerField
-          label="Heading font"
+          label="Heading font family"
           value={typography.heading}
           onChange={(next) =>
             onChange((prev) => ({
@@ -468,54 +578,120 @@ function TypographyFields({ draft, onChange }: FieldProps) {
       )}
 
       <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>Weights</legend>
+        <legend className={styles.legend}>Sizes</legend>
         <p className={styles.hint}>
-          Only the weights you pick here are downloaded. Some fonts don't ship every weight —
-          check fonts.google.com if a weight looks wrong after saving.
+          Per-bucket overrides in rem (e.g. <code>2.5rem</code>). Blank inherits theme.json's
+          default.
         </p>
+        {HEADING_FONT_SIZE_BUCKETS.map((bucket) => (
+          <SizeInputRow
+            key={bucket}
+            bucket={bucket}
+            value={typography.headingSizes[bucket]}
+            placeholder={baseFontSizes[bucket] ?? ""}
+            onChange={(next) =>
+              onChange((prev) => ({
+                ...prev,
+                typography: {
+                  ...prev.typography,
+                  headingSizes: { ...prev.typography.headingSizes, [bucket]: next },
+                },
+              }))
+            }
+          />
+        ))}
+      </fieldset>
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Weights</legend>
         {(
           [
-            ["body", "Body"],
-            ["bodyBold", "Body bold"],
             ["h1", "H1"],
             ["h2", "H2"],
             ["h3", "H3"],
             ["h4", "H4"],
-            ["h5", "H5"],
-            ["h6", "H6"],
           ] as const
         ).map(([key, label]) => (
-          <div className={styles.fieldRow} key={key}>
-            <label className={styles.labelInline} htmlFor={`stagecraft-weight-${key}`}>
-              {label}
-            </label>
-            <select
-              id={`stagecraft-weight-${key}`}
-              className={styles.select}
-              value={typography.weights[key]}
-              onChange={(e) =>
-                onChange((prev) => ({
-                  ...prev,
-                  typography: {
-                    ...prev.typography,
-                    weights: {
-                      ...prev.typography.weights,
-                      [key]: Number(e.target.value),
-                    },
-                  },
-                }))
-              }
-            >
-              {FONT_WEIGHTS.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          </div>
+          <WeightSelectRow
+            key={key}
+            bucket={key}
+            label={label}
+            value={typography.headingWeights[key]}
+            onChange={(next) =>
+              onChange((prev) => ({
+                ...prev,
+                typography: {
+                  ...prev.typography,
+                  headingWeights: { ...prev.typography.headingWeights, [key]: next },
+                },
+              }))
+            }
+          />
         ))}
       </fieldset>
     </>
+  );
+}
+
+// Single per-bucket size text input rendered as an inline label/input row to
+// keep the eight buckets compact. Empty value means "use the placeholder
+// (theme.json baseline)".
+interface SizeInputRowProps {
+  bucket: BodyFontSizeBucket | HeadingFontSizeBucket;
+  value: string;
+  placeholder: string;
+  onChange: (next: string) => void;
+}
+
+function SizeInputRow({ bucket, value, placeholder, onChange }: SizeInputRowProps) {
+  const id = useId();
+  return (
+    <div className={styles.fieldRow}>
+      <label className={styles.labelInline} htmlFor={id}>
+        {FONT_SIZE_BUCKET_LABELS[bucket]}
+      </label>
+      <input
+        id={id}
+        type="text"
+        className={styles.textInputCompact}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        spellCheck={false}
+        inputMode="decimal"
+      />
+    </div>
+  );
+}
+
+interface WeightSelectRowProps {
+  bucket: string;
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}
+
+function WeightSelectRow({ bucket, label, value, onChange }: WeightSelectRowProps) {
+  const id = useId();
+  return (
+    <div className={styles.fieldRow}>
+      <label className={styles.labelInline} htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        className={styles.select}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        data-bucket={bucket}
+      >
+        {FONT_WEIGHTS.map((w) => (
+          <option key={w} value={w}>
+            {w}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -539,16 +715,16 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
   };
 
   return (
-    <div className={styles.field}>
-      <label className={styles.label}>{label}</label>
+    <FormGroup label={label}>
       <select
         className={styles.select}
         value={value.category}
         onChange={(e) => handleCategoryChange(e.target.value as FontCategory)}
+        aria-label={`${label} category`}
       >
         {FONT_CATEGORIES.map((cat) => (
           <option key={cat} value={cat}>
-            {categoryLabel(cat)}
+            {FONT_CATEGORY_LABELS[cat]}
           </option>
         ))}
       </select>
@@ -560,12 +736,14 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
           value={value.family}
           onChange={(e) => onChange({ category: value.category, family: e.target.value })}
           spellCheck={false}
+          aria-label={`${label} family`}
         />
       ) : (
         <select
           className={styles.select}
           value={value.family}
           onChange={(e) => onChange({ category: value.category, family: e.target.value })}
+          aria-label={`${label} family`}
         >
           {GOOGLE_FONTS[value.category as GoogleFontCategory].map((f) => (
             <option key={f.family} value={f.family}>
@@ -574,110 +752,7 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
           ))}
         </select>
       )}
-    </div>
-  );
-}
-
-function categoryLabel(cat: FontCategory): string {
-  return FONT_CATEGORY_LABELS[cat];
-}
-
-// ============================================================================
-// Sizing fields (§6.2) — three composable knobs layered on top of theme.json.
-//
-//   1. Scale preset (compact / regular / spacious)
-//   2. Font-size adjust (all sizes, -2..+2)
-//   3. Heading scale (heading buckets only, -2..+2)
-//
-// All three persist as strings in appearance.json; the schema coerces back
-// to the typed values on parse. See src/lib/font-sizing.ts for the math.
-// ============================================================================
-
-function SizingFields({ draft, onChange }: FieldProps) {
-  const { sizing } = draft;
-  return (
-    <>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="stagecraft-font-size-scale">
-          Font-size scale
-        </label>
-        <select
-          id="stagecraft-font-size-scale"
-          className={styles.select}
-          value={sizing.fontSizeScale}
-          onChange={(e) =>
-            onChange((prev) => ({
-              ...prev,
-              sizing: {
-                ...prev.sizing,
-                fontSizeScale: e.target.value as FontSizeScale,
-              },
-            }))
-          }
-        >
-          {FONT_SIZE_SCALES.map((scale) => (
-            <option key={scale} value={scale}>
-              {FONT_SIZE_SCALE_LABELS[scale]}
-            </option>
-          ))}
-        </select>
-        <p className={styles.hint}>Baseline preset applied to every size bucket.</p>
-      </div>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="stagecraft-font-size-adjust">
-          Font-size adjust (all)
-        </label>
-        <select
-          id="stagecraft-font-size-adjust"
-          className={styles.select}
-          value={String(sizing.fontSizeAdjust)}
-          onChange={(e) =>
-            onChange((prev) => ({
-              ...prev,
-              sizing: {
-                ...prev.sizing,
-                fontSizeAdjust: Number(e.target.value) as SizeAdjustment,
-              },
-            }))
-          }
-        >
-          {SIZE_ADJUSTMENTS.map((step) => (
-            <option key={step} value={String(step)}>
-              {SIZE_ADJUSTMENT_LABELS[String(step)]}
-            </option>
-          ))}
-        </select>
-        <p className={styles.hint}>Multiplicative nudge (~7% per step) on top of the scale preset.</p>
-      </div>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="stagecraft-heading-scale">
-          Heading scale
-        </label>
-        <select
-          id="stagecraft-heading-scale"
-          className={styles.select}
-          value={String(sizing.headingScale)}
-          onChange={(e) =>
-            onChange((prev) => ({
-              ...prev,
-              sizing: {
-                ...prev.sizing,
-                headingScale: Number(e.target.value) as SizeAdjustment,
-              },
-            }))
-          }
-        >
-          {SIZE_ADJUSTMENTS.map((step) => (
-            <option key={step} value={String(step)}>
-              {SIZE_ADJUSTMENT_LABELS[String(step)]}
-            </option>
-          ))}
-        </select>
-        <p className={styles.hint}>Extra multiplier applied to heading sizes only (h1–h4).</p>
-      </div>
-    </>
+    </FormGroup>
   );
 }
 

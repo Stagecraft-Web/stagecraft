@@ -29,7 +29,7 @@ export function applyCssVariables(
   appearance: AppearanceState,
   baseFontSizes: Record<string, string>,
 ): void {
-  const { colors, typography, sizing } = appearance;
+  const { colors, typography } = appearance;
   const bodyStack = buildFontStack(typography.primary.family, typography.primary.category);
   const headingStack =
     typography.mode === "split" && typography.heading
@@ -38,9 +38,8 @@ export function applyCssVariables(
 
   const fontSizes = computeFontSizes(
     baseFontSizes,
-    sizing.fontSizeScale,
-    sizing.fontSizeAdjust,
-    sizing.headingScale,
+    typography.bodySizes,
+    typography.headingSizes,
   );
 
   const vars: Record<string, string> = {
@@ -55,14 +54,12 @@ export function applyCssVariables(
     "--color-border": colors.border,
     "--font-body": bodyStack,
     "--font-heading": headingStack,
-    "--font-weight-body": String(typography.weights.body),
-    "--font-weight-body-bold": String(typography.weights.bodyBold),
-    "--font-weight-h1": String(typography.weights.h1),
-    "--font-weight-h2": String(typography.weights.h2),
-    "--font-weight-h3": String(typography.weights.h3),
-    "--font-weight-h4": String(typography.weights.h4),
-    "--font-weight-h5": String(typography.weights.h5),
-    "--font-weight-h6": String(typography.weights.h6),
+    "--font-weight-body": String(typography.bodyWeights.body),
+    "--font-weight-body-bold": String(typography.bodyWeights.bodyBold),
+    "--font-weight-h1": String(typography.headingWeights.h1),
+    "--font-weight-h2": String(typography.headingWeights.h2),
+    "--font-weight-h3": String(typography.headingWeights.h3),
+    "--font-weight-h4": String(typography.headingWeights.h4),
   };
 
   // Font-size vars — mirrors BaseLayout's inline <style>. Bucket names in

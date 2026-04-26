@@ -50,9 +50,8 @@ function makeStubDocument() {
   return { doc, style, headChildren };
 }
 
-// §6.2: theme.json fontSize baseline. The sidebar threads this through from
-// BaseLayout so the live preview can apply the sizing knobs without a
-// round-trip to theme.json.
+// theme.json fontSize baseline, threaded through from BaseLayout. The sidebar
+// applies per-bucket overrides on top; empty/missing values fall through.
 const BASE_FONT_SIZES = {
   xs: "0.75rem",
   sm: "0.875rem",
@@ -80,21 +79,10 @@ const baseAppearance: AppearanceState = {
     mode: "split",
     primary: { category: "sans-serif", family: "Inter" },
     heading: { category: "serif", family: "Merriweather" },
-    weights: {
-      body: 400,
-      bodyBold: 700,
-      h1: 700,
-      h2: 600,
-      h3: 600,
-      h4: 500,
-      h5: 500,
-      h6: 500,
-    },
-  },
-  sizing: {
-    fontSizeScale: "regular",
-    fontSizeAdjust: 0,
-    headingScale: 0,
+    bodySizes: { xs: "", sm: "", base: "", lg: "" },
+    bodyWeights: { body: 400, bodyBold: 700 },
+    headingSizes: { xl: "", "2xl": "", "3xl": "", "4xl": "" },
+    headingWeights: { h1: 700, h2: 600, h3: 600, h4: 500 },
   },
 };
 
@@ -132,14 +120,14 @@ describe("applyCssVariables", () => {
     expect(stub.style["--font-heading"]).toBe("Inter, sans-serif");
   });
 
-  it("writes weight variables as strings", () => {
+  it("writes weight variables as strings (split body/heading blocks)", () => {
     applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--font-weight-body"]).toBe("400");
     expect(stub.style["--font-weight-h2"]).toBe("600");
-    expect(stub.style["--font-weight-h6"]).toBe("500");
+    expect(stub.style["--font-weight-h4"]).toBe("500");
   });
 
-  it("writes --color-link (5a)", () => {
+  it("writes --color-link", () => {
     applyCssVariables(
       stub.doc.documentElement,
       {
@@ -151,41 +139,44 @@ describe("applyCssVariables", () => {
     expect(stub.style["--color-link"]).toBe("#ff00aa");
   });
 
-  // §6.2: font-size vars are projected from the baseline theme.json scale
-  // through computeFontSizes with the current sizing knobs.
-  it("writes font-size vars identical to baseline when sizing is at defaults", () => {
+  it("writes font-size vars equal to baseline when no per-bucket overrides are set", () => {
     applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--font-size-base"]).toBe("1rem");
     expect(stub.style["--font-size-xs"]).toBe("0.75rem");
     expect(stub.style["--font-size-4xl"]).toBe("3.5rem");
   });
 
-  it("scales every font-size bucket when the compact preset is selected", () => {
+  it("applies a body-bucket override and leaves other buckets untouched", () => {
     applyCssVariables(
       stub.doc.documentElement,
       {
         ...baseAppearance,
-        sizing: { ...baseAppearance.sizing, fontSizeScale: "compact" },
+        typography: {
+          ...baseAppearance.typography,
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: "1.125rem" },
+        },
       },
       BASE_FONT_SIZES,
     );
-    expect(stub.style["--font-size-base"]).toBe("0.9rem");
-    expect(stub.style["--font-size-4xl"]).toBe("3.15rem");
+    expect(stub.style["--font-size-base"]).toBe("1.125rem");
+    expect(stub.style["--font-size-xs"]).toBe("0.75rem");
+    expect(stub.style["--font-size-4xl"]).toBe("3.5rem");
   });
 
-  it("applies headingScale only to heading buckets, leaving body buckets untouched", () => {
+  it("applies a heading-bucket override and leaves body buckets untouched", () => {
     applyCssVariables(
       stub.doc.documentElement,
       {
         ...baseAppearance,
-        sizing: { ...baseAppearance.sizing, headingScale: 2 },
+        typography: {
+          ...baseAppearance.typography,
+          headingSizes: { ...baseAppearance.typography.headingSizes, "4xl": "4rem" },
+        },
       },
       BASE_FONT_SIZES,
     );
-    // Body bucket — unchanged from baseline.
     expect(stub.style["--font-size-base"]).toBe("1rem");
-    // Heading bucket — 3.5rem * 1.14 = 3.99rem.
-    expect(stub.style["--font-size-4xl"]).toBe("3.99rem");
+    expect(stub.style["--font-size-4xl"]).toBe("4rem");
   });
 });
 
@@ -246,13 +237,17 @@ describe("applyPreview", () => {
     );
   });
 
-  // §6.2: font-size vars go through computeFontSizes, and that result must
-  // land on :root alongside the colors/fonts work.
-  it("projects sizing knobs into --font-size-* vars", () => {
+  it("projects per-bucket overrides into --font-size-* vars", () => {
     const stub = makeStubDocument();
     applyPreview(
       stub.doc,
-      { ...baseAppearance, sizing: { ...baseAppearance.sizing, fontSizeAdjust: 1 } },
+      {
+        ...baseAppearance,
+        typography: {
+          ...baseAppearance.typography,
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: "1.07rem" },
+        },
+      },
       BASE_FONT_SIZES,
     );
     expect(stub.style["--font-size-base"]).toBe("1.07rem");

@@ -169,26 +169,19 @@ describe("appearanceSchema", () => {
     border: "#e5e7eb",
   };
 
-  const validWeights = {
-    body: 400,
-    bodyBold: 700,
-    h1: 700,
-    h2: 700,
-    h3: 700,
-    h4: 700,
-    h5: 600,
-    h6: 600,
-  };
+  const validBodyWeights = { body: 400, bodyBold: 700 };
+  const validHeadingWeights = { h1: 700, h2: 700, h3: 700, h4: 700 };
 
   const splitInput = {
     colors: validColors,
     typography: {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      bodyWeights: validBodyWeights,
       heading: {
         discriminant: "split" as const,
         value: { discriminant: "serif" as const, value: "Merriweather" },
       },
-      weights: validWeights,
+      headingWeights: validHeadingWeights,
     },
   };
 
@@ -196,8 +189,9 @@ describe("appearanceSchema", () => {
     colors: validColors,
     typography: {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      bodyWeights: validBodyWeights,
       heading: { discriminant: "single" as const, value: null },
-      weights: validWeights,
+      headingWeights: validHeadingWeights,
     },
   };
 
@@ -220,26 +214,24 @@ describe("appearanceSchema", () => {
     expect(result.typography.heading).toEqual({ category: "serif", family: "Merriweather" });
   });
 
+  it("splits weights into bodyWeights and headingWeights blocks", () => {
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.typography.bodyWeights).toEqual({ body: 400, bodyBold: 700 });
+    expect(result.typography.headingWeights).toEqual({ h1: 700, h2: 700, h3: 700, h4: 700 });
+  });
+
   it("coerces string weights (as Keystatic's select emits) into numbers", () => {
     const withStringWeights = {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: {
-          body: "400",
-          bodyBold: "700",
-          h1: "700",
-          h2: "700",
-          h3: "700",
-          h4: "700",
-          h5: "600",
-          h6: "600",
-        },
+        bodyWeights: { body: "400", bodyBold: "700" },
+        headingWeights: { h1: "700", h2: "700", h3: "700", h4: "700" },
       },
     };
     const result = appearanceSchema.parse(withStringWeights);
-    expect(result.typography.weights.body).toBe(400);
-    expect(result.typography.weights.h1).toBe(700);
+    expect(result.typography.bodyWeights.body).toBe(400);
+    expect(result.typography.headingWeights.h1).toBe(700);
   });
 
   it("rejects weights outside the 100–900 range", () => {
@@ -247,7 +239,7 @@ describe("appearanceSchema", () => {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: { ...validWeights, body: 50 },
+        bodyWeights: { ...validBodyWeights, body: 50 },
       },
     };
     expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
@@ -258,7 +250,7 @@ describe("appearanceSchema", () => {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: { ...validWeights, body: 450 },
+        bodyWeights: { ...validBodyWeights, body: 450 },
       },
     };
     expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
@@ -348,104 +340,61 @@ describe("appearanceSchema", () => {
     expect(result.colors.linkColor).toBe("#ff00aa");
   });
 
-  // ---- 6.2: sizing block --------------------------------------------------
-  it("defaults sizing to regular / 0 / 0 when the block is missing entirely", () => {
-    // Backwards-compat: pre-§6.2 appearance.json files have no `sizing` key.
-    // The schema defaults the whole object so those files still parse without
-    // author intervention.
+  // ---- per-bucket size overrides -----------------------------------------
+  it("defaults bodySizes/headingSizes to all-blank when missing", () => {
+    // Backwards-compat: pre-existing appearance.json files have no size
+    // blocks. The schema defaults each field to an empty string, which
+    // computeFontSizes treats as "use the theme.json baseline."
     const result = appearanceSchema.parse(splitInput);
-    expect(result.sizing).toEqual({
-      fontSizeScale: "regular",
-      fontSizeAdjust: 0,
-      headingScale: 0,
+    expect(result.typography.bodySizes).toEqual({ xs: "", sm: "", base: "", lg: "" });
+    expect(result.typography.headingSizes).toEqual({
+      xl: "",
+      "2xl": "",
+      "3xl": "",
+      "4xl": "",
     });
   });
 
-  it("accepts a fully-specified sizing block", () => {
-    const withSizing = {
+  it("accepts explicit per-bucket overrides", () => {
+    const withSizes = {
       ...splitInput,
-      sizing: {
-        fontSizeScale: "compact" as const,
-        fontSizeAdjust: -1,
-        headingScale: 2,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
+        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
       },
     };
-    const result = appearanceSchema.parse(withSizing);
-    expect(result.sizing).toEqual({
-      fontSizeScale: "compact",
-      fontSizeAdjust: -1,
-      headingScale: 2,
-    });
+    const result = appearanceSchema.parse(withSizes);
+    expect(result.typography.bodySizes.xs).toBe("0.7rem");
+    expect(result.typography.bodySizes.base).toBe("1.125rem");
+    expect(result.typography.headingSizes.xl).toBe("1.625rem");
+    expect(result.typography.headingSizes["4xl"]).toBe("4rem");
   });
 
-  it("coerces string-valued sizing adjusts (as Keystatic's select emits)", () => {
-    // Keystatic persists fields.select option values as strings. The seed
-    // file + round-tripped commits write "0" / "1" / "-2" etc., and the
-    // z.coerce.number() on fontSizeAdjust / headingScale turns them into
-    // typed numbers at parse time.
-    const withStringSizing = {
+  it("rejects size overrides that aren't rem strings", () => {
+    const withBadSize = {
       ...splitInput,
-      sizing: {
-        fontSizeScale: "spacious" as const,
-        fontSizeAdjust: "1",
-        headingScale: "-1",
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: "16px", xs: "", sm: "", lg: "" },
       },
     };
-    const result = appearanceSchema.parse(withStringSizing);
-    expect(result.sizing.fontSizeAdjust).toBe(1);
-    expect(result.sizing.headingScale).toBe(-1);
+    expect(() => appearanceSchema.parse(withBadSize)).toThrow();
   });
 
-  it("rejects sizing adjusts outside the -2..+2 range", () => {
-    const withBadAdjust = {
+  it("treats per-bucket fields as optional within the size blocks", () => {
+    // Authors can supply a partial map (e.g. only `base`); the schema fills
+    // the rest with defaults.
+    const withPartial = {
       ...splitInput,
-      sizing: {
-        fontSizeScale: "regular" as const,
-        fontSizeAdjust: 3,
-        headingScale: 0,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: "1.05rem" },
       },
     };
-    expect(() => appearanceSchema.parse(withBadAdjust)).toThrow();
-  });
-
-  it("rejects non-integer sizing adjusts", () => {
-    const withFractional = {
-      ...splitInput,
-      sizing: {
-        fontSizeScale: "regular" as const,
-        fontSizeAdjust: 1.5,
-        headingScale: 0,
-      },
-    };
-    expect(() => appearanceSchema.parse(withFractional)).toThrow();
-  });
-
-  it("rejects unknown fontSizeScale values", () => {
-    const withBadScale = {
-      ...splitInput,
-      sizing: {
-        fontSizeScale: "enormous",
-        fontSizeAdjust: 0,
-        headingScale: 0,
-      },
-    };
-    expect(() => appearanceSchema.parse(withBadScale)).toThrow();
-  });
-
-  it("defaults individual sizing fields when a partial block is supplied", () => {
-    // A partial block (e.g. only fontSizeScale) should fill the rest with
-    // defaults — so authors can set one knob without having to write out all
-    // three.
-    const withPartialSizing = {
-      ...splitInput,
-      sizing: { fontSizeScale: "spacious" as const },
-    };
-    const result = appearanceSchema.parse(withPartialSizing);
-    expect(result.sizing).toEqual({
-      fontSizeScale: "spacious",
-      fontSizeAdjust: 0,
-      headingScale: 0,
-    });
+    const result = appearanceSchema.parse(withPartial);
+    expect(result.typography.bodySizes.base).toBe("1.05rem");
+    expect(result.typography.bodySizes.xs).toBe("");
   });
 });
 

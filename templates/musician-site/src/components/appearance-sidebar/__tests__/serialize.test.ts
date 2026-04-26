@@ -22,12 +22,10 @@ const splitState: AppearanceState = {
     mode: "split",
     primary: { category: "sans-serif", family: "Inter" },
     heading: { category: "serif", family: "Merriweather" },
-    weights: { body: 400, bodyBold: 700, h1: 700, h2: 700, h3: 700, h4: 700, h5: 600, h6: 600 },
-  },
-  sizing: {
-    fontSizeScale: "regular",
-    fontSizeAdjust: 0,
-    headingScale: 0,
+    bodySizes: { xs: "", sm: "", base: "", lg: "" },
+    bodyWeights: { body: 400, bodyBold: 700 },
+    headingSizes: { xl: "", "2xl": "", "3xl": "", "4xl": "" },
+    headingWeights: { h1: 700, h2: 700, h3: 700, h4: 700 },
   },
 };
 
@@ -57,11 +55,24 @@ describe("serializeAppearanceForKeystatic", () => {
     expect(parsed.typography.heading).toEqual({ discriminant: "single", value: null });
   });
 
-  it("serialises weights as strings (matching Keystatic's select output)", () => {
+  it("serialises body and heading weights as strings (matching Keystatic's select output)", () => {
     const json = serializeAppearanceForKeystatic(splitState);
     const parsed = JSON.parse(json);
-    expect(parsed.typography.weights.body).toBe("400");
-    expect(parsed.typography.weights.h5).toBe("600");
+    expect(parsed.typography.bodyWeights.body).toBe("400");
+    expect(parsed.typography.bodyWeights.bodyBold).toBe("700");
+    expect(parsed.typography.headingWeights.h1).toBe("700");
+    expect(parsed.typography.headingWeights.h4).toBe("700");
+  });
+
+  it("does not surface h5 or h6 weights in the serialised output", () => {
+    // h5/h6 weights are intentionally not part of the Appearance schema —
+    // global.css's @layer defaults provides their values. The serialiser
+    // should never write those keys back into appearance.json.
+    const json = serializeAppearanceForKeystatic(splitState);
+    const parsed = JSON.parse(json);
+    expect(parsed.typography.headingWeights).not.toHaveProperty("h5");
+    expect(parsed.typography.headingWeights).not.toHaveProperty("h6");
+    expect(parsed.typography.bodyWeights).not.toHaveProperty("h5");
   });
 
   it("ends with a trailing newline (matches Keystatic UI's output)", () => {
@@ -83,25 +94,39 @@ describe("serializeAppearanceForKeystatic", () => {
     expect(parsed).toEqual(singleState);
   });
 
-  // §6.2 sizing block — must persist as strings (Keystatic select contract)
-  // and round-trip cleanly through the coerce-number schema.
-  it("writes the sizing block with string-valued adjust steps", () => {
+  // Per-bucket size blocks — must persist as-is and round-trip cleanly.
+  it("writes bodySizes / headingSizes blocks with explicit per-bucket entries", () => {
     const json = serializeAppearanceForKeystatic({
       ...splitState,
-      sizing: { fontSizeScale: "compact", fontSizeAdjust: -1, headingScale: 2 },
+      typography: {
+        ...splitState.typography,
+        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
+        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
+      },
     });
     const parsed = JSON.parse(json);
-    expect(parsed.sizing).toEqual({
-      fontSizeScale: "compact",
-      fontSizeAdjust: "-1",
-      headingScale: "2",
+    expect(parsed.typography.bodySizes).toEqual({
+      xs: "0.7rem",
+      sm: "",
+      base: "1.125rem",
+      lg: "",
+    });
+    expect(parsed.typography.headingSizes).toEqual({
+      xl: "1.625rem",
+      "2xl": "",
+      "3xl": "",
+      "4xl": "4rem",
     });
   });
 
-  it("round-trips a fully-adjusted sizing block through the schema", () => {
+  it("round-trips a state with per-bucket size overrides through the schema", () => {
     const state: AppearanceState = {
       ...splitState,
-      sizing: { fontSizeScale: "spacious", fontSizeAdjust: 1, headingScale: -2 },
+      typography: {
+        ...splitState.typography,
+        bodySizes: { xs: "0.7rem", sm: "", base: "1.125rem", lg: "" },
+        headingSizes: { xl: "1.625rem", "2xl": "", "3xl": "", "4xl": "4rem" },
+      },
     };
     const json = serializeAppearanceForKeystatic(state);
     const parsed = appearanceSchema.parse(JSON.parse(json));
@@ -147,12 +172,12 @@ describe("buildCommitMessage", () => {
     expect(body).toContain("heading font: Merriweather → (same as body)");
   });
 
-  it("describes a weight change as e.g. 'h2 weight'", () => {
+  it("describes a heading-weight change as e.g. 'h2 weight'", () => {
     const next: AppearanceState = {
       ...splitState,
       typography: {
         ...splitState.typography,
-        weights: { ...splitState.typography.weights, h2: 500 },
+        headingWeights: { ...splitState.typography.headingWeights, h2: 500 },
       },
     };
     const { headline, body } = buildCommitMessage(splitState, next);
@@ -160,24 +185,29 @@ describe("buildCommitMessage", () => {
     expect(body).toContain("h2 weight: 700 → 500");
   });
 
-  // §6.2 sizing knobs surfaced in the commit message.
-  it("names a scale-preset change in the headline/body", () => {
+  it("describes a body-bucket size change as e.g. 'base size'", () => {
     const next: AppearanceState = {
       ...splitState,
-      sizing: { ...splitState.sizing, fontSizeScale: "spacious" },
+      typography: {
+        ...splitState.typography,
+        bodySizes: { ...splitState.typography.bodySizes, base: "1.125rem" },
+      },
     };
     const { headline, body } = buildCommitMessage(splitState, next);
-    expect(headline).toContain("font-size scale");
-    expect(body).toContain("font-size scale: regular → spacious");
+    expect(headline).toContain("base size");
+    expect(body).toContain("base size: (default) → 1.125rem");
   });
 
-  it("names a heading-scale change in the headline/body", () => {
+  it("describes a heading-bucket size change as e.g. '4xl size'", () => {
     const next: AppearanceState = {
       ...splitState,
-      sizing: { ...splitState.sizing, headingScale: 1 },
+      typography: {
+        ...splitState.typography,
+        headingSizes: { ...splitState.typography.headingSizes, "4xl": "4rem" },
+      },
     };
     const { headline, body } = buildCommitMessage(splitState, next);
-    expect(headline).toContain("heading scale");
-    expect(body).toContain("heading scale: 0 → 1");
+    expect(headline).toContain("4xl size");
+    expect(body).toContain("4xl size: (default) → 4rem");
   });
 });

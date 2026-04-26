@@ -13,9 +13,9 @@ import {
   FONT_CATEGORY_LABELS,
   FONT_SIZE_BUCKET_LABELS,
   FONT_SIZE_PX_MAX,
-  FONT_SIZE_PX_MIN,
   FONT_SIZE_PX_STEP_MIN,
   HEADING_FONT_SIZE_BUCKETS,
+  PX_PER_REM,
 } from "../../lib/schemas";
 import {
   AuthExpiredError,
@@ -644,41 +644,44 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
 
 // Per-bucket size stepper. Three controls in a row: − button, current value,
 // + button. Value is stored as integer pixels (1rem = 16px); the displayed
-// label is the rem equivalent ("1.125rem"). A `value` of 0 means "use the
-// theme.json baseline" — the display reads "—" and the first increment
-// snaps to FONT_SIZE_PX_STEP_MIN (8px = 0.5rem) instead of 1px so the
-// stepper can't dwell on tiny / unrenderable sizes.
+// label is always the effective rem — when the override is `0`, the stepper
+// shows the theme.json baseline and steps from there (so a fresh stepper
+// doesn't read as "—" or "0", but as the size the bucket actually renders).
+// First step away from default seeds the override at `baseline ± 1px`.
 //
-// Free-form text input was removed in PR review — open-ended rem strings
-// invited typos like "1.347rem" or "16px" that the schema would reject on
-// save. Bounded integer steppers can't produce invalid values.
+// A small "×" reset button appears next to the value once an override has
+// been written, so authors can return the bucket to "inherit theme.json"
+// without remembering its exact rem.
+//
+// FONT_SIZE_PX_STEP_MIN (8px = 0.5rem) is the UI-level floor for stepping
+// so the stepper can't dwell on tiny / unrenderable sizes. The schema still
+// accepts `0` as the "use baseline" sentinel.
 interface SizeStepperRowProps {
   bucket: BodyFontSizeBucket | HeadingFontSizeBucket;
   /** Current per-bucket override in pixels. `0` = use baseline. */
   value: number;
-  /** rem string from theme.json — shown as a hint when `value === 0`. */
+  /** rem string from theme.json — used as the starting point when `value === 0`. */
   baseline: string;
   onChange: (next: number) => void;
 }
 
+/** Parse a baseline rem string ("1.25rem") to integer pixels. Falls back to
+ *  16 for unparseable inputs (e.g. a future theme.json bucket in px or calc()). */
+function baselineRemToPx(rem: string): number {
+  const match = /^(-?\d+(?:\.\d+)?)rem$/.exec(rem.trim());
+  if (!match) return PX_PER_REM;
+  return Math.round(Number(match[1]) * PX_PER_REM);
+}
+
 function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowProps) {
+  const baselinePx = baselineRemToPx(baseline);
   const isDefault = value === 0;
-  // First non-zero step jumps to STEP_MIN (8px) rather than 1px so the
-  // stepper isn't unusably tiny on its first click. Subsequent steps move
-  // by 1px in either direction.
+  const effectivePx = isDefault ? baselinePx : value;
   const next = (delta: 1 | -1) => {
-    if (delta > 0) {
-      const candidate = isDefault ? FONT_SIZE_PX_STEP_MIN : value + 1;
-      onChange(Math.min(FONT_SIZE_PX_MAX, candidate));
-    } else {
-      const candidate = isDefault ? 0 : value - 1;
-      // Decrementing past STEP_MIN snaps back to "default" (0) so authors
-      // can return to the baseline without remembering its exact rem.
-      onChange(candidate < FONT_SIZE_PX_STEP_MIN ? 0 : candidate);
-    }
+    const candidate = effectivePx + delta;
+    const clamped = Math.max(FONT_SIZE_PX_STEP_MIN, Math.min(FONT_SIZE_PX_MAX, candidate));
+    onChange(clamped);
   };
-  const display = isDefault ? "—" : pxToRem(value);
-  const titleHint = isDefault ? `default: ${baseline}` : `${value}px`;
   return (
     <div className={styles.fieldRow}>
       <span className={styles.labelInline}>{FONT_SIZE_BUCKET_LABELS[bucket]}</span>
@@ -687,28 +690,41 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
           type="button"
           className={styles.stepperButton}
           onClick={() => next(-1)}
-          disabled={value <= FONT_SIZE_PX_MIN}
+          disabled={effectivePx <= FONT_SIZE_PX_STEP_MIN}
           aria-label={`Decrease ${bucket} size`}
         >
           −
         </button>
         <output
           className={styles.stepperValue}
-          title={titleHint}
+          title={isDefault ? `theme.json default: ${baseline}` : `${value}px`}
           data-default={isDefault ? "true" : "false"}
         >
-          {display}
+          {pxToRem(effectivePx)}
         </output>
         <button
           type="button"
           className={styles.stepperButton}
           onClick={() => next(1)}
-          disabled={value >= FONT_SIZE_PX_MAX}
+          disabled={effectivePx >= FONT_SIZE_PX_MAX}
           aria-label={`Increase ${bucket} size`}
         >
           +
         </button>
       </div>
+      {/* Reset surfaces only when the bucket carries an explicit override —
+          otherwise it's redundant with the muted-default styling. */}
+      {!isDefault && (
+        <button
+          type="button"
+          className={styles.resetButton}
+          onClick={() => onChange(0)}
+          title={`Reset to theme.json default (${baseline})`}
+          aria-label={`Reset ${bucket} size to default`}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

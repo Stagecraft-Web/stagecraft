@@ -87,7 +87,8 @@ export default {
     "tour-dates": {
       selfClosing: true,
       attributes: {
-        "filter": { type: String, default: "upcoming", matches: ["upcoming","all"] },
+        "pastPadding": { type: Number, default: 3 },
+        "emptyMessage": { type: String, default: "No upcoming shows. Check back soon." },
       },
     },
     "store-items": {
@@ -104,8 +105,17 @@ export default {
       selfClosing: true,
       attributes: {
         "code": { type: String, required: true },
+        "title": { type: String },
+      },
+    },
+    "embed-responsive": {
+      selfClosing: true,
+      attributes: {
+        "code": { type: String, required: true },
         "aspectRatio": { type: String, default: "auto", matches: ["auto","16/9","4/3","1/1"] },
         "title": { type: String },
+        "maxWidth": { type: Number },
+        "minHeight": { type: Number },
       },
     },
     "posts-list": {

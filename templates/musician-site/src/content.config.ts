@@ -49,6 +49,10 @@ const pages = defineCollection({
     // "enter site" link. Pair with a `{% fullscreen-section %}` + `{% button %}`
     // in the body for the classic splash layout.
     isSplashPage: z.boolean().optional(),
+    // Per-page override for the site-level footer toggle (see
+    // siteConfigSchema.isFooterHidden). When set, wins for this page only;
+    // leave unset to inherit the site-level default.
+    isFooterHidden: z.boolean().optional(),
   }),
 });
 

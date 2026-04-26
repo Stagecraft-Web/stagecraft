@@ -8,25 +8,27 @@ import {
   previewTextMuted,
   labelStyle,
 } from "../_shared/previewTokens";
-import { extractIframe, extractEmbedHost } from "./extractIframe";
+import { extractIframe, extractEmbedHost } from "../Embed/extractIframe";
+import type { EmbedAspectRatio } from "../_shared/types";
 
-type EmbedValue = {
+type EmbedResponsiveValue = {
   code: string;
+  aspectRatio: EmbedAspectRatio;
   title: string;
 };
 
 /**
- * Keystatic admin preview for `embed`. Keystatic renders previews inside
- * its own admin shell which does NOT load the site's global.css — see
- * ../_shared/previewTokens.ts for why we use inline styles with hardcoded
- * neutral colors here.
- *
- * The preview's job is to give the editor a quick "is the right thing
- * wired up here" signal. We re-run the same parser the renderer uses so
- * any sanitization issue (missing src, no iframe at all) shows here too.
+ * Keystatic admin preview for `embed-responsive`. Mirrors EmbedPreview but
+ * surfaces the chosen aspect ratio (and the auto-derived ratio when "auto"
+ * resolves to intrinsic dimensions), so the editor can spot at a glance
+ * whether the wrapper will engage or fall back to passthrough.
  */
-export function EmbedPreview({ value }: { value: EmbedValue }): ReactNode {
-  const { code, title } = value;
+export function EmbedResponsivePreview({
+  value,
+}: {
+  value: EmbedResponsiveValue;
+}): ReactNode {
+  const { code, aspectRatio, title } = value;
   const parsed = extractIframe(code);
 
   if (!parsed) {
@@ -35,6 +37,14 @@ export function EmbedPreview({ value }: { value: EmbedValue }): ReactNode {
 
   const host = extractEmbedHost(parsed.attributes.src);
   const resolvedTitle = title.trim() || parsed.attributes.title?.trim() || "(no title)";
+
+  const aspectDisplay = (() => {
+    if (aspectRatio !== "auto") return aspectRatio;
+    if (parsed.intrinsicWidth !== null && parsed.intrinsicHeight !== null) {
+      return `Auto → ${parsed.intrinsicWidth}/${parsed.intrinsicHeight}`;
+    }
+    return "Auto → passthrough (no intrinsic size)";
+  })();
 
   return (
     <div
@@ -49,13 +59,18 @@ export function EmbedPreview({ value }: { value: EmbedValue }): ReactNode {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span style={labelStyle}>Embed</span>
+        <span style={labelStyle}>Embed (responsive)</span>
         {host && <HostBadge host={host} />}
       </div>
 
       <div style={detailRow}>
         <DetailLabel>Title</DetailLabel>
         <span style={{ color: previewText, fontSize: "0.8125rem" }}>{resolvedTitle}</span>
+      </div>
+
+      <div style={detailRow}>
+        <DetailLabel>Aspect</DetailLabel>
+        <span style={{ color: previewText, fontSize: "0.8125rem" }}>{aspectDisplay}</span>
       </div>
 
       <div style={detailRow}>
@@ -119,7 +134,7 @@ function InvalidEmbedCard({ hasInput }: { hasInput: boolean }): ReactNode {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <span style={labelStyle}>Embed</span>
+        <span style={labelStyle}>Embed (responsive)</span>
         <span
           style={{
             display: "inline-flex",

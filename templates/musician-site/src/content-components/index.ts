@@ -6,7 +6,7 @@
  *
  *   - `markdoc`  — markdoc tag definition consumed by markdoc.config.ts
  *   - `keystatic` — keystatic block/wrapper consumed by keystatic.config.ts
- *   - `tagName` — the markdoc tag slug (e.g. "content-image", "press-quotes")
+ *   - `tagName` — the markdoc tag slug (e.g. "content-image", "release-list")
  *
  * Add a new component by:
  *   1. Creating src/content-components/MyComponent/{MyComponent.astro,schema.ts,index.ts}
@@ -26,7 +26,6 @@ export * as Image from "./Image";
 export * as Video from "./Video";
 export * as Card from "./Card";
 export * as ReleaseList from "./ReleaseList";
-export * as PressQuotes from "./PressQuotes";
 export * as PhotoGallery from "./PhotoGallery";
 export * as ImageCarousel from "./ImageCarousel";
 export * as VideoGallery from "./VideoGallery";
@@ -41,6 +40,8 @@ export * as NewsletterEmailField from "./NewsletterEmailField";
 export * as NewsletterPhoneField from "./NewsletterPhoneField";
 export * as NewsletterTextField from "./NewsletterTextField";
 export * as NewsletterSelectField from "./NewsletterSelectField";
+export * as Quote from "./Quote";
+export * as CenteredBlock from "./CenteredBlock";
 
 import * as Section from "./Section";
 import * as FullscreenSection from "./FullscreenSection";
@@ -51,7 +52,6 @@ import * as Image from "./Image";
 import * as Video from "./Video";
 import * as Card from "./Card";
 import * as ReleaseList from "./ReleaseList";
-import * as PressQuotes from "./PressQuotes";
 import * as PhotoGallery from "./PhotoGallery";
 import * as ImageCarousel from "./ImageCarousel";
 import * as VideoGallery from "./VideoGallery";
@@ -66,6 +66,8 @@ import * as NewsletterEmailField from "./NewsletterEmailField";
 import * as NewsletterPhoneField from "./NewsletterPhoneField";
 import * as NewsletterTextField from "./NewsletterTextField";
 import * as NewsletterSelectField from "./NewsletterSelectField";
+import * as Quote from "./Quote";
+import * as CenteredBlock from "./CenteredBlock";
 
 /**
  * Ordered list of every content-component. The order affects nothing at
@@ -82,7 +84,6 @@ export const components = [
   Video,
   Card,
   ReleaseList,
-  PressQuotes,
   PhotoGallery,
   ImageCarousel,
   VideoGallery,
@@ -97,4 +98,6 @@ export const components = [
   NewsletterPhoneField,
   NewsletterTextField,
   NewsletterSelectField,
+  Quote,
+  CenteredBlock,
 ] as const;

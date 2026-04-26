@@ -7,7 +7,6 @@ import {
   pageFrontmatterSchema,
   releaseSchema,
   photoSchema,
-  pressQuoteSchema,
   tourDateSchema,
   headerAndNavSchema,
 } from "../schemas";
@@ -537,16 +536,6 @@ describe("photoSchema", () => {
   it("accepts optional caption", () => {
     const photo = photoSchema.parse({ src: "/img.jpg", alt: "Photo", caption: "Nice" });
     expect(photo.caption).toBe("Nice");
-  });
-});
-
-describe("pressQuoteSchema", () => {
-  it("accepts valid quote", () => {
-    expect(pressQuoteSchema.parse({ quote: "Amazing!", source: "Rolling Stone" })).toBeTruthy();
-  });
-
-  it("rejects empty source", () => {
-    expect(() => pressQuoteSchema.parse({ quote: "Great", source: "" })).toThrow();
   });
 });
 

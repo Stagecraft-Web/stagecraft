@@ -561,22 +561,6 @@ export default config({
     }),
 
     // -----------------------------------------------------------------
-    // Press quotes — one YAML file per quote
-    // -----------------------------------------------------------------
-
-    pressQuotes: collection({
-      label: "Press Quotes",
-      slugField: "source",
-      path: "src/content/collections/pressQuotes/*",
-      schema: {
-        quote: fields.text({ label: "Quote", multiline: true, validation: { isRequired: true } }),
-        source: fields.slug({ name: { label: "Source", validation: { isRequired: true } } }),
-        url: fields.text({ label: "URL" }),
-        date: fields.date({ label: "Date" }),
-      },
-    }),
-
-    // -----------------------------------------------------------------
     // Tour dates — one YAML file per date
     // -----------------------------------------------------------------
 

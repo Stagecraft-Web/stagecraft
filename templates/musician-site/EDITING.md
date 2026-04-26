@@ -50,7 +50,6 @@ src/content/
     releases/       ← One YAML file per album/single/EP
     photos/         ← One YAML file per photo
     videos/         ← One YAML file per video
-    pressQuotes/    ← One YAML file per press quote
     tourDates/      ← One YAML file per tour date
 ```
 
@@ -261,13 +260,19 @@ Introductory text for the press page.
 
 {% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
-{% press-quotes /%}
+{% quote
+   text="A remarkable debut that showcases genuine artistry and emotional depth."
+   attribution="Music Publication" /%}
+
+{% quote
+   text="A bold new voice in contemporary music — original, confident, and deeply moving."
+   attribution="Critic's Name, Magazine" /%}
 
 {% /section %}
 ```
 
 - The `{% button %}` tag (with an EPK download URL) renders a download button. Remove the tag to hide it.
-- The `{% press-quotes %}` tag pulls in all quotes from the Press Quotes collection. Remove the tag to hide them.
+- Each press quote is its own `{% quote %}` tag. Add or remove tags to manage the list — there's no separate Press Quotes collection.
 
 ### Music — `src/content/pages/music.mdoc`
 
@@ -334,7 +339,7 @@ title: Tour Schedule
 
 {% section title="Upcoming Shows" %}
 
-Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
+Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, quote, photo-gallery, contact-form) for content blocks.
 
 {% /section %}
 ```
@@ -424,18 +429,17 @@ description: Optional description.
 
 Valid type values: `youtube`, `vimeo`, `other`.
 
-### Add a press quote — `src/content/collections/pressQuotes/`
+### Add a press quote — `src/content/pages/press.mdoc`
 
-Create a YAML file, e.g. `publication-name.yaml`:
+Press quotes are authored inline on the press page using the `{% quote %}` tag. There is no separate collection.
 
-```yaml
-quote: A remarkable debut that showcases genuine artistry.
-source: Publication Name
-url: https://publication.com/review
-date: "2024-04-01"
+```markdoc
+{% quote
+   text="A remarkable debut that showcases genuine artistry."
+   attribution="Publication Name" /%}
 ```
 
-`url` and `date` are optional.
+Add as many `{% quote %}` tags as you have quotes. The `attribution` attribute is optional.
 
 ---
 
@@ -493,7 +497,8 @@ This checks all JSON, YAML, and Markdoc files against their schemas and reports 
 | `content-components/Column/` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
 | `content-components/Image/` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
 | `content-components/ReleaseList/` | Music releases grid (Markdoc tag: `{% release-list %}`) |
-| `content-components/PressQuotes/` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
+| `content-components/Quote/` | Featured pull-quote with optional attribution (Markdoc tag: `{% quote %}`) |
+| `content-components/CenteredBlock/` | Narrow or regular centered text column (Markdoc tag: `{% centered-block %}`) |
 | `content-components/PhotoGallery/` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
 | `content-components/ContactForm/` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
 | `Header.astro` | Site navigation |

@@ -10,6 +10,7 @@ export default {
         "title": { type: String },
         "headingLevel": { type: String, default: "h2", matches: ["h1","h2","h3","h4"] },
         "isTitleHidden": { type: Boolean, default: false },
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
       },
     },
     "fullscreen-section": {
@@ -19,6 +20,7 @@ export default {
         "isTitleHidden": { type: Boolean, default: false },
         "image": { type: String },
         "video": { type: String },
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
       },
     },
     "button": {
@@ -35,7 +37,11 @@ export default {
         "layout": { type: String, default: "1-1", matches: ["1-1","1-2","2-1","1-1-1"] },
       },
     },
-    "column": {},
+    "column": {
+      attributes: {
+        "textAlign": { type: String, default: "start", matches: ["start","center","end"] },
+      },
+    },
     "content-image": {
       selfClosing: true,
       attributes: {
@@ -73,9 +79,6 @@ export default {
       },
     },
     "release-list": {
-      selfClosing: true,
-    },
-    "press-quotes": {
       selfClosing: true,
     },
     "photo-gallery": {
@@ -183,6 +186,18 @@ export default {
         "autocomplete": { type: String, default: "off", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
         "isRequired": { type: Boolean, default: false },
         "placeholder": { type: String },
+      },
+    },
+    "quote": {
+      selfClosing: true,
+      attributes: {
+        "text": { type: String, required: true },
+        "attribution": { type: String },
+      },
+    },
+    "centered-block": {
+      attributes: {
+        "maxWidth": { type: String, default: "narrow", matches: ["narrow","regular"] },
       },
     },
   },

@@ -121,10 +121,12 @@ const headerClasses = [
     z-index: 100;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    /* Transition on background + border so the scroll-state fade-in is
-       smooth for transparent headers. Solid headers see no visible change
-       (background is already the surface color). */
-    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+    /* Border fades smoothly. Background does NOT transition: a fade-in
+       would briefly let scrolling content (e.g. a dark hero image)
+       read through the partially-transparent surface and create a
+       visible flash. Filling instantly avoids the flash; the border
+       transition is enough to keep the change from feeling abrupt. */
+    transition: border-color 150ms ease-out;
   }
 
   /* Position modifiers — mutually exclusive. "static" is the CSS default

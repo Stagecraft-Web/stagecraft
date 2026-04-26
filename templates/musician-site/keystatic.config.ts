@@ -213,25 +213,13 @@ export default config({
         // Dedicated subdirectory so favicons don't mix with photo/cover
         // assets; publicPath walks back two levels from site.json's location
         // (src/content/config/) to reach src/assets/favicons/.
-        favicon: fields.object(
-          {
-            src: fields.image({
-              label: "Favicon Image",
-              directory: "src/assets/favicons",
-              publicPath: "../../assets/favicons/",
-            }),
-            alt: fields.text({
-              label: "Alt Text",
-              description:
-                "Optional — browsers don't display favicon alt text, so this is informational only.",
-            }),
-          },
-          {
-            label: "Favicon",
-            description:
-              "Optional browser-tab icon. SVG recommended (scales crisply); PNG and JPG also supported. Leave Image blank to use the default favicon.",
-          },
-        ),
+        favicon: fields.image({
+          label: "Favicon",
+          description:
+            "Optional browser-tab icon. SVG recommended (scales crisply); PNG and JPG also supported. Leave blank to use the default favicon.",
+          directory: "src/assets/favicons",
+          publicPath: "../../assets/favicons/",
+        }),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(

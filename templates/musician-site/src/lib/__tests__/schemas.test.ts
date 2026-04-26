@@ -118,30 +118,18 @@ describe("siteConfigSchema", () => {
     expect(siteConfigSchema.parse(valid).favicon).toBeUndefined();
   });
 
-  it("accepts a favicon with just src (alt is optional)", () => {
+  it("accepts a favicon path string", () => {
     const withFavicon = {
       ...valid,
-      favicon: { src: "../../assets/favicons/favicon.svg" },
+      favicon: "../../assets/favicons/favicon.svg",
     };
     const result = siteConfigSchema.parse(withFavicon);
-    expect(result.favicon).toEqual({ src: "../../assets/favicons/favicon.svg" });
+    expect(result.favicon).toBe("../../assets/favicons/favicon.svg");
   });
 
-  it("accepts a favicon with src + alt", () => {
-    const withFavicon = {
-      ...valid,
-      favicon: { src: "../../assets/favicons/favicon.svg", alt: "Logo mark" },
-    };
-    const result = siteConfigSchema.parse(withFavicon);
-    expect(result.favicon?.alt).toBe("Logo mark");
-  });
-
-  it("rejects a favicon with an empty src", () => {
+  it("rejects an empty favicon string", () => {
     expect(() =>
-      siteConfigSchema.parse({
-        ...valid,
-        favicon: { src: "" },
-      }),
+      siteConfigSchema.parse({ ...valid, favicon: "" }),
     ).toThrow();
   });
 

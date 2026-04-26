@@ -61,19 +61,13 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
-// Site favicon. When set, the <link rel="icon"> in BaseLayout points at the
-// uploaded asset instead of the default `/favicons/favicon.svg` in `public/`.
-// `alt` is optional — browsers don't surface favicon alt text, so there's
-// nothing for screen readers to read.
-export const faviconSchema = z.object({
-  src: z.string().min(1),
-  alt: z.string().optional(),
-});
-
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
   wordmark: wordmarkSchema.optional(),
-  favicon: faviconSchema.optional(),
+  // Site favicon (path to uploaded asset). When set, the <link rel="icon">
+  // in BaseLayout points here instead of the default `/favicons/favicon.svg`
+  // shipped in `public/`.
+  favicon: z.string().min(1).optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
@@ -476,7 +470,6 @@ export const storeItemSchema = z.object({
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type Wordmark = z.infer<typeof wordmarkSchema>;
-export type Favicon = z.infer<typeof faviconSchema>;
 export type NavConfig = z.infer<typeof navConfigSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;

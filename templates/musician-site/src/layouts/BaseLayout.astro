@@ -39,7 +39,7 @@ const isFooterRendered = !isSplashPage && !(isFooterHidden ?? site.isFooterHidde
 // Resolve the favicon. If the author uploaded one and we can locate the
 // asset in src/assets/**, use its optimised URL; otherwise fall back to the
 // default SVG in public/favicons/. Infer the MIME type from the extension.
-const faviconImage = site.favicon ? resolveImage(site.favicon.src) : undefined;
+const faviconImage = site.favicon ? resolveImage(site.favicon) : undefined;
 const faviconHref = faviconImage?.src ?? "/favicons/favicon.svg";
 const faviconExt = faviconHref.split("?")[0].split(".").pop()?.toLowerCase() ?? "svg";
 const faviconType =

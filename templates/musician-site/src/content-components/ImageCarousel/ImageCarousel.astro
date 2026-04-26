@@ -32,25 +32,22 @@ import { getCollection } from "astro:content";
 // the default export as `ImageCarousel` directly would collide with the
 // Astro component's implicit declaration of the same name.
 import ImageCarouselIsland from "./ImageCarousel";
-import type { CarouselAspectRatio } from "./schema";
-import type { ImageUsageSlot } from "../../lib/schemas";
+import type { CarouselAspectRatio, PhotosFilter } from "./schema";
 
 interface Props {
   /**
-   * Photos-collection `usageSlot` filter. Optional: when unset (or empty
-   * string) the renderer includes every photo.
-   *
-   * The attribute name comes from the spec (`photosCollection`); the
-   * value is an IMAGE_USAGE_SLOTS member.
+   * Photos-collection `usageSlot` filter. `"all"` (the default) shows
+   * every photo; any IMAGE_USAGE_SLOTS member filters to photos whose
+   * `usageSlot` matches.
    */
-  photosCollection?: ImageUsageSlot | "";
+  photosCollection?: PhotosFilter;
   aspectRatio?: CarouselAspectRatio;
   areArrowsHidden?: boolean;
   areDotsHidden?: boolean;
 }
 
 const {
-  photosCollection,
+  photosCollection = "all",
   aspectRatio = "16/9",
   areArrowsHidden = false,
   areDotsHidden = false,
@@ -58,9 +55,9 @@ const {
 
 const allPhotoEntries = await getCollection("photos");
 const photoEntries =
-  photosCollection && photosCollection.length > 0
-    ? allPhotoEntries.filter((e) => e.data.usageSlot === photosCollection)
-    : allPhotoEntries;
+  photosCollection === "all"
+    ? allPhotoEntries
+    : allPhotoEntries.filter((e) => e.data.usageSlot === photosCollection);
 
 const photos = photoEntries.map((e) => e.data);
 

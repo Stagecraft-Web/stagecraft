@@ -8,10 +8,11 @@ import {
   previewAccent,
 } from "../_shared/previewTokens";
 import { StockPreviewFrame, CaptionNote, ImageIcon } from "../_shared/previewChrome";
-import type { CarouselAspectRatio } from "./schema";
+import type { CarouselAspectRatio, PhotosFilter } from "./schema";
+import { IMAGE_USAGE_SLOT_LABELS, type ImageUsageSlot } from "../../lib/schemas";
 
 type ImageCarouselValue = {
-  photosCollection: string;
+  photosCollection: PhotosFilter;
   aspectRatio: CarouselAspectRatio;
   areArrowsHidden: boolean;
   areDotsHidden: boolean;
@@ -36,9 +37,10 @@ export function ImageCarouselPreview({
   const hasNavError = areArrowsHidden && areDotsHidden;
 
   const aspectPadding = aspectRatioToPadding(aspectRatio);
-  const filterLabel = photosCollection
-    ? `Filtered: ${photosCollection}`
-    : "All photos";
+  const filterLabel =
+    photosCollection === "all"
+      ? "All photos"
+      : `Filtered: ${IMAGE_USAGE_SLOT_LABELS[photosCollection as ImageUsageSlot]}`;
 
   return (
     <StockPreviewFrame label="Image Carousel">

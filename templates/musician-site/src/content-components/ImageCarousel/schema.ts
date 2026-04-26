@@ -13,6 +13,18 @@ import { IMAGE_USAGE_SLOTS, IMAGE_USAGE_SLOT_LABELS } from "../../lib/schemas";
 import { ImageCarouselPreview } from "./preview";
 
 /**
+ * Sentinel value for the "show every photo" option. Combined with
+ * IMAGE_USAGE_SLOTS to form the full set of legal `photosCollection` values
+ * accepted by both the markdoc schema and the Keystatic select. Using a
+ * named sentinel (rather than the empty string) lets markdoc's `matches`
+ * validate the attribute without a special case. Same pattern as
+ * PostsList's `category` filter.
+ */
+const PHOTOS_FILTER_OPTIONS = ["all", ...IMAGE_USAGE_SLOTS] as const;
+type PhotosFilter = (typeof PHOTOS_FILTER_OPTIONS)[number];
+export type { PhotosFilter };
+
+/**
  * Markdoc tag `image-carousel`.
  *
  * Two-segment kebab ("image-carousel") — stays inside the @astrojs/markdoc
@@ -53,12 +65,11 @@ export const markdoc: MarkdocTagDefinition = {
   attributes: {
     photosCollection: {
       type: String,
-      // Optional — when unset the renderer shows all photos. When set,
-      // matches the value against the `usageSlot` field on each photo
-      // entry. (The attribute name is `photosCollection` per the spec but
-      // the value is an IMAGE_USAGE_SLOTS member; names kept as-is to
-      // match the specification verbatim.)
-      matches: IMAGE_USAGE_SLOTS as unknown as string[],
+      default: "all",
+      // `"all"` shows every photo; the other values match against the
+      // `usageSlot` field on each photo entry. (The attribute name is
+      // `photosCollection` per the spec; names kept as-is.)
+      matches: [...PHOTOS_FILTER_OPTIONS],
     },
     aspectRatio: {
       type: String,
@@ -85,17 +96,14 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Photo usage slot",
       description:
         "Filter the Photos collection to photos with this usage slot. 'All photos' shows every entry. (Inline-photos mode is not yet supported; add matching photos to the Photos collection.)",
-      options: [
-        { label: "All photos", value: "" },
-        ...IMAGE_USAGE_SLOTS.map((v) => ({
-          label: IMAGE_USAGE_SLOT_LABELS[v],
-          value: v,
-        })),
-      ] as [
-        { label: string; value: string },
-        ...{ label: string; value: string }[],
+      options: PHOTOS_FILTER_OPTIONS.map((v) => ({
+        label: v === "all" ? "All photos" : IMAGE_USAGE_SLOT_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: PhotosFilter },
+        ...{ label: string; value: PhotosFilter }[],
       ],
-      defaultValue: "",
+      defaultValue: "all",
     }),
     aspectRatio: fields.select({
       label: "Aspect ratio",
@@ -125,12 +133,5 @@ export const keystatic: KeystaticContentComponent = block({
   },
   ContentView: ImageCarouselPreview,
 });
-
-// The empty-string "All photos" option is a preview/admin-only value —
-// the astro renderer treats an empty `photosCollection` attribute as
-// "show all". Markdoc's `matches` constraint would otherwise reject it,
-// so we mark this as exempt from the schema-consistency test's
-// select-options-match-matches check.
-export const exemptKeys = ["photosCollection"];
 
 export const tagName = "image-carousel";

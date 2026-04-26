@@ -99,6 +99,23 @@ export const EMBED_ASPECT_RATIO_LABELS: Record<EmbedAspectRatio, string> = {
   "1/1": "1:1 (square)",
 };
 
+/**
+ * Aspect ratio for `{% image-carousel %}` slides. Declared separately from
+ * `EMBED_ASPECT_RATIOS` because the two serve different primitives (iframe
+ * embeds vs image slides) and their label strings aren't interchangeable —
+ * an image carousel's "Auto" means "match source", which is a different
+ * semantic from an embed's "Auto (use iframe's own size)".
+ */
+export const CAROUSEL_ASPECT_RATIOS = ["16/9", "4/3", "1/1", "auto"] as const;
+export type CarouselAspectRatio = (typeof CAROUSEL_ASPECT_RATIOS)[number];
+
+export const CAROUSEL_ASPECT_RATIO_LABELS: Record<CarouselAspectRatio, string> = {
+  "16/9": "16:9 (widescreen)",
+  "4/3": "4:3 (classic)",
+  "1/1": "1:1 (square)",
+  auto: "Auto (match source)",
+};
+
 /** Newsletter provider for `{% newsletter-signup %}`. */
 export const NEWSLETTER_SERVICES = [
   "mailchimp",
@@ -241,4 +258,37 @@ export const CARD_MEDIA_KIND_LABELS: Record<CardMediaKind, string> = {
   pdf: "PDF icon",
   icon: "Generic file icon",
   none: "None (no media)",
+};
+
+// ---------------------------------------------------------------------------
+// Center-alignment primitives
+//
+// Two independent enums that together cover the common "center this" needs:
+//
+//   - CENTERED_BLOCK_MAX_WIDTHS — `{% centered-block %}` tag width presets.
+//   - TEXT_ALIGNMENTS           — `textAlign` attribute shared by `section`,
+//                                 `fullscreen-section`, and `column` wrappers.
+// ---------------------------------------------------------------------------
+
+/** Max-width preset for `{% centered-block %}`. */
+export const CENTERED_BLOCK_MAX_WIDTHS = ["narrow", "regular"] as const;
+export type CenteredBlockMaxWidth = (typeof CENTERED_BLOCK_MAX_WIDTHS)[number];
+
+export const CENTERED_BLOCK_MAX_WIDTH_LABELS: Record<CenteredBlockMaxWidth, string> = {
+  narrow: "Narrow (~60ch)",
+  regular: "Regular (max-text)",
+};
+
+/**
+ * Horizontal text alignment for wrapper tags (`section`, `fullscreen-section`,
+ * `column`). `start` is the default — no-op at render time — and preserves
+ * existing output.
+ */
+export const TEXT_ALIGNMENTS = ["start", "center", "end"] as const;
+export type TextAlignment = (typeof TEXT_ALIGNMENTS)[number];
+
+export const TEXT_ALIGNMENT_LABELS: Record<TextAlignment, string> = {
+  start: "Start (default)",
+  center: "Center",
+  end: "End",
 };

@@ -4,7 +4,12 @@ import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
 } from "../_shared/types";
-import { HEADING_LEVELS, HEADING_LEVEL_LABELS } from "../_shared/types";
+import {
+  HEADING_LEVELS,
+  HEADING_LEVEL_LABELS,
+  TEXT_ALIGNMENTS,
+  TEXT_ALIGNMENT_LABELS,
+} from "../_shared/types";
 import { FullscreenSectionPreview } from "./preview";
 
 export const markdoc: MarkdocTagDefinition = {
@@ -24,6 +29,11 @@ export const markdoc: MarkdocTagDefinition = {
      * Renderer hides the video for users with `prefers-reduced-motion: reduce`.
      */
     video: { type: String },
+    textAlign: {
+      type: String,
+      default: "start",
+      matches: TEXT_ALIGNMENTS as unknown as string[],
+    },
   },
 };
 
@@ -59,6 +69,19 @@ export const keystatic: KeystaticContentComponent = wrapper({
         "Loops silently behind the content. The background image above is required as a poster and a fallback for browsers or users that block autoplay (including 'reduce motion' preferences).",
       directory: "src/assets/videos",
       publicPath: "../../assets/videos/",
+    }),
+    textAlign: fields.select({
+      label: "Text Alignment",
+      description:
+        "Horizontal alignment for text inside the overlay. Defaults to Start (the existing center-aligned overlay behavior is preserved).",
+      options: TEXT_ALIGNMENTS.map((v) => ({
+        label: TEXT_ALIGNMENT_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: (typeof TEXT_ALIGNMENTS)[number] },
+        ...{ label: string; value: (typeof TEXT_ALIGNMENTS)[number] }[],
+      ],
+      defaultValue: "start",
     }),
   },
   ContentView: FullscreenSectionPreview,

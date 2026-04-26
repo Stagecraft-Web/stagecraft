@@ -1,5 +1,6 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import FormGroup from "../react/FormGroup";
 import { pxToRem } from "../../lib/font-sizing";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
 import type {
@@ -365,35 +366,9 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
 }
 
 // ============================================================================
-// FormGroup — labelled form-field wrapper. Mirrors the Astro `FormGroup`
-// component used elsewhere on the public site (label above input, consistent
-// spacing). Lives here rather than in `src/components/` because the sidebar's
-// styling is intentionally self-contained — admin chrome shouldn't restyle
-// itself when the user changes the site's tokens.
-// ============================================================================
-
-interface FormGroupProps {
-  label: string;
-  children: ReactNode;
-  /** Accessible id linking the label to the control inside `children`. */
-  htmlFor?: string;
-}
-
-function FormGroup({ label, children, htmlFor }: FormGroupProps) {
-  const reactId = useId();
-  const id = htmlFor ?? reactId;
-  return (
-    <div className={styles.field}>
-      <label className={styles.label} htmlFor={id}>
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-// ============================================================================
-// Field subcomponents
+// Field subcomponents — every labelled select goes through the shared React
+// `FormGroup` primitive in `src/components/react/`. The sidebar's own
+// chrome (panel, footer, stepper) keeps its locally-scoped styling.
 // ============================================================================
 
 interface FieldProps {

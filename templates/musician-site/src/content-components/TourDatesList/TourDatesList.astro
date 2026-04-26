@@ -6,7 +6,7 @@
 // Rendering rules (see spec §3.2):
 //   - upcoming.length >= 2 → render upcoming-only (ascending).
 //   - upcoming.length === 1 → render that show + the most-recent
-//     `pastPadding` past shows under a "Recent shows" subheading.
+//     `pastPadding` past shows under a "Past shows" subheading.
 //   - upcoming.length === 0 → render `emptyMessage` + the same padded
 //     past shows below.
 //
@@ -168,7 +168,7 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
 
 {hasPadded && (
   <div class="tour-dates-recent tour-dates-section" data-tour-dates-section data-page-size={clampedPageSize}>
-    <h3 class="tour-dates-recent-heading">Recent shows</h3>
+    <h3 class="tour-dates-recent-heading">Past shows</h3>
     <ul class="tour-dates-list">
       {paddedPast.map((tourDate, index) => {
         const dateParts = formatDate(tourDate.date);
@@ -199,9 +199,6 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
             <div class="tour-date-action">
               {isSoldOut && <span class="tour-date-badge is-sold-out">Sold Out</span>}
               {isCanceled && <span class="tour-date-badge is-canceled-badge">Canceled</span>}
-              {!isSoldOut && !isCanceled && (
-                <span class="tour-date-badge is-past-badge">Past</span>
-              )}
             </div>
           </li>
         );

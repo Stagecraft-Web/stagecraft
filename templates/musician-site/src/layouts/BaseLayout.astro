@@ -5,6 +5,7 @@ import Footer from "../components/Footer.astro";
 import { AppearanceSidebar } from "../components/appearance-sidebar/AppearanceSidebar";
 import type { SidebarConfig } from "../components/appearance-sidebar/types";
 import { getSiteConfig, getTheme, getAppearance } from "../lib/content";
+import { resolveImage } from "../lib/resolve-image";
 import {
   appearanceToFontRequests,
   buildGoogleFontsUrl,
@@ -18,14 +19,38 @@ interface Props {
   /** When true, hide the site header and footer. Used for splash / landing
    *  pages that display a full-bleed hero and a single "enter site" link. */
   isSplashPage?: boolean;
+  /** Per-page override for the site-level footer toggle. Undefined means
+   *  "inherit site-level"; explicit true/false wins for this page only. */
+  isFooterHidden?: boolean;
 }
 
 const site = getSiteConfig();
 const theme = getTheme();
 const appearance = getAppearance();
-const { title, description, isSplashPage = false } = Astro.props;
+const { title, description, isSplashPage = false, isFooterHidden } = Astro.props;
 const pageTitle = title ? `${title} — ${site.artistName}` : site.siteTitle;
 const pageDescription = description ?? site.siteDescription;
+
+// Footer visibility: splash pages never render the footer. Otherwise, a
+// page-level explicit value wins; unset falls through to the site-level
+// default. `??` handles the "unset" case (undefined) without ever
+// collapsing an explicit `false` page override into site's value.
+const isFooterRendered = !isSplashPage && !(isFooterHidden ?? site.isFooterHidden);
+
+// Resolve the favicon. If the author uploaded one and we can locate the
+// asset in src/assets/**, use its optimised URL; otherwise fall back to the
+// default SVG in public/favicons/. Infer the MIME type from the extension.
+const faviconImage = site.favicon ? resolveImage(site.favicon) : undefined;
+const faviconHref = faviconImage?.src ?? "/favicons/favicon.svg";
+const faviconExt = faviconHref.split("?")[0].split(".").pop()?.toLowerCase() ?? "svg";
+const faviconType =
+  faviconExt === "svg"
+    ? "image/svg+xml"
+    : faviconExt === "png"
+      ? "image/png"
+      : faviconExt === "jpg" || faviconExt === "jpeg"
+        ? "image/jpeg"
+        : undefined;
 
 const colorMode = theme.colorMode ?? "light";
 
@@ -99,7 +124,8 @@ const sidebarConfig: SidebarConfig = {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={pageDescription} />
     <title>{pageTitle}</title>
-    <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" />
+    <link rel="icon" type={faviconType} href={faviconHref} />
+    <link rel="apple-touch-icon" href={faviconHref} />
 
     {/* Google Fonts — preconnect then fetch. Only the exact weights
         in use (see appearance.json → typography.weights) are requested. */}
@@ -169,7 +195,7 @@ const sidebarConfig: SidebarConfig = {
     <main id="main-content">
       <slot />
     </main>
-    {!isSplashPage && <Footer />}
+    {isFooterRendered && <Footer />}
 
     {/* Stagecraft Appearance sidebar — included whenever it has a viable
         save path (GitHub in prod, local API in dev). Hidden in the

@@ -51,11 +51,22 @@ describe("siteConfigSchema", () => {
     siteDescription: "Official site",
     socialLinks: { instagram: "https://instagram.com/janedoe" },
     contactEmail: "jane@example.com",
-    copyright: "2024 Jane Doe",
   };
 
   it("accepts a valid config", () => {
-    expect(siteConfigSchema.parse(valid)).toEqual(valid);
+    // `isFooterHidden` defaults to false, so the parsed result is a superset.
+    expect(siteConfigSchema.parse(valid)).toMatchObject(valid);
+  });
+
+  // ---- Copyright holder ---------------------------------------------------
+  it("parses without copyrightName (optional)", () => {
+    const result = siteConfigSchema.parse(valid);
+    expect(result.copyrightName).toBeUndefined();
+  });
+
+  it("accepts an explicit copyrightName", () => {
+    const result = siteConfigSchema.parse({ ...valid, copyrightName: "Jane Doe LLC" });
+    expect(result.copyrightName).toBe("Jane Doe LLC");
   });
 
   it("rejects missing artistName", () => {
@@ -100,6 +111,44 @@ describe("siteConfigSchema", () => {
         wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
       }),
     ).toThrow();
+  });
+
+  it("coerces an empty wordmark object to undefined (Keystatic save artifact)", () => {
+    // Keystatic's fields.object writes `"wordmark": {}` when both the
+    // image and text inputs are blank. The schema treats this as "no
+    // wordmark set" rather than throwing.
+    const result = siteConfigSchema.parse({ ...valid, wordmark: {} });
+    expect(result.wordmark).toBeUndefined();
+  });
+
+  // ---- Favicon ------------------------------------------------------------
+  it("parses without a favicon (optional field)", () => {
+    expect(siteConfigSchema.parse(valid).favicon).toBeUndefined();
+  });
+
+  it("accepts a favicon path string", () => {
+    const withFavicon = {
+      ...valid,
+      favicon: "../../assets/favicons/favicon.svg",
+    };
+    const result = siteConfigSchema.parse(withFavicon);
+    expect(result.favicon).toBe("../../assets/favicons/favicon.svg");
+  });
+
+  it("rejects an empty favicon string", () => {
+    expect(() =>
+      siteConfigSchema.parse({ ...valid, favicon: "" }),
+    ).toThrow();
+  });
+
+  // ---- isFooterHidden -----------------------------------------------------
+  it("defaults isFooterHidden to false when omitted", () => {
+    expect(siteConfigSchema.parse(valid).isFooterHidden).toBe(false);
+  });
+
+  it("accepts an explicit isFooterHidden=true", () => {
+    const result = siteConfigSchema.parse({ ...valid, isFooterHidden: true });
+    expect(result.isFooterHidden).toBe(true);
   });
 });
 
@@ -446,6 +495,15 @@ describe("pageFrontmatterSchema", () => {
   it("ignores extra fields", () => {
     const result = pageFrontmatterSchema.parse({ title: "Home", extra: "field" });
     expect(result.title).toBe("Home");
+  });
+
+  it("accepts optional isFooterHidden", () => {
+    const hidden = pageFrontmatterSchema.parse({ title: "Home", isFooterHidden: true });
+    expect(hidden.isFooterHidden).toBe(true);
+    const visible = pageFrontmatterSchema.parse({ title: "Home", isFooterHidden: false });
+    expect(visible.isFooterHidden).toBe(false);
+    const unset = pageFrontmatterSchema.parse({ title: "Home" });
+    expect(unset.isFooterHidden).toBeUndefined();
   });
 });
 

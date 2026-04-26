@@ -30,8 +30,10 @@
  * are pulled from the `width`/`height` attributes if they are pixel values,
  * otherwise from inline `style="width: Xpx; height: Ypx"` rules. Percent
  * values (`width="100%"`) don't count — they describe the iframe's
- * rendered width, not its natural dimensions. ResponsiveEmbed uses these
- * to auto-derive an aspect ratio for fixed-size embeds (Bandcamp 350×470).
+ * rendered width, not its natural dimensions. These fields let the renderer
+ * auto-derive an aspect ratio + max-width for fixed-size embeds (Bandcamp
+ * 350×470 players) so the wrapper can scale them responsively without the
+ * author configuring anything.
  */
 
 /**
@@ -233,80 +235,6 @@ export function extractIframe(input: string | null | undefined): ParsedIframe | 
   const host = extractEmbedHost(attributes.src);
 
   return { attributes, intrinsicWidth, intrinsicHeight, host };
-}
-
-/**
- * Astro's IframeHTMLAttributes types each attribute narrowly:
- *
- *   - `loading`: `"lazy" | "eager" | null | undefined`
- *   - `allowfullscreen`: `boolean | string`
- *   - `frameborder`: `string`
- *   - everything else on our allowlist: `string`
- *
- * The parser hands us `string` values across the board, so this type narrows
- * `loading` to its accepted union and converts the bare-boolean
- * `allowfullscreen=""` to `true` (Astro drops empty-string attributes during
- * spread, which would otherwise lose the attribute entirely).
- */
-export type IframeAttrs = {
-  src?: string;
-  width?: string;
-  height?: string;
-  title?: string;
-  allow?: string;
-  loading?: "lazy" | "eager";
-  style?: string;
-  frameborder?: string;
-  allowfullscreen?: boolean;
-};
-
-/**
- * Build the spreadable attribute set Astro needs to render `<iframe {...attrs} />`.
- *
- * Shared between Embed (plain) and ResponsiveEmbed (aspect-ratio wrapped) so
- * the title fallback chain, attribute narrowing, and lazy-loading default
- * stay in one place. ResponsiveEmbed passes `stripDimensions: true` so the
- * iframe's hardcoded width/height (attribute and inline style) don't fight
- * the wrapper's `position: absolute; inset: 0` sizing.
- */
-export function buildIframeAttrs(
-  parsed: ParsedIframe,
-  options: { title?: string; stripDimensions?: boolean } = {},
-): IframeAttrs {
-  const source = parsed.attributes;
-  const resolvedTitle =
-    options.title?.trim() ||
-    source.title?.trim() ||
-    (parsed.host ? `Embedded content from ${parsed.host}` : "Embedded content");
-
-  const attrs: IframeAttrs = {
-    src: source.src,
-    width: source.width,
-    height: source.height,
-    allow: source.allow,
-    style: source.style,
-    frameborder: source.frameborder,
-    title: resolvedTitle,
-    // Lazy-load by default — embed iframes are network-heavy and rarely
-    // above the fold. Authors who want eager loading can edit the snippet.
-    loading: source.loading === "eager" ? "eager" : "lazy",
-    // Bare boolean attribute (`<iframe allowfullscreen>`). Storing `true`
-    // tells Astro to render it without a value.
-    allowfullscreen: source.allowfullscreen !== undefined ? true : undefined,
-  };
-
-  if (options.stripDimensions) {
-    delete attrs.width;
-    delete attrs.height;
-    const cleanedStyle = stripDimensionsFromStyle(source.style);
-    if (cleanedStyle.length > 0) {
-      attrs.style = cleanedStyle;
-    } else {
-      delete attrs.style;
-    }
-  }
-
-  return attrs;
 }
 
 /**

@@ -11,13 +11,37 @@
  *
  * Sizing
  * ------
- * No magic. The iframe renders at whatever width/height its source attributes
- * specify (Bandcamp's 350×470 player stays 350×470). The only default is
- * `max-width: 100%` so a hardcoded-pixel embed can't horizontally overflow
- * its column on a narrow viewport.
+ * Controlled by the `responsive` boolean prop (default `true`).
  *
- * Want responsive scaling (fill the column, maintain aspect ratio)? Use
- * `{% responsive-embed %}` instead.
+ * `responsive: false` — render the iframe at whatever pixel dimensions its
+ * source attributes specify (Bandcamp 350×470, Spotify 352-tall, etc.),
+ * capped only by `max-width: 100%` so a hardcoded-pixel embed can't
+ * horizontally overflow its column on a narrow viewport. `aspectRatio`,
+ * `minHeight`, and `maxWidth` are ignored in this branch.
+ *
+ * `responsive: true` (default) — wrap the iframe in an `aspect-ratio` box
+ * that fills the column width. Two sub-modes:
+ *
+ *   - `aspectRatio: "auto"` (default) derives the ratio from the iframe's
+ *     intrinsic pixel dimensions (width / height attrs, or pixel values
+ *     parsed out of `style="…"`). Bandcamp's 350×470 player becomes a
+ *     wrapper with `aspect-ratio: 350/470; width: 100%`. If neither
+ *     dimension is pixel-expressible (e.g. a YouTube embed with
+ *     `width="100%"`), we fall back to the responsive passthrough below.
+ *   - An explicit ratio string like "16/9" forces that ratio regardless of
+ *     the iframe's intrinsic size — best for video embeds.
+ *
+ *   The wrapper has no max-width cap by default — the embed fills the
+ *   column on every viewport, even when wider than the iframe's intrinsic
+ *   width. Authors who want to keep a small player from stretching past a
+ *   comfortable size on wide layouts can set `maxWidth`. `minHeight` floors
+ *   the wrapper height for short players.
+ *
+ *   Responsive passthrough: when `responsive: true` but no aspect ratio is
+ *   derivable (auto mode + no intrinsic pixel dims, no explicit ratio), the
+ *   iframe falls through to its own width/height attributes. `width="100%"`
+ *   embeds fill the column; everything else degrades to the non-responsive
+ *   behavior with `max-width: 100%`.
  *
  * Title fallback chain
  * --------------------
@@ -25,36 +49,203 @@
  * generic "Embedded content from <host>" string. Always set so the iframe
  * has an a11y label.
  */
-import { extractIframe, buildIframeAttrs, type IframeAttrs } from "./extractIframe";
+import { extractIframe, stripDimensionsFromStyle } from "./extractIframe";
+import type { EmbedAspectRatio } from "./schema";
 
 interface Props {
   code: string;
+  responsive?: boolean;
+  aspectRatio?: EmbedAspectRatio;
   title?: string;
+  minHeight?: number;
+  maxWidth?: number;
 }
 
-const { code, title } = Astro.props;
+const {
+  code,
+  responsive = true,
+  aspectRatio = "auto",
+  title,
+  minHeight,
+  maxWidth,
+} = Astro.props;
 
 const parsed = extractIframe(code);
-const attrs: IframeAttrs | null = parsed ? buildIframeAttrs(parsed, { title }) : null;
+const hasParseError = parsed === null;
+
+// Sizing decision tree:
+//   responsive=false             → plain iframe at intrinsic dims
+//   responsive=true + explicit   → wrapper, force ratio, fill column
+//   responsive=true + auto + box → wrapper, derive ratio from intrinsic, fill column
+//   responsive=true + auto - box → passthrough: iframe's own width/height applies
+const isExplicitRatio =
+  responsive && !hasParseError && aspectRatio !== "auto";
+
+const hasIntrinsicBox =
+  responsive &&
+  !hasParseError &&
+  aspectRatio === "auto" &&
+  parsed.intrinsicWidth !== null &&
+  parsed.intrinsicHeight !== null;
+
+const isWrapperSizing = isExplicitRatio || hasIntrinsicBox;
+
+/**
+ * Astro's IframeHTMLAttributes types each attribute narrowly:
+ *
+ *   - `loading`: `"lazy" | "eager" | null | undefined`
+ *   - `allowfullscreen`: `boolean | string`
+ *   - `frameborder`: `string`
+ *   - everything else on our allowlist: `string`
+ *
+ * The parser hands us `string` values across the board, so we narrow
+ * `loading` to its accepted union and convert the bare-boolean
+ * `allowfullscreen=""` to `true` (Astro drops empty-string attributes
+ * during spread, which would otherwise lose the attribute entirely).
+ */
+type IframeLoading = "lazy" | "eager";
+type IframeAttrs = {
+  src?: string;
+  width?: string;
+  height?: string;
+  title?: string;
+  allow?: string;
+  loading?: IframeLoading;
+  style?: string;
+  frameborder?: string;
+  allowfullscreen?: boolean;
+};
+
+function narrowLoading(raw: string | undefined): IframeLoading {
+  return raw === "eager" ? "eager" : "lazy";
+}
+
+let attrs: IframeAttrs = {};
+let resolvedTitle = "";
+let wrapperStyle: string | undefined;
+
+if (parsed) {
+  const source = parsed.attributes;
+  resolvedTitle =
+    title?.trim() ||
+    source.title?.trim() ||
+    (parsed.host ? `Embedded content from ${parsed.host}` : "Embedded content");
+
+  attrs = {
+    src: source.src,
+    width: source.width,
+    height: source.height,
+    allow: source.allow,
+    style: source.style,
+    frameborder: source.frameborder,
+    title: resolvedTitle,
+    // Lazy-load by default — embed iframes are network-heavy and rarely
+    // above the fold. Authors who want eager loading can edit the snippet.
+    loading: narrowLoading(source.loading),
+    // Bare boolean attribute (`<iframe allowfullscreen>`). Storing `true`
+    // tells Astro to render it without a value.
+    allowfullscreen: source.allowfullscreen !== undefined ? true : undefined,
+  };
+
+  // When a wrapper sizes the iframe via `position: absolute; inset: 0;
+  // width: 100%; height: 100%;` we strip anything from the iframe that
+  // would fight it. For inline `style="border:0; width:350px"` this means
+  // keeping the non-dimensional rules but dropping the width/height ones.
+  if (isWrapperSizing) {
+    delete attrs.width;
+    delete attrs.height;
+    const cleanedStyle = stripDimensionsFromStyle(source.style);
+    if (cleanedStyle.length > 0) {
+      attrs.style = cleanedStyle;
+    } else {
+      delete attrs.style;
+    }
+  }
+
+  // Build the wrapper's inline style. Uses CSS custom properties so the
+  // static `.embed-ratio` rule handles both the explicit-ratio and the
+  // auto-detect cases identically.
+  //
+  // Responsive embeds fill the column by default (no max-width cap from
+  // intrinsic). Authors who want to keep a small embed from stretching on
+  // wide layouts opt in via the `maxWidth` field.
+  const wrapperDecls: string[] = [];
+  if (isExplicitRatio) {
+    wrapperDecls.push(`--embed-aspect-ratio: ${aspectRatio}`);
+  } else if (hasIntrinsicBox) {
+    wrapperDecls.push(
+      `--embed-aspect-ratio: ${parsed.intrinsicWidth}/${parsed.intrinsicHeight}`,
+    );
+  }
+  if (responsive && typeof maxWidth === "number") {
+    wrapperDecls.push(`max-width: ${maxWidth}px`);
+  }
+  if (responsive && typeof minHeight === "number") {
+    wrapperDecls.push(`min-height: ${minHeight}px`);
+  }
+  wrapperStyle = wrapperDecls.length > 0 ? wrapperDecls.join("; ") : undefined;
+}
 ---
 
-{attrs === null ? (
+{hasParseError ? (
   <div class="embed-error" role="alert">
     <strong>Embed code couldn't be parsed.</strong>
     <span>Paste the full <code>&lt;iframe&gt;</code> snippet from the service's "Share / Embed" UI.</span>
   </div>
+) : isWrapperSizing ? (
+  <div class="embed-wrapper embed-ratio" style={wrapperStyle}>
+    <iframe {...attrs} />
+  </div>
 ) : (
-  <iframe class="embed" {...attrs} />
+  <div class="embed-wrapper" style={wrapperStyle}>
+    <iframe {...attrs} />
+  </div>
 )}
 
 <style>
-  .embed {
+  .embed-wrapper {
+    margin: var(--space-md, 1rem) 0;
+    max-width: 100%;
+  }
+
+  /*
+   * Plain / passthrough wrapper: let the iframe's intrinsic dimensions
+   * apply, but never let it overflow the column. Block display +
+   * max-width:100% handles fixed-height players (Spotify's 352px tall
+   * card, Bandcamp's 350×470) on mobile gracefully. This is the path for
+   * `responsive: false` and for `responsive: true + auto + no intrinsic box`.
+   */
+  .embed-wrapper iframe {
     display: block;
     max-width: 100%;
     border: 0;
-    margin: var(--space-md, 1rem) 0;
   }
 
+  /*
+   * Aspect-ratio wrapper: position the iframe to fill a box constrained
+   * by `aspect-ratio`. Modern browsers (95%+) support `aspect-ratio` so
+   * we don't need the padding-bottom hack. Used both for explicit author
+   * ratios (16/9 etc.) and for the auto-detected intrinsic box.
+   */
+  .embed-ratio {
+    position: relative;
+    width: 100%;
+    aspect-ratio: var(--embed-aspect-ratio);
+  }
+
+  .embed-ratio iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /*
+   * Inline error block — surfaces parse failures so editors notice the
+   * problem in dev/preview rather than seeing an empty page region.
+   * Colors come from the design tokens; the error styling mirrors the
+   * form-status-error pattern used in ContactForm.
+   */
   .embed-error {
     margin: var(--space-md, 1rem) 0;
     padding: 0.75rem 1rem;

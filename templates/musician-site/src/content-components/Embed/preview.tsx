@@ -9,9 +9,12 @@ import {
   labelStyle,
 } from "../_shared/previewTokens";
 import { extractIframe, extractEmbedHost } from "./extractIframe";
+import type { EmbedAspectRatio } from "./schema";
 
 type EmbedValue = {
   code: string;
+  responsive: boolean;
+  aspectRatio: EmbedAspectRatio;
   title: string;
 };
 
@@ -26,7 +29,7 @@ type EmbedValue = {
  * any sanitization issue (missing src, no iframe at all) shows here too.
  */
 export function EmbedPreview({ value }: { value: EmbedValue }): ReactNode {
-  const { code, title } = value;
+  const { code, responsive, aspectRatio, title } = value;
   const parsed = extractIframe(code);
 
   if (!parsed) {
@@ -56,6 +59,15 @@ export function EmbedPreview({ value }: { value: EmbedValue }): ReactNode {
       <div style={detailRow}>
         <DetailLabel>Title</DetailLabel>
         <span style={{ color: previewText, fontSize: "0.8125rem" }}>{resolvedTitle}</span>
+      </div>
+
+      <div style={detailRow}>
+        <DetailLabel>Sizing</DetailLabel>
+        <span style={{ color: previewText, fontSize: "0.8125rem" }}>
+          {responsive
+            ? `Responsive (${aspectRatio === "auto" ? "auto ratio" : aspectRatio})`
+            : "Fixed (intrinsic pixel size)"}
+        </span>
       </div>
 
       <div style={detailRow}>

@@ -378,19 +378,6 @@ Self-closing tag that renders the contact form.
 - Self-contained form with honeypot, FormGroup fields, client-side JS submit handler
 - Rendered by the `{% contact-form /%}` Markdoc tag
 
-### `Embed.astro` (Markdoc tag: `{% embed %}`)
-Plain sanitized iframe — renders an author-pasted embed snippet at its native dimensions.
-- Props: `code` (required, raw `<iframe …>` HTML), `title` (optional a11y label)
-- Iframe is allowlist-sanitized (see `Embed/extractIframe.ts`); only safe attributes survive
-- No aspect-ratio handling, no max-width cap beyond `max-width: 100%`
-- Use when you want the embed at its source dimensions; use `{% responsive-embed %}` to scale
-
-### `ResponsiveEmbed.astro` (Markdoc tag: `{% responsive-embed %}`)
-Aspect-ratio-wrapped embed that scales to fill its column.
-- Props: `code` (required), `aspectRatio` (default `"auto"` — derived from intrinsic iframe dims), `title`, `maxWidth` (optional cap), `minHeight`
-- Shares `extractIframe` + `buildIframeAttrs` with `Embed`; the iframe is positioned absolute inside a `width: 100%; aspect-ratio: <ratio>` wrapper
-- `aspectRatio="auto"` falls back to plain rendering when intrinsic dimensions can't be derived (e.g. Spotify's `width="100%"` snippet)
-
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.
 - Props: `src` (string URL), `alt`, `className`, `loading`, `aspectRatio`, `objectFit`

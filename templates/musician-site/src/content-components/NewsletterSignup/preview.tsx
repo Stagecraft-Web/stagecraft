@@ -3,13 +3,14 @@ import {
   previewAccent,
   previewBorder,
   previewBg,
-  previewBgMuted,
   previewRadius,
   previewText,
-  previewTextMuted,
 } from "../_shared/previewTokens";
 import { StockPreviewFrame, CaptionNote } from "../_shared/previewChrome";
-import type { NewsletterService } from "./schema";
+import {
+  NEWSLETTER_SERVICE_LABELS,
+  type NewsletterService,
+} from "../_shared/types";
 
 type NewsletterSignupValue = {
   service: NewsletterService;
@@ -20,14 +21,6 @@ type NewsletterSignupValue = {
   title: string;
   submitLabel: string;
   successMessage: string;
-  captureName: boolean;
-};
-
-const SERVICE_BADGE_LABEL: Record<NewsletterService, string> = {
-  mailchimp: "Mailchimp",
-  convertkit: "ConvertKit",
-  buttondown: "Buttondown",
-  generic: "Generic",
 };
 
 /**
@@ -36,14 +29,21 @@ const SERVICE_BADGE_LABEL: Record<NewsletterService, string> = {
  * shell doesn't load site CSS). The top-right badge shows which service
  * is wired so editors can tell at a glance whether the current block is
  * targeting Mailchimp, ConvertKit, etc.
+ *
+ * Child `newsletter-field` blocks render via the `children` slot — the
+ * email row is just one of those children (authors must add it explicitly,
+ * see schema.ts validate). Keystatic renders nested blocks itself so the
+ * field list stays editable inline.
  */
 export function NewsletterSignupPreview({
   value,
+  children,
 }: {
   value: NewsletterSignupValue;
+  children: ReactNode;
 }): ReactNode {
-  const { service, title, submitLabel, captureName } = value;
-  const badgeLabel = SERVICE_BADGE_LABEL[service] ?? "Newsletter";
+  const { service, title, submitLabel } = value;
+  const badgeLabel = NEWSLETTER_SERVICE_LABELS[service] ?? "Newsletter";
 
   return (
     <StockPreviewFrame label="Newsletter Signup">
@@ -89,10 +89,7 @@ export function NewsletterSignupPreview({
           {title || "Newsletter"}
         </div>
 
-        {captureName && (
-          <StockInputRow label="First name" placeholder="Your name" />
-        )}
-        <StockInputRow label="Email" placeholder="you@example.com" />
+        {children}
 
         <div style={{ marginTop: "0.25rem" }}>
           <span
@@ -117,40 +114,5 @@ export function NewsletterSignupPreview({
         POSTs to the configured {badgeLabel} endpoint. Includes a hidden honeypot.
       </CaptionNote>
     </StockPreviewFrame>
-  );
-}
-
-function StockInputRow({
-  label,
-  placeholder,
-}: {
-  label: string;
-  placeholder: string;
-}): ReactNode {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-      <div
-        style={{
-          fontSize: "0.75rem",
-          fontWeight: 600,
-          color: previewText,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          border: previewBorder,
-          borderRadius: "4px",
-          background: previewBgMuted,
-          padding: "0.5rem 0.625rem",
-          fontSize: "0.75rem",
-          color: previewTextMuted,
-          fontStyle: "italic",
-        }}
-      >
-        {placeholder}
-      </div>
-    </div>
   );
 }

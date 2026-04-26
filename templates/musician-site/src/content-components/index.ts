@@ -34,8 +34,13 @@ export * as TourDatesList from "./TourDatesList";
 export * as StoreItemList from "./StoreItemList";
 export * as ContactForm from "./ContactForm";
 export * as Embed from "./Embed";
+export * as EmbedResponsive from "./EmbedResponsive";
 export * as PostsList from "./PostsList";
 export * as NewsletterSignup from "./NewsletterSignup";
+export * as NewsletterEmailField from "./NewsletterEmailField";
+export * as NewsletterPhoneField from "./NewsletterPhoneField";
+export * as NewsletterTextField from "./NewsletterTextField";
+export * as NewsletterSelectField from "./NewsletterSelectField";
 
 import * as Section from "./Section";
 import * as FullscreenSection from "./FullscreenSection";
@@ -54,8 +59,13 @@ import * as TourDatesList from "./TourDatesList";
 import * as StoreItemList from "./StoreItemList";
 import * as ContactForm from "./ContactForm";
 import * as Embed from "./Embed";
+import * as EmbedResponsive from "./EmbedResponsive";
 import * as PostsList from "./PostsList";
 import * as NewsletterSignup from "./NewsletterSignup";
+import * as NewsletterEmailField from "./NewsletterEmailField";
+import * as NewsletterPhoneField from "./NewsletterPhoneField";
+import * as NewsletterTextField from "./NewsletterTextField";
+import * as NewsletterSelectField from "./NewsletterSelectField";
 
 /**
  * Ordered list of every content-component. The order affects nothing at
@@ -80,6 +90,11 @@ export const components = [
   StoreItemList,
   ContactForm,
   Embed,
+  EmbedResponsive,
   PostsList,
   NewsletterSignup,
+  NewsletterEmailField,
+  NewsletterPhoneField,
+  NewsletterTextField,
+  NewsletterSelectField,
 ] as const;

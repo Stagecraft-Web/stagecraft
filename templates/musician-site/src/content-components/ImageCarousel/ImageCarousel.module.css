@@ -43,26 +43,55 @@
 }
 
 /*
- * Each slide is stacked absolutely on top of the track. Only the active
- * slide is visible (opacity 1 + pointer-events auto); the rest fade out
- * via the `transition` rule below. `transform: translateX(0)` paired with
- * the `.isOutgoing` / `.isIncoming` modifiers gives a slide-in animation.
+ * Slides stack absolutely on the track. Only the active slide is visible.
+ * Inactive slides cross-fade out via the opacity transition; the new
+ * active slide animates in from the side that matches the navigation
+ * direction (`data-direction` on the track is set by the React island).
+ *
+ * Animating only the entering slide — rather than translating both — keeps
+ * the leaving slide's exit predictable regardless of wrap-around.
  */
 .slide {
   position: absolute;
   inset: 0;
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity 0.4s ease,
-    transform 0.4s ease;
-  transform: translateX(100%);
+  transition: opacity 0.4s ease;
 }
 
 .slideActive {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0);
+}
+
+.track[data-direction="forward"] .slideActive {
+  animation: image-carousel-enter-from-right 0.4s ease;
+}
+
+.track[data-direction="backward"] .slideActive {
+  animation: image-carousel-enter-from-left 0.4s ease;
+}
+
+@keyframes image-carousel-enter-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes image-carousel-enter-from-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .slide img {
@@ -76,10 +105,14 @@
   object-fit: contain;
 }
 
-/* Respect reduced-motion preference — disable the transition entirely. */
+/* Respect reduced-motion preference — disable transitions and animations. */
 @media (prefers-reduced-motion: reduce) {
   .slide {
     transition: none;
+  }
+  .track[data-direction="forward"] .slideActive,
+  .track[data-direction="backward"] .slideActive {
+    animation: none;
   }
 }
 

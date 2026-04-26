@@ -38,6 +38,12 @@ export default function ImageCarousel({
   aspectRatio = "16/9",
 }: ImageCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  // Tracks the direction of the most recent navigation so the CSS can
+  // animate the new slide in from the matching side (forward → enters
+  // from the right, backward → enters from the left). Wrap-around at
+  // either end follows the user's arrow choice rather than the index
+  // delta — `goPrev` from slide 0 still feels like "going back".
+  const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const rootRef = useRef<HTMLDivElement>(null);
 
   const slideCount = slides.length;
@@ -45,16 +51,22 @@ export default function ImageCarousel({
   const hasMultipleSlides = slideCount > 1;
 
   const goNext = useCallback(() => {
+    setDirection("forward");
     setActiveIndex((i) => nextIndex(i, slideCount));
   }, [slideCount]);
 
   const goPrev = useCallback(() => {
+    setDirection("backward");
     setActiveIndex((i) => prevIndex(i, slideCount));
   }, [slideCount]);
 
   const goTo = useCallback(
     (target: number) => {
-      setActiveIndex(clampIndex(target, slideCount));
+      setActiveIndex((current) => {
+        const clamped = clampIndex(target, slideCount);
+        setDirection(clamped >= current ? "forward" : "backward");
+        return clamped;
+      });
     },
     [slideCount],
   );
@@ -118,6 +130,7 @@ export default function ImageCarousel({
       <div
         className={styles.track}
         data-aspect-auto={isAspectAuto ? "true" : "false"}
+        data-direction={direction}
         style={aspectStyle}
       >
         {slides.map((slide, index) => {

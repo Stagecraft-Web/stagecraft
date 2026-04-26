@@ -28,9 +28,7 @@ export function QuotePreview({ value }: { value: QuoteValue }): ReactNode {
         style={{
           margin: 0,
           padding: 0,
-          textAlign: "center",
           maxWidth: "36rem",
-          marginInline: "auto",
         }}
       >
         <p

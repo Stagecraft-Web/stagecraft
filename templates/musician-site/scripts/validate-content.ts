@@ -4,7 +4,7 @@ import yaml from "yaml";
 import Markdoc from "@markdoc/markdoc";
 import {
   siteConfigSchema,
-  navConfigSchema,
+  headerAndNavSchema,
   themeSchema,
   appearanceSchema,
   pageFrontmatterSchema,
@@ -70,7 +70,7 @@ function requireFile(filePath: string) {
 }
 
 requireFile(path.join(ROOT, "src/content/config/site.json"));
-requireFile(path.join(ROOT, "src/content/config/nav.json"));
+requireFile(path.join(ROOT, "src/content/config/header.json"));
 requireFile(path.join(ROOT, "src/content/config/theme.json"));
 requireFile(path.join(ROOT, "src/content/config/appearance.json"));
 
@@ -137,7 +137,7 @@ function validatePageFrontmatter(filePath: string) {
 // ============================================================
 
 validateJson(path.join(ROOT, "src/content/config/site.json"), siteConfigSchema);
-validateJson(path.join(ROOT, "src/content/config/nav.json"), navConfigSchema);
+validateJson(path.join(ROOT, "src/content/config/header.json"), headerAndNavSchema);
 validateJson(path.join(ROOT, "src/content/config/theme.json"), themeSchema);
 validateJson(path.join(ROOT, "src/content/config/appearance.json"), appearanceSchema);
 

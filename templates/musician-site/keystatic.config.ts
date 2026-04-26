@@ -4,6 +4,8 @@ import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  HEADER_MODES,
+  HEADER_MODE_LABELS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
@@ -17,6 +19,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type HeaderMode,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -179,35 +182,6 @@ export default config({
       format: { data: "json" },
       schema: {
         artistName: fields.text({ label: "Artist Name", validation: { isRequired: true } }),
-        // Optional brand wordmark image. When set, the Header renders this
-        // image in place of the artist-name text. All other uses of
-        // artistName (document <title>, meta tags, footer) are unaffected —
-        // the wordmark only replaces the visible brand mark in the header.
-        //
-        // Directory is `src/assets/images/` (top-level, not a collection
-        // subfolder) because the wordmark is a site-wide brand asset rather
-        // than content belonging to a single release/photo/etc. publicPath
-        // walks back two levels from site.json's location
-        // (src/content/config/) to reach src/assets/images/.
-        wordmark: fields.object(
-          {
-            src: fields.image({
-              label: "Wordmark Image",
-              directory: "src/assets/images",
-              publicPath: "../../assets/images/",
-            }),
-            alt: fields.text({
-              label: "Alt Text",
-              description:
-                "Describes the wordmark for screen readers. Usually just the artist name.",
-            }),
-          },
-          {
-            label: "Wordmark",
-            description:
-              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
-          },
-        ),
         // Optional site favicon (the icon shown in the browser tab). When
         // unset, BaseLayout falls back to /favicons/favicon.svg in public/.
         // Dedicated subdirectory so favicons don't mix with photo/cover
@@ -252,20 +226,81 @@ export default config({
     }),
 
     // -----------------------------------------------------------------
-    // Navigation — owns both membership and order.
+    // Header & Navigation — bundles the brand wordmark, header
+    // appearance/position settings, and nav membership/order in a
+    // single editor screen so all header authoring lives together.
     //
-    // `multiRelationship` renders two parts in the editor:
+    // `multiRelationship` (items) renders two parts in the editor:
     //   1. A combobox at the top listing pages NOT yet in the nav
     //      (i.e. omitted pages). Pick one to add it.
     //   2. A drag-and-drop list below of the pages currently in the
     //      nav, in order.
     // -----------------------------------------------------------------
 
-    navigation: singleton({
-      label: "Navigation",
-      path: "src/content/config/nav",
+    headerAndNavigation: singleton({
+      label: "Header & Navigation",
+      path: "src/content/config/header",
       format: { data: "json" },
       schema: {
+        // Optional brand wordmark image. When set, the Header renders this
+        // image in place of the artist-name text. All other uses of
+        // artistName (document <title>, meta tags, footer) are unaffected —
+        // the wordmark only replaces the visible brand mark in the header.
+        //
+        // Directory is `src/assets/images/` (top-level, not a collection
+        // subfolder) because the wordmark is a site-wide brand asset rather
+        // than content belonging to a single release/photo/etc. publicPath
+        // walks back two levels from header.json's location
+        // (src/content/config/) to reach src/assets/images/.
+        wordmark: fields.object(
+          {
+            src: fields.image({
+              label: "Wordmark Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Describes the wordmark for screen readers. Usually just the artist name.",
+            }),
+          },
+          {
+            label: "Wordmark",
+            description:
+              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
+          },
+        ),
+        // -------------------------------------------------------------
+        // Header mode — bundles header style + scroll behavior into one
+        // pick. "Solid, sticky" (default) is the standard nav that
+        // pins to the top on scroll. "Solid, scrolls with page" keeps
+        // the surface paint but lets the header scroll away. "Trans-
+        // parent, scrolls with page" lets a hero image / fullscreen
+        // section read through and is meant to disappear as the
+        // reader scrolls past — sticky is intentionally not offered
+        // alongside transparent because content scrolling under a
+        // partly-transparent pinned header flashes through.
+        // -------------------------------------------------------------
+        headerMode: fields.select({
+          label: "Header mode",
+          description:
+            "Pick how the header looks and behaves as the page scrolls. Default is solid + sticky (the nav pins to the top). 'Transparent, scrolls with page' is meant to pair with a page that opens with a fullscreen-section or hero image — the nav sits over it and scrolls away.",
+          options: HEADER_MODES.map((v) => ({
+            label: HEADER_MODE_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: HeaderMode },
+            ...{ label: string; value: HeaderMode }[],
+          ],
+          defaultValue: "solid-sticky",
+        }),
+        headerForegroundColor: fields.text({
+          label: "Header foreground color",
+          description:
+            "Optional. Only applied when header mode is 'Transparent, scrolls with page'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
+          defaultValue: "",
+        }),
         items: fields.multiRelationship({
           label: "Navigation Items",
           collection: "pages",

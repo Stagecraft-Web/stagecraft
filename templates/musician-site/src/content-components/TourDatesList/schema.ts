@@ -4,40 +4,42 @@ import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
 } from "../_shared/types";
-import {
-  TOUR_DATES_FILTERS,
-  TOUR_DATES_FILTER_LABELS,
-} from "../_shared/types";
 import { TourDatesListPreview } from "./preview";
+
+const DEFAULT_PAST_PADDING = 3;
+const DEFAULT_EMPTY_MESSAGE = "No upcoming shows. Check back soon.";
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/TourDatesList/TourDatesList.astro",
   selfClosing: true,
   attributes: {
-    filter: {
+    pastPadding: {
+      type: Number,
+      default: DEFAULT_PAST_PADDING,
+    },
+    emptyMessage: {
       type: String,
-      default: "upcoming",
-      matches: [...TOUR_DATES_FILTERS],
+      default: DEFAULT_EMPTY_MESSAGE,
     },
   },
 };
 
 export const keystatic: KeystaticContentComponent = block({
   label: "Tour Dates List",
-  description: "Displays entries from the Tour Dates collection, sorted by date.",
+  description:
+    "Lists entries from the Tour Dates collection. Auto-groups into upcoming (ascending) and past (descending); when few upcoming shows remain, pads with recent past shows under a 'Recent shows' subheading.",
   schema: {
-    filter: fields.select({
-      label: "Filter",
+    pastPadding: fields.integer({
+      label: "Recent past shows to pad",
       description:
-        "Upcoming shows only (hides past/canceled), or all shows (e.g. for an archive page).",
-      options: TOUR_DATES_FILTERS.map((v) => ({
-        label: TOUR_DATES_FILTER_LABELS[v],
-        value: v,
-      })) as [
-        { label: string; value: (typeof TOUR_DATES_FILTERS)[number] },
-        ...{ label: string; value: (typeof TOUR_DATES_FILTERS)[number] }[],
-      ],
-      defaultValue: "upcoming",
+        "Number of past shows to show when there's 0 or 1 upcoming. Ignored when 2+ upcoming shows exist.",
+      defaultValue: DEFAULT_PAST_PADDING,
+      validation: { min: 0 },
+    }),
+    emptyMessage: fields.text({
+      label: "Empty state message",
+      description: "Shown when there are no upcoming shows.",
+      defaultValue: DEFAULT_EMPTY_MESSAGE,
     }),
   },
   ContentView: TourDatesListPreview,

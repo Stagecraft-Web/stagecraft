@@ -4,10 +4,8 @@ import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
-  HEADER_POSITIONS,
-  HEADER_POSITION_LABELS,
-  HEADER_STYLES,
-  HEADER_STYLE_LABELS,
+  HEADER_MODES,
+  HEADER_MODE_LABELS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
@@ -21,8 +19,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
-  type HeaderPosition,
-  type HeaderStyle,
+  type HeaderMode,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -275,46 +272,34 @@ export default config({
           },
         ),
         // -------------------------------------------------------------
-        // Header appearance
-        //
-        // "Solid" paints the surface color behind the nav so content
-        // scrolling underneath is hidden. "Transparent" lets the page
-        // background read through (designed to pair with a full-bleed
-        // hero image or fullscreen-section at the top of the page);
-        // when the user scrolls the surface color fades back in so
-        // the nav stays readable over regular content.
+        // Header mode — bundles header style + scroll behavior into one
+        // pick. "Solid, sticky" (default) is the standard nav that
+        // pins to the top on scroll. "Solid, scrolls with page" keeps
+        // the surface paint but lets the header scroll away. "Trans-
+        // parent, scrolls with page" lets a hero image / fullscreen
+        // section read through and is meant to disappear as the
+        // reader scrolls past — sticky is intentionally not offered
+        // alongside transparent because content scrolling under a
+        // partly-transparent pinned header flashes through.
         // -------------------------------------------------------------
-        headerStyle: fields.select({
-          label: "Header style",
+        headerMode: fields.select({
+          label: "Header mode",
           description:
-            "Solid keeps the nav on its own surface background. Transparent lets the page background (e.g. a hero image or fullscreen section) read through; the background fades in automatically once the reader scrolls. Pair transparent with a page that starts with a fullscreen-section so the nav has something to sit over.",
-          options: HEADER_STYLES.map((v) => ({
-            label: HEADER_STYLE_LABELS[v],
+            "Pick how the header looks and behaves as the page scrolls. Default is solid + sticky (the nav pins to the top). 'Transparent, scrolls with page' is meant to pair with a page that opens with a fullscreen-section or hero image — the nav sits over it and scrolls away.",
+          options: HEADER_MODES.map((v) => ({
+            label: HEADER_MODE_LABELS[v],
             value: v,
           })) as [
-            { label: string; value: HeaderStyle },
-            ...{ label: string; value: HeaderStyle }[],
+            { label: string; value: HeaderMode },
+            ...{ label: string; value: HeaderMode }[],
           ],
-          defaultValue: "solid",
+          defaultValue: "solid-sticky",
         }),
         headerForegroundColor: fields.text({
           label: "Header foreground color",
           description:
-            "Optional. Only applied when header style is 'transparent'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
+            "Optional. Only applied when header mode is 'Transparent, scrolls with page'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
           defaultValue: "",
-        }),
-        headerPosition: fields.select({
-          label: "Header position",
-          description:
-            "How the header behaves as the page scrolls. 'Sticky' (default) pins it at the top after the user scrolls past. 'Static' lets it scroll away with the page.",
-          options: HEADER_POSITIONS.map((v) => ({
-            label: HEADER_POSITION_LABELS[v],
-            value: v,
-          })) as [
-            { label: string; value: HeaderPosition },
-            ...{ label: string; value: HeaderPosition }[],
-          ],
-          defaultValue: "sticky",
         }),
         items: fields.multiRelationship({
           label: "Navigation Items",

@@ -61,28 +61,39 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
-// Header style — controls whether the site header paints its own surface
-// background or lets the page background (e.g. a full-bleed hero image)
-// read through. "transparent" is intended to pair with a hero-section page
-// layout that owns its own backdrop; the header emits no background or
-// bottom border until the user scrolls.
-export const HEADER_STYLES = ["solid", "transparent"] as const;
-export type HeaderStyle = (typeof HEADER_STYLES)[number];
+// Header mode — a single discriminator that bundles the two valid
+// header configurations into one author-facing choice. Splitting style
+// (solid/transparent) and position (sticky/static) into two fields used
+// to expose an invalid combination: transparent + sticky paints the
+// surface back in as the user scrolls past the threshold, but content
+// that scrolls under the header reads through during the paint and
+// flashes. Collapsing to one field means transparent is always paired
+// with static, so the page-background-bleed-through case can't be
+// configured at all.
+//
+// Naming: each value reads "<style>-<position>" so the underlying CSS
+// modifiers are easy to derive in the renderer.
+export const HEADER_MODES = [
+  "solid-sticky",
+  "solid-static",
+  "transparent-static",
+] as const;
+export type HeaderMode = (typeof HEADER_MODES)[number];
 
-export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
-  solid: "Solid (default)",
-  transparent: "Transparent (renders over page background)",
+export const HEADER_MODE_LABELS: Record<HeaderMode, string> = {
+  "solid-sticky": "Solid, sticky (default)",
+  "solid-static": "Solid, scrolls with page",
+  "transparent-static": "Transparent, scrolls with page",
 };
 
-// Header position — CSS positioning mode for the header element. "sticky"
-// matches the historical default; "static" lets it scroll away with the page.
-export const HEADER_POSITIONS = ["static", "sticky"] as const;
-export type HeaderPosition = (typeof HEADER_POSITIONS)[number];
-
-export const HEADER_POSITION_LABELS: Record<HeaderPosition, string> = {
-  static: "Static (scrolls with page)",
-  sticky: "Sticky (default — follows scroll, pins at top)",
-};
+// Helpers so renderers can ask "is this transparent?" / "is this sticky?"
+// without re-parsing the discriminator string everywhere.
+export function isTransparentHeader(mode: HeaderMode): boolean {
+  return mode === "transparent-static";
+}
+export function isStickyHeader(mode: HeaderMode): boolean {
+  return mode === "solid-sticky";
+}
 
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
@@ -131,16 +142,16 @@ const optionalWordmark = z.preprocess((val) => {
 // relationship field) and owns both nav membership and order.
 export const headerAndNavSchema = z.object({
   wordmark: optionalWordmark,
-  // Header appearance. Defaults so existing config files without these keys
-  // keep parsing — the admin UI surfaces them explicitly, but runtime
-  // consumers can treat them as always-present.
-  headerStyle: z.enum(HEADER_STYLES).default("solid"),
-  // Only meaningful when headerStyle === "transparent". Colors nav links
-  // and the artist-name title against the page background (typically a
-  // hero image). Accepts hex / rgb() / rgba(). Empty string = unset; the
-  // renderer falls back to the usual token colors.
+  // Single header-behavior discriminator (style + position). Defaulted
+  // so existing config files without the key keep parsing — the admin
+  // UI surfaces it explicitly, but runtime consumers can treat it as
+  // always-present.
+  headerMode: z.enum(HEADER_MODES).default("solid-sticky"),
+  // Only meaningful when headerMode === "transparent-static". Colors
+  // nav links and the artist-name title against the page background
+  // (typically a hero image). Accepts hex / rgb() / rgba(). Empty
+  // string = unset; the renderer falls back to the usual token colors.
   headerForegroundColor: z.string().optional(),
-  headerPosition: z.enum(HEADER_POSITIONS).default("sticky"),
   items: z.array(z.string().min(1)),
 });
 

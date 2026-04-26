@@ -169,36 +169,38 @@ describe("headerAndNavSchema", () => {
     expect(result.wordmark).toBeUndefined();
   });
 
-  // ---- Header appearance --------------------------------------------------
-  it("applies header defaults when fields are missing (back-compat)", () => {
+  // ---- Header mode --------------------------------------------------------
+  it("defaults headerMode to solid-sticky when missing (back-compat)", () => {
     const result = headerAndNavSchema.parse(valid);
-    expect(result.headerStyle).toBe("solid");
-    expect(result.headerPosition).toBe("sticky");
+    expect(result.headerMode).toBe("solid-sticky");
     // headerForegroundColor is a plain optional — stays undefined until set.
     expect(result.headerForegroundColor).toBeUndefined();
   });
 
-  it("round-trips an explicit transparent header config", () => {
+  it("round-trips an explicit transparent-static header config", () => {
     const result = headerAndNavSchema.parse({
       ...valid,
-      headerStyle: "transparent" as const,
+      headerMode: "transparent-static" as const,
       headerForegroundColor: "#ffffff",
-      headerPosition: "static" as const,
     });
-    expect(result.headerStyle).toBe("transparent");
+    expect(result.headerMode).toBe("transparent-static");
     expect(result.headerForegroundColor).toBe("#ffffff");
-    expect(result.headerPosition).toBe("static");
   });
 
-  it("rejects unknown headerStyle values", () => {
+  it("accepts solid-static", () => {
+    const result = headerAndNavSchema.parse({ ...valid, headerMode: "solid-static" as const });
+    expect(result.headerMode).toBe("solid-static");
+  });
+
+  it("rejects unknown headerMode values", () => {
     expect(() =>
-      headerAndNavSchema.parse({ ...valid, headerStyle: "frosted" }),
+      headerAndNavSchema.parse({ ...valid, headerMode: "frosted-fixed" }),
     ).toThrow();
   });
 
-  it("rejects unknown headerPosition values (e.g. previously-supported 'fixed')", () => {
+  it("rejects the impossible transparent-sticky combo", () => {
     expect(() =>
-      headerAndNavSchema.parse({ ...valid, headerPosition: "fixed" }),
+      headerAndNavSchema.parse({ ...valid, headerMode: "transparent-sticky" }),
     ).toThrow();
   });
 

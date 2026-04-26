@@ -1,6 +1,5 @@
 {
-  "headerStyle": "solid",
+  "headerMode": "solid-sticky",
   "headerForegroundColor": "",
-  "headerPosition": "sticky",
   "items": ["home", "about", "music", "photos", "press", "contact"]
 }

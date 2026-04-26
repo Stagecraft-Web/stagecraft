@@ -224,15 +224,14 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
           obscure the bottom-right of the footer (real bug spotted in PR
           review). */}
       {!open && (
-        <button
-          type="button"
+        <Button
+          variant="unstyled"
           className={styles.trigger}
           onClick={() => setOpen(true)}
-          aria-expanded={false}
           aria-controls="stagecraft-appearance-panel"
         >
           Appearance
-        </button>
+        </Button>
       )}
 
       <aside
@@ -242,14 +241,14 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
       >
         <header className={styles.panelHeader}>
           <h2 className={styles.panelTitle}>Appearance</h2>
-          <button
-            type="button"
+          <Button
+            variant="unstyled"
             className={styles.closeButton}
             onClick={() => setOpen(false)}
-            aria-label="Close sidebar"
+            ariaLabel="Close sidebar"
           >
             ×
-          </button>
+          </Button>
         </header>
 
         <div className={styles.panelBody}>
@@ -669,15 +668,15 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
     <div className={styles.fieldRow}>
       <span className={styles.labelInline}>{FONT_SIZE_BUCKET_LABELS[bucket]}</span>
       <div className={styles.stepper}>
-        <button
-          type="button"
+        <Button
+          variant="unstyled"
           className={styles.stepperButton}
           onClick={() => next(-1)}
-          disabled={effectivePx <= FONT_SIZE_PX_STEP_MIN}
-          aria-label={`Decrease ${bucket} size`}
+          isDisabled={effectivePx <= FONT_SIZE_PX_STEP_MIN}
+          ariaLabel={`Decrease ${bucket} size`}
         >
           −
-        </button>
+        </Button>
         <output
           className={styles.stepperValue}
           title={isDefault ? `theme.json default: ${baseline}` : `${value}px`}
@@ -685,15 +684,15 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
         >
           {pxToRem(effectivePx)}
         </output>
-        <button
-          type="button"
+        <Button
+          variant="unstyled"
           className={styles.stepperButton}
           onClick={() => next(1)}
-          disabled={effectivePx >= FONT_SIZE_PX_MAX}
-          aria-label={`Increase ${bucket} size`}
+          isDisabled={effectivePx >= FONT_SIZE_PX_MAX}
+          ariaLabel={`Increase ${bucket} size`}
         >
           +
-        </button>
+        </Button>
       </div>
     </div>
   );

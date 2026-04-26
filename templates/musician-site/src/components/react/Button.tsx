@@ -2,13 +2,30 @@ import type { MouseEventHandler, ReactNode } from "react";
 import type { ButtonVariant } from "../../content-components/_shared/types";
 import styles from "./Button.module.css";
 
+/**
+ * Visual variant. The `"primary"` and `"outline"` options come from the
+ * site's content-component vocabulary (used by Markdoc / Astro callers).
+ * `"unstyled"` is a sidebar / admin-chrome escape hatch — no base or
+ * variant class is applied, so the caller's `className` is the only
+ * source of styling. Use it for icon buttons, pill triggers, +/- steppers,
+ * etc. that don't fit the primary/outline pattern.
+ */
+export type ButtonVariantOrUnstyled = ButtonVariant | "unstyled";
+
 export interface ButtonProps {
   /** When set, renders an `<a>`; otherwise renders a `<button>`. */
   href?: string;
-  /** Visual variant. Defaults to `"primary"`. */
-  variant?: ButtonVariant;
+  /** Visual variant. Defaults to `"primary"`. Use `"unstyled"` to skip
+   *  both the base `.btn` class and the variant class — only `className`
+   *  applies. */
+  variant?: ButtonVariantOrUnstyled;
   /** Required for icon-only buttons (no visible text). */
   ariaLabel?: string;
+  /** ID of an element this button controls (e.g. a disclosure panel).
+   *  Only the controls + expanded pair are exposed here — the rest of
+   *  the ARIA grab-bag stays out of the API until something needs it. */
+  "aria-controls"?: string;
+  "aria-expanded"?: boolean;
   /** HTML button type. Ignored when `href` is set. */
   type?: "button" | "submit" | "reset";
   /** Extra CSS classes appended after the variant class. */
@@ -49,6 +66,8 @@ export default function Button({
   href,
   variant = "primary",
   ariaLabel,
+  "aria-controls": ariaControls,
+  "aria-expanded": ariaExpanded,
   type = "button",
   className,
   isExternal,
@@ -59,7 +78,10 @@ export default function Button({
   label,
   children,
 }: ButtonProps): ReactNode {
-  const classes = [styles.btn, styles[variant], className].filter(Boolean).join(" ");
+  const classes =
+    variant === "unstyled"
+      ? className
+      : [styles.btn, styles[variant], className].filter(Boolean).join(" ");
   const content = (
     <>
       {label}
@@ -80,6 +102,8 @@ export default function Button({
         id={id}
         className={classes}
         aria-label={ariaLabel}
+        aria-controls={ariaControls}
+        aria-expanded={ariaExpanded}
         onClick={onClick}
         {...externalAttrs}
         {...downloadAttrs}
@@ -95,6 +119,8 @@ export default function Button({
       id={id}
       className={classes}
       aria-label={ariaLabel}
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
       onClick={onClick}
       disabled={isDisabled}
     >

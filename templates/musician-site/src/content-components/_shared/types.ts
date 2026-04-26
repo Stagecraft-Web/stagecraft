@@ -99,6 +99,23 @@ export const EMBED_ASPECT_RATIO_LABELS: Record<EmbedAspectRatio, string> = {
   "1/1": "1:1 (square)",
 };
 
+/**
+ * Aspect ratio for `{% image-carousel %}` slides. Declared separately from
+ * `EMBED_ASPECT_RATIOS` because the two serve different primitives (iframe
+ * embeds vs image slides) and their label strings aren't interchangeable —
+ * an image carousel's "Auto" means "match source", which is a different
+ * semantic from an embed's "Auto (use iframe's own size)".
+ */
+export const CAROUSEL_ASPECT_RATIOS = ["16/9", "4/3", "1/1", "auto"] as const;
+export type CarouselAspectRatio = (typeof CAROUSEL_ASPECT_RATIOS)[number];
+
+export const CAROUSEL_ASPECT_RATIO_LABELS: Record<CarouselAspectRatio, string> = {
+  "16/9": "16:9 (widescreen)",
+  "4/3": "4:3 (classic)",
+  "1/1": "1:1 (square)",
+  auto: "Auto (match source)",
+};
+
 /** Newsletter provider for `{% newsletter-signup %}`. */
 export const NEWSLETTER_SERVICES = [
   "mailchimp",

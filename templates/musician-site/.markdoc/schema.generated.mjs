@@ -81,6 +81,15 @@ export default {
     "photo-gallery": {
       selfClosing: true,
     },
+    "image-carousel": {
+      selfClosing: true,
+      attributes: {
+        "photosCollection": { type: String, default: "all", matches: ["all","hero","about","release-cover","gallery","press","background","thumbnail"] },
+        "aspectRatio": { type: String, default: "16/9", matches: ["16/9","4/3","1/1","auto"] },
+        "areArrowsHidden": { type: Boolean, default: false },
+        "areDotsHidden": { type: Boolean, default: false },
+      },
+    },
     "video-gallery": {
       selfClosing: true,
     },

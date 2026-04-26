@@ -3,6 +3,13 @@ import { getSiteConfig } from "../lib/content";
 
 const site = getSiteConfig();
 const socialEntries = Object.entries(site.socialLinks).filter(([, url]) => url);
+// Auto-assembled so the year is always current and the boilerplate stays
+// consistent across sites. Authors only customize the claimant name via
+// `copyrightName`; it falls back to `artistName` when unset.
+const copyrightHolder = site.copyrightName && site.copyrightName.length > 0
+  ? site.copyrightName
+  : site.artistName;
+const copyrightLine = `© ${new Date().getFullYear()} ${copyrightHolder}. All rights reserved.`;
 ---
 
 <footer class="site-footer">
@@ -16,7 +23,7 @@ const socialEntries = Object.entries(site.socialLinks).filter(([, url]) => url);
         ))}
       </nav>
     )}
-    <p class="copyright">{site.copyright}</p>
+    <p class="copyright">{copyrightLine}</p>
   </div>
 </footer>
 

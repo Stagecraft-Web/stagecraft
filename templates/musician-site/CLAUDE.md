@@ -77,7 +77,7 @@ unions all derive from that const — never redeclare the values.
 - **UI / attribute enums** → `src/content-components/_shared/types.ts`. These
   are allowed-value sets for a Markdoc tag attribute or Keystatic
   content-component select. Examples: `HEADING_LEVELS`, `BUTTON_VARIANTS`,
-  `COLUMNS_LAYOUTS`, `TOUR_DATES_FILTERS`, `POSTS_LIST_LAYOUTS`,
+  `COLUMNS_LAYOUTS`, `POSTS_LIST_LAYOUTS`,
   `EMBED_ASPECT_RATIOS`, `NEWSLETTER_SERVICES`, `VIDEO_URL_TYPES`.
 
 Labels that differ from values (e.g. `"H1"` vs `"h1"`, `"Sold Out"` vs
@@ -164,7 +164,7 @@ Use this to find where any piece of content lives.
 | Artist name, site title, description | `src/content/config/site.json` | `siteConfigSchema` |
 | Social links (Instagram, Spotify, etc.) | `src/content/config/site.json` → `socialLinks` | `siteConfigSchema` |
 | Contact email | `src/content/config/site.json` → `contactEmail` | `siteConfigSchema` |
-| Copyright line | `src/content/config/site.json` → `copyright` | `siteConfigSchema` |
+| Copyright holder name | `src/content/config/site.json` → `copyrightName` | `siteConfigSchema` |
 | Navigation order + labels | `src/content/config/nav.json` → `items` | `navConfigSchema` |
 | Colors + typography (Google Fonts) | `src/content/config/appearance.json` | `appearanceSchema` |
 | Font-size scale, spacing, breakpoints (dev-level) | `src/content/config/theme.json` | `themeSchema` |
@@ -377,6 +377,20 @@ Self-closing data-fetching tag that displays the photo gallery with lightbox.
 Self-closing tag that renders the contact form.
 - Self-contained form with honeypot, FormGroup fields, client-side JS submit handler
 - Rendered by the `{% contact-form /%}` Markdoc tag
+
+### `Embed.astro` (Markdoc tag: `{% embed %}`)
+Plain sanitized iframe — renders an author-pasted embed snippet at its native dimensions.
+- Props: `code` (required, raw `<iframe …>` HTML), `title` (optional a11y label)
+- Iframe is allowlist-sanitized (see `Embed/extractIframe.ts`); only safe attributes survive
+- No aspect-ratio handling, no max-width cap beyond `max-width: 100%`
+- Use when you want the embed at its source dimensions; use `{% embed-responsive %}` to scale
+
+### `EmbedResponsive.astro` (Markdoc tag: `{% embed-responsive %}`)
+Aspect-ratio-wrapped embed that scales to fill its column.
+- Props: `code` (required), `aspectRatio` (default `"auto"` — derived from intrinsic iframe dims), `title`, `maxWidth` (optional cap), `minHeight`
+- Shares `extractIframe` + `buildIframeAttrs` with `Embed`; the iframe is positioned absolute inside a `width: 100%; aspect-ratio: <ratio>` wrapper
+- `aspectRatio="auto"` falls back to plain rendering when intrinsic dimensions can't be derived (e.g. Spotify's `width="100%"` snippet)
+- Named `EmbedResponsive/` (not `ResponsiveEmbed/`) so it sorts adjacent to `Embed/` in the source tree and in the Keystatic insert menu
 
 ### `Image.tsx` (React)
 Image component with loading/error state handling and fade-in effect.

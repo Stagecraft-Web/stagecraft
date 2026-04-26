@@ -49,6 +49,10 @@ const pages = defineCollection({
     // "enter site" link. Pair with a `{% fullscreen-section %}` + `{% button %}`
     // in the body for the classic splash layout.
     isSplashPage: z.boolean().optional(),
+    // Per-page override for the site-level footer toggle (see
+    // siteConfigSchema.isFooterHidden). When set, wins for this page only;
+    // leave unset to inherit the site-level default.
+    isFooterHidden: z.boolean().optional(),
   }),
 });
 
@@ -85,16 +89,6 @@ const videos = defineCollection({
     url: z.url(),
     type: z.enum(VIDEO_TYPES),
     description: z.string().optional(),
-  }),
-});
-
-const pressQuotes = defineCollection({
-  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/pressQuotes" }),
-  schema: z.object({
-    quote: z.string().min(1),
-    source: z.string().min(1),
-    url: z.string().optional(),
-    date: z.string().optional(),
   }),
 });
 
@@ -163,7 +157,6 @@ export const collections = {
   releases,
   photos,
   videos,
-  pressQuotes,
   tourDates,
   posts,
   storeItems,

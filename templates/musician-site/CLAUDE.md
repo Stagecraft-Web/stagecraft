@@ -26,7 +26,7 @@ Fix any errors before committing.
 | What                                    | File                                |
 | --------------------------------------- | ----------------------------------- |
 | Artist name, social links, contact info | `src/content/config/site.json`      |
-| Navigation menu (order + which pages)   | `src/content/config/nav.json`       |
+| Header mode + nav menu (order + pages)  | `src/content/config/header.json`    |
 | Colors + typography (Google Fonts)      | `src/content/config/appearance.json`|
 | Font-size scale, spacing (dev-level)    | `src/content/config/theme.json`     |
 | Homepage hero + intro                   | `src/content/pages/home.mdoc`       |
@@ -43,8 +43,10 @@ One YAML file per entry under `src/content/collections/`:
 - `releases/` — albums, singles, EPs
 - `photos/` — gallery photos
 - `videos/` — videos
-- `pressQuotes/` — press quotes
 - `tourDates/` — tour dates
+
+Press quotes are not a collection — they're authored inline on the
+press page using `{% quote %}` tags.
 
 ### Images
 
@@ -77,15 +79,21 @@ body that uses Markdoc layout tags to structure the page:
   hero with background image.
 - `{% columns layout="1-2" %}` + `{% column %}` — side-by-side
   columns (collapses to vertical on mobile).
+- `{% centered-block %}` — centered, narrower text block.
 
 Content blocks you can drop into any page:
 
 - `{% button label="..." href="..." /%}` — styled CTA.
 - `{% content-image src="..." alt="..." /%}` — optimised image.
 - `{% release-list /%}` — grid of all releases.
-- `{% press-quotes /%}` — list of all press quotes.
+- `{% quote text="..." attribution="..." /%}` — featured pull-quote
+  (used for press quotes, testimonials).
 - `{% photo-gallery /%}` — gallery with lightbox.
 - `{% contact-form /%}` — contact form with spam protection.
+- `{% embed code="..." /%}` — paste an embed snippet (Spotify,
+  Bandcamp, etc.) at its native size.
+- `{% embed-responsive code="..." aspectRatio="16/9" /%}` — embed
+  scaled to fill its column at a chosen aspect ratio.
 
 See `EDITING.md` for working examples.
 

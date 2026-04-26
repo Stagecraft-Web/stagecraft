@@ -7,7 +7,9 @@ editor) or edit files directly.
 
 Run `npm run dev`, then visit
 <http://localhost:4321/keystatic>. You can manage pages, releases,
-photos, press quotes, tour dates, and site settings through a web UI.
+photos, tour dates, and site settings through a web UI. Press quotes
+are authored inline on the press page (see below) — there's no
+separate Press Quotes collection.
 
 **In production**, `/keystatic` requires GitHub OAuth — see
 [`docs/keystatic-github-setup.md`](docs/keystatic-github-setup.md) for
@@ -34,7 +36,7 @@ you need to edit for routine updates.
 src/content/
   config/
     site.json       ← Artist name, social links, contact email
-    nav.json        ← Navigation menu order
+    header.json     ← Header mode + nav menu (order + pages)
     appearance.json ← Colors + typography (Google Fonts picker)
     theme.json      ← Font-size scale, spacing, breakpoints
   pages/
@@ -42,13 +44,12 @@ src/content/
     about.mdoc      ← Bio / about page (image + text)
     music.mdoc      ← Music page intro + release grid
     photos.mdoc     ← Photos page + gallery
-    press.mdoc      ← Press page, reviews, EPK link
+    press.mdoc      ← Press page, reviews (inline quotes), EPK link
     contact.mdoc    ← Contact page intro + form
   collections/
     releases/       ← One YAML file per album/single/EP
     photos/         ← One YAML file per photo
     videos/         ← One YAML file per video
-    pressQuotes/    ← One YAML file per press quote
     tourDates/      ← One YAML file per tour date
 ```
 
@@ -68,21 +69,34 @@ src/content/
     "bandcamp": ""
   },
   "contactEmail": "you@example.com",
-  "copyright": "© 2026 Your Name. All rights reserved."
+  "copyrightName": ""
 }
 ```
 
-Leave any social link blank (`""`) to hide it from the footer.
+Leave any social link blank (`""`) to hide it from the footer. The
+footer renders `© {current year} {copyrightName || artistName}. All
+rights reserved.` — only set `copyrightName` if copyright is held
+under a different name (label, estate, etc.).
 
-## Navigation — `src/content/config/nav.json`
+## Header & navigation — `src/content/config/header.json`
 
 ```json
-{ "items": ["home", "about", "music", "photos", "press", "contact"] }
+{
+  "headerMode": "solid-sticky",
+  "headerForegroundColor": "",
+  "items": ["home", "about", "music", "photos", "press", "contact"]
+}
 ```
 
-An ordered array of page slugs. Add a slug to include it in the nav;
-remove to hide. Drag to reorder in Keystatic, or edit the JSON
-directly. Nav labels come from each page's `title` field.
+- `headerMode`: `solid-sticky` (default), `solid-static`, or
+  `transparent-static`. Transparent mode is for hero pages whose
+  fullscreen section starts at the top.
+- `headerForegroundColor`: only meaningful in `transparent-static`
+  mode. Sets the nav link color against the hero background. Accepts
+  hex / `rgb(...)` / `rgba(...)`. Leave blank to use token defaults.
+- `items`: ordered array of page slugs. Add a slug to include it in
+  the nav; remove to hide. Drag to reorder in Keystatic, or edit the
+  JSON directly. Nav labels come from each page's `title` field.
 
 ## Appearance — `src/content/config/appearance.json`
 
@@ -157,6 +171,7 @@ Page layout is built from Markdoc tags in the body:
 - `{% columns layout="1-2" %}` + `{% column %}` — side-by-side grid
   (collapses vertically on mobile). Layout strings: `1-1`, `1-2`,
   `2-1`, `1-1-1`.
+- `{% centered-block %}` — centered, narrower text block.
 
 **Content blocks**
 
@@ -165,9 +180,14 @@ Page layout is built from Markdoc tags in the body:
   `target="_blank"`.
 - `{% content-image src="..." alt="..." /%}` — optimised image.
 - `{% release-list /%}` — grid of every release from the collection.
-- `{% press-quotes /%}` — list of every press quote.
+- `{% quote text="..." attribution="..." /%}` — featured pull-quote
+  (used for press quotes and testimonials).
 - `{% photo-gallery /%}` — gallery with lightbox.
 - `{% contact-form /%}` — contact form with spam protection.
+- `{% embed code="..." /%}` — paste a Spotify / Bandcamp / etc.
+  embed snippet at its native size.
+- `{% embed-responsive code="..." aspectRatio="16/9" /%}` — same,
+  but scaled to fill its column at a chosen aspect ratio.
 
 ### Homepage
 
@@ -232,12 +252,19 @@ Introductory text for the press page.
 
 {% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
-{% press-quotes /%}
+{% quote
+   text="A remarkable debut that showcases genuine artistry and emotional depth."
+   attribution="Music Publication" /%}
+
+{% quote
+   text="A bold new voice in contemporary music — original, confident, and deeply moving."
+   attribution="Critic's Name, Magazine" /%}
 
 {% /section %}
 ```
 
-Remove either tag to hide that piece.
+Each press quote is its own `{% quote %}` tag. Add or remove tags to
+manage the list. `attribution` is optional.
 
 ### Music
 
@@ -303,7 +330,7 @@ Your content here.
 ```
 
 The filename becomes the URL slug (`/tour-schedule`). To show it in
-the nav, add its slug to `nav.json` → `items` (or add it via
+the nav, add its slug to `header.json` → `items` (or add it via
 Keystatic → Navigation).
 
 Pages not listed in the nav stay accessible by URL — useful for
@@ -325,6 +352,9 @@ city: City, State
 ticketUrl: https://tickets.example.com
 status: upcoming   # upcoming | sold_out | canceled | past
 ```
+
+If a page uses the `{% tour-dates /%}` block, entries are
+automatically grouped into upcoming and past sections based on date.
 
 ### Release — `src/content/collections/releases/`
 
@@ -369,14 +399,12 @@ type: youtube      # youtube | vimeo | other
 description: Optional description.
 ```
 
-### Press quote — `src/content/collections/pressQuotes/`
+### Press quote — inline on the press page
 
-```yaml
-quote: A remarkable debut that showcases genuine artistry.
-source: Publication Name
-url: https://publication.com/review   # optional
-date: "2024-04-01"                    # optional
-```
+Press quotes are authored inline using the `{% quote %}` tag on the
+press page (see the Press example above). There is no separate
+collection. Add as many `{% quote %}` tags as you have quotes;
+`attribution` is optional.
 
 ---
 

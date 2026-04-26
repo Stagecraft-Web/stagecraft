@@ -15,8 +15,5 @@
   },
   "contactEmail": "contact@example.com",
   "copyrightName": "",
-  "isFooterHidden": false,
-  "headerStyle": "solid",
-  "headerForegroundColor": "",
-  "headerPosition": "sticky"
+  "isFooterHidden": false
 }

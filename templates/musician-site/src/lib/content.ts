@@ -1,14 +1,15 @@
 import { getCollection } from "astro:content";
 import siteConfigRaw from "../content/config/site.json";
-import navConfigRaw from "../content/config/nav.json";
+import headerConfigRaw from "../content/config/header.json";
 import themeConfigRaw from "../content/config/theme.json";
 import appearanceConfigRaw from "../content/config/appearance.json";
 import {
   siteConfigSchema,
-  navConfigSchema,
+  headerAndNavSchema,
   themeSchema,
   appearanceSchema,
   type SiteConfig,
+  type HeaderAndNavConfig,
   type NavItem,
   type Theme,
   type Appearance,
@@ -22,22 +23,25 @@ export function getSiteConfig(): SiteConfig {
   return siteConfigSchema.parse(siteConfigRaw);
 }
 
-/** Raw nav config — parses nav.json and returns the ordered page slugs. */
-export function getNavConfig(): string[] {
-  const config = navConfigSchema.parse(navConfigRaw);
-  return config.items;
+/**
+ * Header & Navigation config — wordmark + header appearance + nav items.
+ * The singleton owns nav membership/order and all header authoring lives
+ * here so the editor surfaces them together.
+ */
+export function getHeaderAndNavConfig(): HeaderAndNavConfig {
+  return headerAndNavSchema.parse(headerConfigRaw);
 }
 
 /**
- * Build the resolved navigation list from the Navigation singleton.
+ * Build the resolved navigation list from the Header & Navigation singleton.
  *
- * The singleton owns both membership and order — it's an ordered array of
- * page slugs (managed via Keystatic's relationship field). Each slug is
- * resolved to a label (from the page's title) and an href. Slugs that
- * reference pages that no longer exist are silently dropped.
+ * `items` is an ordered array of page slugs (managed via Keystatic's
+ * relationship field). Each slug is resolved to a label (from the page's
+ * title) and an href. Slugs that reference pages that no longer exist
+ * are silently dropped.
  */
 export async function buildNav(): Promise<NavItem[]> {
-  const navSlugs = getNavConfig();
+  const navSlugs = getHeaderAndNavConfig().items;
   const allPages = await getCollection("pages");
   const pageMap = new Map(allPages.map((p) => [p.id, p.data]));
 

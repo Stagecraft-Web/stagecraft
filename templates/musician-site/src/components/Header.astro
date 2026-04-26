@@ -1,29 +1,30 @@
 ---
 import { Image } from "astro:assets";
-import { buildNav, getHomeHref, getSiteConfig } from "../lib/content";
+import { buildNav, getHomeHref, getHeaderAndNavConfig, getSiteConfig } from "../lib/content";
 import { resolveImage } from "../lib/resolve-image";
 
 const nav = await buildNav();
 const site = getSiteConfig();
+const headerConfig = getHeaderAndNavConfig();
 const currentPath = Astro.url.pathname;
 
 // Resolve the wordmark image path (e.g. "../../assets/images/wordmark.svg")
 // into an Astro ImageMetadata object so Astro's <Image> can optimise it.
 // If the author hasn't set a wordmark, or the file no longer exists, we
 // fall through to the artist-name text below — safe default.
-const wordmarkImage = site.wordmark ? resolveImage(site.wordmark.src) : undefined;
-const hasWordmark = Boolean(site.wordmark && wordmarkImage);
+const wordmarkImage = headerConfig.wordmark ? resolveImage(headerConfig.wordmark.src) : undefined;
+const hasWordmark = Boolean(headerConfig.wordmark && wordmarkImage);
 
 // Logo targets the real home, not the splash page (which is meant to be
 // seen once on first visit — returning visitors shouldn't land on it again
 // when they click the logo).
 const homeHref = await getHomeHref();
 
-// Header style / position are driven by siteConfig. Both have Zod defaults
-// so `site.headerStyle` / `site.headerPosition` are always present.
-const isTransparent = site.headerStyle === "transparent";
-const headerPosition = site.headerPosition;
-const headerForegroundColor = site.headerForegroundColor?.trim() ?? "";
+// Header style / position come from the Header & Navigation singleton.
+// Both have Zod defaults so they're always present at runtime.
+const isTransparent = headerConfig.headerStyle === "transparent";
+const headerPosition = headerConfig.headerPosition;
+const headerForegroundColor = headerConfig.headerForegroundColor?.trim() ?? "";
 const hasHeaderForeground = isTransparent && headerForegroundColor.length > 0;
 
 // When an author supplies a foreground color, expose it as a custom
@@ -45,10 +46,10 @@ const headerClasses = [
 <header class:list={headerClasses} style={headerStyle}>
   <div class="container header-inner">
     <a href={homeHref} class="site-logo" aria-label={site.artistName}>
-      {hasWordmark && site.wordmark && wordmarkImage ? (
+      {hasWordmark && headerConfig.wordmark && wordmarkImage ? (
         <Image
           src={wordmarkImage}
-          alt={site.wordmark.alt}
+          alt={headerConfig.wordmark.alt}
           class="site-wordmark"
           height={40}
           widths={[40, 80]}
@@ -93,11 +94,12 @@ const headerClasses = [
 
   // Scroll-state toggle — when the user scrolls past ~8px, we tag the
   // header with `is-scrolled` so CSS can fade in a surface background +
-  // border. Only visible in transparent mode (the modifier class hides
-  // the surface paint until scrolled); applying unconditionally is fine
-  // and simpler than branching in JS.
+  // border. Only meaningful for sticky headers: a static header scrolls
+  // away with the page, so giving it a background as the page scrolls
+  // would briefly paint the still-visible top of the header before it
+  // leaves the viewport. Skip the listener entirely when static.
   const header = document.querySelector(".site-header");
-  if (header) {
+  if (header && header.classList.contains("site-header--position-sticky")) {
     const SCROLL_THRESHOLD = 8;
     const updateScrollState = () => {
       if (window.scrollY > SCROLL_THRESHOLD) {
@@ -134,12 +136,6 @@ const headerClasses = [
 
   .site-header--position-sticky {
     position: sticky;
-  }
-
-  .site-header--position-fixed {
-    position: fixed;
-    left: 0;
-    right: 0;
   }
 
   /* Transparent modifier — drop the surface paint + border so the page
@@ -205,7 +201,7 @@ const headerClasses = [
   }
 
   /* When a transparent header has a `--header-fg` custom property set
-     (from site.headerForegroundColor), prefer it for the title + nav
+     (from headerConfig.headerForegroundColor), prefer it for the title + nav
      links. Falls back to the usual tokens so sites without a custom
      color keep current behavior. Once the user scrolls (is-scrolled),
      the surface comes back and we restore the regular tokens so link

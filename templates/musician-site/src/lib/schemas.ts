@@ -75,34 +75,17 @@ export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
 };
 
 // Header position — CSS positioning mode for the header element. "sticky"
-// matches the historical default; "fixed" keeps the header permanently
-// pinned to the viewport; "static" lets it scroll away with the page.
-export const HEADER_POSITIONS = ["static", "fixed", "sticky"] as const;
+// matches the historical default; "static" lets it scroll away with the page.
+export const HEADER_POSITIONS = ["static", "sticky"] as const;
 export type HeaderPosition = (typeof HEADER_POSITIONS)[number];
 
 export const HEADER_POSITION_LABELS: Record<HeaderPosition, string> = {
   static: "Static (scrolls with page)",
-  fixed: "Fixed (always on top)",
   sticky: "Sticky (default — follows scroll, pins at top)",
 };
 
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
-  // Keystatic's fields.object writes `"wordmark": {}` when the inner
-  // image + text fields are both blank — indistinguishable from "no
-  // wordmark set". Coerce that to undefined so .optional() accepts it.
-  wordmark: z
-    .preprocess((val) => {
-      if (
-        val &&
-        typeof val === "object" &&
-        !Array.isArray(val) &&
-        Object.keys(val).length === 0
-      ) {
-        return undefined;
-      }
-      return val;
-    }, wordmarkSchema.optional()),
   // Site favicon (path to uploaded asset). When set, the <link rel="icon">
   // in BaseLayout points here instead of the default `/favicons/favicon.svg`
   // shipped in `public/`.
@@ -121,10 +104,36 @@ export const siteConfigSchema = z.object({
   // Per-page frontmatter may override (`isFooterHidden` in pageFrontmatterSchema).
   // Default false = footer visible (common-sense default).
   isFooterHidden: z.boolean().default(false),
-  // Header appearance. All three fields have Zod defaults so existing
-  // site.json files without these keys keep parsing — the admin UI (and
-  // seed) surface them explicitly, but runtime consumers can treat them as
-  // always-present.
+});
+
+// Keystatic's fields.object writes `"wordmark": {}` when both the image and
+// text inputs are blank — indistinguishable from "no wordmark set". Coerce
+// that to undefined so .optional() accepts it. Reused inside the
+// headerAndNav singleton.
+const optionalWordmark = z.preprocess((val) => {
+  if (
+    val &&
+    typeof val === "object" &&
+    !Array.isArray(val) &&
+    Object.keys(val).length === 0
+  ) {
+    return undefined;
+  }
+  return val;
+}, wordmarkSchema.optional());
+
+// Header & Navigation config — what's stored in header.json.
+// Bundles the site header's brand mark (wordmark), appearance/position
+// settings, and nav membership/order in a single Keystatic singleton so
+// header authoring lives in one place.
+//
+// `items` is an ordered array of page slugs (managed via Keystatic's
+// relationship field) and owns both nav membership and order.
+export const headerAndNavSchema = z.object({
+  wordmark: optionalWordmark,
+  // Header appearance. Defaults so existing config files without these keys
+  // keep parsing — the admin UI surfaces them explicitly, but runtime
+  // consumers can treat them as always-present.
   headerStyle: z.enum(HEADER_STYLES).default("solid"),
   // Only meaningful when headerStyle === "transparent". Colors nav links
   // and the artist-name title against the page background (typically a
@@ -132,13 +141,6 @@ export const siteConfigSchema = z.object({
   // renderer falls back to the usual token colors.
   headerForegroundColor: z.string().optional(),
   headerPosition: z.enum(HEADER_POSITIONS).default("sticky"),
-});
-
-// Nav config — what's stored in nav.json.
-// An ordered array of page slugs. The Navigation singleton owns both
-// membership (which pages appear) and order (what sequence).
-// Uses fields.relationship in Keystatic, so each entry is a page slug.
-export const navConfigSchema = z.object({
   items: z.array(z.string().min(1)),
 });
 
@@ -329,8 +331,8 @@ export const themeSchema = z.object({
 // Page-specific structured content (sections, images, buttons,
 // columns) lives in the Markdoc body as custom tags, not frontmatter.
 //
-// Navigation membership is controlled by the Navigation singleton
-// (nav.json), not by page frontmatter.
+// Navigation membership is controlled by the Header & Navigation
+// singleton (header.json), not by page frontmatter.
 // ============================================================
 
 export const pageFrontmatterSchema = z.object({
@@ -520,7 +522,7 @@ export const storeItemSchema = z.object({
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type Wordmark = z.infer<typeof wordmarkSchema>;
-export type NavConfig = z.infer<typeof navConfigSchema>;
+export type HeaderAndNavConfig = z.infer<typeof headerAndNavSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;

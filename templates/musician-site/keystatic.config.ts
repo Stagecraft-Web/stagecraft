@@ -185,35 +185,6 @@ export default config({
       format: { data: "json" },
       schema: {
         artistName: fields.text({ label: "Artist Name", validation: { isRequired: true } }),
-        // Optional brand wordmark image. When set, the Header renders this
-        // image in place of the artist-name text. All other uses of
-        // artistName (document <title>, meta tags, footer) are unaffected —
-        // the wordmark only replaces the visible brand mark in the header.
-        //
-        // Directory is `src/assets/images/` (top-level, not a collection
-        // subfolder) because the wordmark is a site-wide brand asset rather
-        // than content belonging to a single release/photo/etc. publicPath
-        // walks back two levels from site.json's location
-        // (src/content/config/) to reach src/assets/images/.
-        wordmark: fields.object(
-          {
-            src: fields.image({
-              label: "Wordmark Image",
-              directory: "src/assets/images",
-              publicPath: "../../assets/images/",
-            }),
-            alt: fields.text({
-              label: "Alt Text",
-              description:
-                "Describes the wordmark for screen readers. Usually just the artist name.",
-            }),
-          },
-          {
-            label: "Wordmark",
-            description:
-              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
-          },
-        ),
         // Optional site favicon (the icon shown in the browser tab). When
         // unset, BaseLayout falls back to /favicons/favicon.svg in public/.
         // Dedicated subdirectory so favicons don't mix with photo/cover
@@ -254,6 +225,55 @@ export default config({
             "When enabled, the site footer (social links + copyright) is hidden on every page. Individual pages can override this via their own 'Hide footer on this page' toggle.",
           defaultValue: false,
         }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Header & Navigation — bundles the brand wordmark, header
+    // appearance/position settings, and nav membership/order in a
+    // single editor screen so all header authoring lives together.
+    //
+    // `multiRelationship` (items) renders two parts in the editor:
+    //   1. A combobox at the top listing pages NOT yet in the nav
+    //      (i.e. omitted pages). Pick one to add it.
+    //   2. A drag-and-drop list below of the pages currently in the
+    //      nav, in order.
+    // -----------------------------------------------------------------
+
+    headerAndNavigation: singleton({
+      label: "Header & Navigation",
+      path: "src/content/config/header",
+      format: { data: "json" },
+      schema: {
+        // Optional brand wordmark image. When set, the Header renders this
+        // image in place of the artist-name text. All other uses of
+        // artistName (document <title>, meta tags, footer) are unaffected —
+        // the wordmark only replaces the visible brand mark in the header.
+        //
+        // Directory is `src/assets/images/` (top-level, not a collection
+        // subfolder) because the wordmark is a site-wide brand asset rather
+        // than content belonging to a single release/photo/etc. publicPath
+        // walks back two levels from header.json's location
+        // (src/content/config/) to reach src/assets/images/.
+        wordmark: fields.object(
+          {
+            src: fields.image({
+              label: "Wordmark Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Describes the wordmark for screen readers. Usually just the artist name.",
+            }),
+          },
+          {
+            label: "Wordmark",
+            description:
+              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
+          },
+        ),
         // -------------------------------------------------------------
         // Header appearance
         //
@@ -286,7 +306,7 @@ export default config({
         headerPosition: fields.select({
           label: "Header position",
           description:
-            "How the header behaves as the page scrolls. 'Sticky' (default) pins it at the top after the user scrolls past. 'Fixed' keeps it permanently overlaid. 'Static' lets it scroll away with the page.",
+            "How the header behaves as the page scrolls. 'Sticky' (default) pins it at the top after the user scrolls past. 'Static' lets it scroll away with the page.",
           options: HEADER_POSITIONS.map((v) => ({
             label: HEADER_POSITION_LABELS[v],
             value: v,
@@ -296,24 +316,6 @@ export default config({
           ],
           defaultValue: "sticky",
         }),
-      },
-    }),
-
-    // -----------------------------------------------------------------
-    // Navigation — owns both membership and order.
-    //
-    // `multiRelationship` renders two parts in the editor:
-    //   1. A combobox at the top listing pages NOT yet in the nav
-    //      (i.e. omitted pages). Pick one to add it.
-    //   2. A drag-and-drop list below of the pages currently in the
-    //      nav, in order.
-    // -----------------------------------------------------------------
-
-    navigation: singleton({
-      label: "Navigation",
-      path: "src/content/config/nav",
-      format: { data: "json" },
-      schema: {
         items: fields.multiRelationship({
           label: "Navigation Items",
           collection: "pages",

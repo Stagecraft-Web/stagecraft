@@ -9,7 +9,7 @@ import {
   photoSchema,
   pressQuoteSchema,
   tourDateSchema,
-  navConfigSchema,
+  headerAndNavSchema,
 } from "../schemas";
 
 describe("imageMetadataSchema", () => {
@@ -54,8 +54,8 @@ describe("siteConfigSchema", () => {
   };
 
   it("accepts a valid config", () => {
-    // Use toMatchObject: the schema adds defaults (headerStyle, headerPosition,
-    // isFooterHidden) so the parsed result is a superset of the input.
+    // Use toMatchObject: the schema adds a default for isFooterHidden,
+    // so the parsed result is a superset of the input.
     expect(siteConfigSchema.parse(valid)).toMatchObject(valid);
   });
 
@@ -76,50 +76,6 @@ describe("siteConfigSchema", () => {
 
   it("rejects invalid email", () => {
     expect(() => siteConfigSchema.parse({ ...valid, contactEmail: "not-email" })).toThrow();
-  });
-
-  // ---- Wordmark (5b replacement) -----------------------------------------
-  it("parses without a wordmark (optional field)", () => {
-    const result = siteConfigSchema.parse(valid);
-    expect(result.wordmark).toBeUndefined();
-  });
-
-  it("accepts a valid wordmark (src + alt)", () => {
-    const withWordmark = {
-      ...valid,
-      wordmark: { src: "../../assets/images/wordmark.svg", alt: "Jane Doe" },
-    };
-    const result = siteConfigSchema.parse(withWordmark);
-    expect(result.wordmark).toEqual({
-      src: "../../assets/images/wordmark.svg",
-      alt: "Jane Doe",
-    });
-  });
-
-  it("rejects a wordmark with an empty src", () => {
-    expect(() =>
-      siteConfigSchema.parse({
-        ...valid,
-        wordmark: { src: "", alt: "Jane Doe" },
-      }),
-    ).toThrow();
-  });
-
-  it("rejects a wordmark with an empty alt (screen-reader requirement)", () => {
-    expect(() =>
-      siteConfigSchema.parse({
-        ...valid,
-        wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
-      }),
-    ).toThrow();
-  });
-
-  it("coerces an empty wordmark object to undefined (Keystatic save artifact)", () => {
-    // Keystatic's fields.object writes `"wordmark": {}` when both the
-    // image and text inputs are blank. The schema treats this as "no
-    // wordmark set" rather than throwing.
-    const result = siteConfigSchema.parse({ ...valid, wordmark: {} });
-    expect(result.wordmark).toBeUndefined();
   });
 
   // ---- Favicon ------------------------------------------------------------
@@ -151,10 +107,71 @@ describe("siteConfigSchema", () => {
     const result = siteConfigSchema.parse({ ...valid, isFooterHidden: true });
     expect(result.isFooterHidden).toBe(true);
   });
+});
+
+describe("headerAndNavSchema", () => {
+  const valid = {
+    items: ["home", "about", "music"],
+  };
+
+  it("accepts the minimal valid config (just items)", () => {
+    const result = headerAndNavSchema.parse(valid);
+    expect(result.items).toEqual(["home", "about", "music"]);
+  });
+
+  it("accepts an empty items array", () => {
+    expect(headerAndNavSchema.parse({ items: [] }).items).toEqual([]);
+  });
+
+  it("rejects empty slug strings inside items", () => {
+    expect(() => headerAndNavSchema.parse({ items: ["home", ""] })).toThrow();
+  });
+
+  // ---- Wordmark -----------------------------------------------------------
+  it("parses without a wordmark (optional field)", () => {
+    expect(headerAndNavSchema.parse(valid).wordmark).toBeUndefined();
+  });
+
+  it("accepts a valid wordmark (src + alt)", () => {
+    const result = headerAndNavSchema.parse({
+      ...valid,
+      wordmark: { src: "../../assets/images/wordmark.svg", alt: "Jane Doe" },
+    });
+    expect(result.wordmark).toEqual({
+      src: "../../assets/images/wordmark.svg",
+      alt: "Jane Doe",
+    });
+  });
+
+  it("rejects a wordmark with an empty src", () => {
+    expect(() =>
+      headerAndNavSchema.parse({
+        ...valid,
+        wordmark: { src: "", alt: "Jane Doe" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a wordmark with an empty alt (screen-reader requirement)", () => {
+    expect(() =>
+      headerAndNavSchema.parse({
+        ...valid,
+        wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
+      }),
+    ).toThrow();
+  });
+
+  it("coerces an empty wordmark object to undefined (Keystatic save artifact)", () => {
+    // Keystatic's fields.object writes `"wordmark": {}` when both the
+    // image and text inputs are blank. The schema treats this as "no
+    // wordmark set" rather than throwing.
+    const result = headerAndNavSchema.parse({ ...valid, wordmark: {} });
+    expect(result.wordmark).toBeUndefined();
+  });
 
   // ---- Header appearance --------------------------------------------------
-  it("applies header defaults when new fields are missing (back-compat)", () => {
-    const result = siteConfigSchema.parse(valid);
+  it("applies header defaults when fields are missing (back-compat)", () => {
+    const result = headerAndNavSchema.parse(valid);
     expect(result.headerStyle).toBe("solid");
     expect(result.headerPosition).toBe("sticky");
     // headerForegroundColor is a plain optional — stays undefined until set.
@@ -162,32 +179,31 @@ describe("siteConfigSchema", () => {
   });
 
   it("round-trips an explicit transparent header config", () => {
-    const withTransparent = {
+    const result = headerAndNavSchema.parse({
       ...valid,
       headerStyle: "transparent" as const,
       headerForegroundColor: "#ffffff",
-      headerPosition: "fixed" as const,
-    };
-    const result = siteConfigSchema.parse(withTransparent);
+      headerPosition: "static" as const,
+    });
     expect(result.headerStyle).toBe("transparent");
     expect(result.headerForegroundColor).toBe("#ffffff");
-    expect(result.headerPosition).toBe("fixed");
+    expect(result.headerPosition).toBe("static");
   });
 
   it("rejects unknown headerStyle values", () => {
     expect(() =>
-      siteConfigSchema.parse({ ...valid, headerStyle: "frosted" }),
+      headerAndNavSchema.parse({ ...valid, headerStyle: "frosted" }),
     ).toThrow();
   });
 
-  it("rejects unknown headerPosition values", () => {
+  it("rejects unknown headerPosition values (e.g. previously-supported 'fixed')", () => {
     expect(() =>
-      siteConfigSchema.parse({ ...valid, headerPosition: "floating" }),
+      headerAndNavSchema.parse({ ...valid, headerPosition: "fixed" }),
     ).toThrow();
   });
 
   it("accepts an empty headerForegroundColor (common seed value)", () => {
-    const result = siteConfigSchema.parse({ ...valid, headerForegroundColor: "" });
+    const result = headerAndNavSchema.parse({ ...valid, headerForegroundColor: "" });
     expect(result.headerForegroundColor).toBe("");
   });
 });
@@ -554,25 +570,12 @@ describe("tourDateSchema", () => {
   });
 });
 
-describe("navConfigSchema", () => {
-  it("accepts valid nav config (array of slugs)", () => {
-    const config = { items: ["home", "about", "music"] };
-    expect(navConfigSchema.parse(config)).toEqual(config);
-  });
-
-  it("accepts empty items array", () => {
-    expect(navConfigSchema.parse({ items: [] })).toEqual({ items: [] });
-  });
-
+describe("headerAndNavSchema — items requirements", () => {
   it("rejects missing items field", () => {
-    expect(() => navConfigSchema.parse({})).toThrow();
-  });
-
-  it("rejects empty slug strings", () => {
-    expect(() => navConfigSchema.parse({ items: ["home", ""] })).toThrow();
+    expect(() => headerAndNavSchema.parse({})).toThrow();
   });
 
   it("rejects flat array (must be wrapped in items)", () => {
-    expect(() => navConfigSchema.parse(["home", "about"])).toThrow();
+    expect(() => headerAndNavSchema.parse(["home", "about"])).toThrow();
   });
 });

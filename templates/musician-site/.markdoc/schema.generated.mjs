@@ -106,10 +106,16 @@ export default {
       attributes: {
         "code": { type: String, required: true },
         "title": { type: String },
-        "responsive": { type: Boolean, default: true },
+      },
+    },
+    "embed-responsive": {
+      selfClosing: true,
+      attributes: {
+        "code": { type: String, required: true },
         "aspectRatio": { type: String, default: "auto", matches: ["auto","16/9","4/3","1/1"] },
-        "minHeight": { type: Number },
+        "title": { type: String },
         "maxWidth": { type: Number },
+        "minHeight": { type: Number },
       },
     },
     "posts-list": {

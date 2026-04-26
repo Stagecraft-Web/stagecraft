@@ -2,19 +2,16 @@
 /**
  * Newsletter signup form.
  *
- * Renders a `<form action={actionUrl} method="post">` with service-specific
- * field names (Mailchimp's form handler wants `EMAIL`; ConvertKit wants
- * `email_address`; etc.). A small inline `<script>` intercepts submission
- * and fetches with `mode: "no-cors"` — Mailchimp/ConvertKit reject CORS
- * from browser origins, so the response is opaque. We optimistically show
- * the success message on fetch completion. If JS is disabled, the native
- * form still submits (the service handles the confirmation page).
+ * Renders a `<form action={actionUrl} method="post">` and lets `<slot />`
+ * fill in the inputs. Authors compose the form via `{% newsletter-field %}`
+ * children — including the mandatory email field, which must be present
+ * (validated at build time by NewsletterSignup/schema.ts → `validate`).
  *
- * Wrapper tag: authors nest `{% newsletter-field %}` children inside this
- * block to add arbitrary extra inputs (first name, referral source, etc.).
- * The email input is always rendered first by this component — it's the
- * mandatory primary field every newsletter provider needs, and its
- * per-service field name is hardcoded here rather than in the child tag.
+ * A small inline `<script>` intercepts submission and fetches with
+ * `mode: "no-cors"` — Mailchimp/ConvertKit reject CORS from browser origins,
+ * so the response is opaque. We optimistically show the success message on
+ * fetch completion. If JS is disabled, the native form still submits (the
+ * service handles the confirmation page).
  *
  * Anti-spam: two honeypot fields.
  *   1. Universal `_gotcha` — hidden off-screen. Checked client-side: if
@@ -24,7 +21,7 @@
  *      we emit a generic `b_subscribe_honeypot` as a best-effort without
  *      parsing the actionUrl (see schema.ts keystatic description).
  */
-import type { NewsletterService } from "./schema";
+import type { NewsletterService } from "../_shared/types";
 
 interface Props {
   service: NewsletterService;
@@ -42,25 +39,11 @@ const {
   successMessage = "Thanks for subscribing!",
 } = Astro.props;
 
-// Service-specific field name for the primary email input. Keep this object
-// exhaustive over `NewsletterService` so adding a new provider to the union
-// fails typecheck here first. (Custom child fields bypass this map — the
-// author passes the raw provider field name via the `name` attribute.)
-const EMAIL_FIELD_NAMES: Record<NewsletterService, string> = {
-  mailchimp: "EMAIL",
-  convertkit: "email_address",
-  buttondown: "email",
-  generic: "email",
-};
-
-const emailFieldName = EMAIL_FIELD_NAMES[service];
-
 // Unique id per block instance so multiple newsletter-signup blocks on
 // one page don't collide on form / status element ids.
 const instanceId = `newsletter-signup-${Math.random().toString(36).slice(2, 10)}`;
 const formId = `${instanceId}-form`;
 const statusId = `${instanceId}-status`;
-const emailInputId = `${instanceId}-email`;
 ---
 
 <div class="newsletter-signup">
@@ -74,17 +57,6 @@ const emailInputId = `${instanceId}-email`;
     data-success-message={successMessage}
   >
     <slot />
-
-    <div class="newsletter-signup-group">
-      <label for={emailInputId}>Email</label>
-      <input
-        id={emailInputId}
-        type="email"
-        name={emailFieldName}
-        autocomplete="email"
-        required
-      />
-    </div>
 
     {/*
       Universal honeypot. Hidden off-screen (not `display:none`, because
@@ -198,35 +170,6 @@ const emailInputId = `${instanceId}-email`;
     display: flex;
     flex-direction: column;
     gap: 1rem;
-  }
-
-  .newsletter-signup-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-  }
-
-  .newsletter-signup-group label {
-    font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-sm);
-    color: var(--color-text);
-  }
-
-  .newsletter-signup-group input {
-    width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    font-family: var(--font-body);
-    font-size: var(--font-size-base);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .newsletter-signup-group input:focus {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 1px;
-    border-color: transparent;
   }
 
   /*

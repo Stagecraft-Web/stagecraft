@@ -5,8 +5,11 @@ import type {
   KeystaticContentComponent,
 } from "../_shared/types";
 import {
+  AUTOCOMPLETE_TOKENS,
+  AUTOCOMPLETE_TOKEN_LABELS,
   FIELD_TYPES,
   FIELD_TYPE_LABELS,
+  type AutocompleteToken,
   type FieldType,
 } from "../_shared/types";
 import { NewsletterFieldPreview } from "./preview";
@@ -55,6 +58,7 @@ export const markdoc: MarkdocTagDefinition = {
     },
     autocomplete: {
       type: String,
+      matches: [...AUTOCOMPLETE_TOKENS],
     },
   },
 };
@@ -103,11 +107,18 @@ export const keystatic: KeystaticContentComponent = block({
       description: "Optional. Grey hint text shown inside an empty input.",
       defaultValue: "",
     }),
-    autocomplete: fields.text({
+    autocomplete: fields.select({
       label: "Autocomplete",
       description:
-        "Optional HTML `autocomplete` token (e.g. `given-name`, `family-name`, `tel`). Helps browsers prefill.",
-      defaultValue: "",
+        "HTML `autocomplete` token. Helps browsers prefill the field from saved profile data — pick the option that best matches what the field is asking for.",
+      options: AUTOCOMPLETE_TOKENS.map((v) => ({
+        label: AUTOCOMPLETE_TOKEN_LABELS[v],
+        value: v,
+      })) as [
+        { label: string; value: AutocompleteToken },
+        ...{ label: string; value: AutocompleteToken }[],
+      ],
+      defaultValue: "off",
     }),
   },
   ContentView: NewsletterFieldPreview,

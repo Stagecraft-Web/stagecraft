@@ -134,7 +134,7 @@ export default {
         "isRequired": { type: Boolean, default: false },
         "options": { type: String },
         "placeholder": { type: String },
-        "autocomplete": { type: String },
+        "autocomplete": { type: String, matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
       },
     },
   },

@@ -1,11 +1,12 @@
 ---
 /**
  * Newsletter field — a child tag of `{% newsletter-signup %}`. Each instance
- * renders one extra input (beyond the always-present email field) via the
- * shared `<FormGroup>` component.
+ * renders one input via the shared `<FormGroup>` component (including the
+ * mandatory email field, which authors must include explicitly with
+ * `type="email"` — see NewsletterSignup/schema.ts validate).
  *
  * The `name` attribute is the raw form-field name passed to the newsletter
- * provider (e.g. `FNAME` for Mailchimp, `first_name` for ConvertKit). We
+ * provider (e.g. `EMAIL` for Mailchimp, `email_address` for ConvertKit). We
  * don't remap per service — providers consume the `name` verbatim, so authors
  * paste whatever their provider's embed code uses.
  *
@@ -14,7 +15,7 @@
  * degrades to a native `<input>` of the matching type via FormGroup.
  */
 import FormGroup from "../../components/FormGroup.astro";
-import type { FieldType } from "../_shared/types";
+import type { AutocompleteToken, FieldType } from "../_shared/types";
 import { parseFieldOptions } from "./parseFieldOptions";
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
   /** Pipe-separated choices for `type="select"`, e.g. `"Friend|Social|Other"`. */
   options?: string;
   placeholder?: string;
-  autocomplete?: string;
+  autocomplete?: AutocompleteToken;
 }
 
 const {
@@ -40,69 +41,19 @@ const {
 
 // Only consumed when `type === "select"`; other types ignore the value.
 const selectOptions = type === "select" ? parseFieldOptions(options) : [];
+// FormGroup's `type` prop is `HTMLInputTypeAttribute`, which excludes the
+// non-input "select" sentinel. Map it to a harmless value when we're going
+// to render a `<select>` anyway.
+const inputType = type === "select" ? "text" : type;
 ---
 
-{
-  type === "select" ? (
-    <div class="form-group">
-      <label for={name}>
-        {label}
-        {isRequired && <span class="form-group-required">*</span>}
-      </label>
-      <select id={name} name={name} required={isRequired} autocomplete={autocomplete}>
-        {!isRequired && <option value="">{placeholder ?? "Select an option"}</option>}
-        {selectOptions.map((opt) => (
-          <option value={opt}>{opt}</option>
-        ))}
-      </select>
-    </div>
-  ) : (
-    <FormGroup
-      label={label}
-      name={name}
-      type={type}
-      isRequired={isRequired}
-      autocomplete={autocomplete}
-      placeholder={placeholder}
-    />
-  )
-}
-
-<style>
-  /*
-   * Select rendered inline here (rather than via FormGroup) because FormGroup
-   * only knows about <input>/<textarea>. Styling mirrors FormGroup's input so
-   * the controls look identical inside the newsletter form.
-   */
-  .form-group {
-    margin-bottom: 1.25rem;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 0.375rem;
-    font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-sm);
-  }
-
-  .form-group-required {
-    color: var(--color-secondary);
-  }
-
-  .form-group select {
-    width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    font-family: var(--font-body);
-    font-size: var(--font-size-base);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .form-group select:focus {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 1px;
-    border-color: transparent;
-  }
-</style>
+<FormGroup
+  label={label}
+  name={name}
+  type={inputType}
+  isSelect={type === "select"}
+  selectOptions={selectOptions}
+  isRequired={isRequired}
+  autocomplete={autocomplete}
+  placeholder={placeholder}
+/>

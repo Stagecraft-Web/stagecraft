@@ -4,12 +4,18 @@ interface Props {
   label: string;
   /** Input name and id attribute */
   name: string;
-  /** Input type (ignored for textarea) */
+  /** Input type (ignored for textarea / select) */
   type?: astroHTML.JSX.HTMLInputTypeAttribute;
   /** Render as textarea instead of input */
   isTextarea?: boolean;
   /** Number of rows for textarea */
   rows?: number;
+  /** Render as a `<select>` driven by `selectOptions`. Mutually exclusive
+   *  with `isTextarea`. */
+  isSelect?: boolean;
+  /** Choices for `isSelect`. Each string is used for both the option's
+   *  value and its display label. */
+  selectOptions?: string[];
   /** Whether the field is required */
   isRequired?: boolean;
   /** Autocomplete attribute. `string` is permitted so content-component
@@ -17,7 +23,8 @@ interface Props {
    * the built-in first-party forms still benefit from the narrowed union
    * via direct prop usage. */
   autocomplete?: string;
-  /** Optional placeholder text. */
+  /** Optional placeholder text. For `<select>` it appears as the empty-value
+   *  prompt option (only when the field isn't required). */
   placeholder?: string;
 }
 
@@ -27,6 +34,8 @@ const {
   type = "text",
   isTextarea = false,
   rows = 5,
+  isSelect = false,
+  selectOptions = [],
   isRequired = false,
   autocomplete,
   placeholder,
@@ -38,7 +47,14 @@ const {
     {label}
     {isRequired && <span class="form-group-required">*</span>}
   </label>
-  {isTextarea ? (
+  {isSelect ? (
+    <select id={name} name={name} required={isRequired} autocomplete={autocomplete}>
+      {!isRequired && <option value="">{placeholder ?? "Select an option"}</option>}
+      {selectOptions.map((opt) => (
+        <option value={opt}>{opt}</option>
+      ))}
+    </select>
+  ) : isTextarea ? (
     <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   ) : (
     <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
@@ -62,7 +78,8 @@ const {
   }
 
   .form-group input,
-  .form-group textarea {
+  .form-group textarea,
+  .form-group select {
     width: 100%;
     padding: 0.625rem 0.75rem;
     border: 1px solid var(--color-border);
@@ -74,7 +91,8 @@ const {
   }
 
   .form-group input:focus,
-  .form-group textarea:focus {
+  .form-group textarea:focus,
+  .form-group select:focus {
     outline: 2px solid var(--color-secondary);
     outline-offset: 1px;
     border-color: transparent;

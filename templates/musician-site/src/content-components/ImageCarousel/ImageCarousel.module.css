@@ -1,97 +1,73 @@
 /*
- * ImageCarousel — hydrated React island. Scoped styles for the interactive
- * controls. The static shell (no-JS fallback) lives inline in
- * ImageCarousel.astro under `<style>` and uses a horizontal-scroll snap
- * layout so every image is still reachable.
+ * ImageCarousel — scroll-snap-driven carousel.
  *
- * Tokens: design-system CSS custom properties where available. For values
- * that have no token (focus-ring thickness, dot sizes) we use literal
- * pixels with comments — consistent with how other content-components
- * handle values outside the tokenised set.
+ * The track is a horizontally-scrolling `<ul>` with mandatory snap on the
+ * x-axis. Each slide is a flex item sized to the track width (100%); the
+ * browser handles all scroll/snap motion. The React island only triggers
+ * `scrollTo` for arrow / dot clicks and watches an IntersectionObserver
+ * to update active state.
+ *
+ * Tokens: design-system CSS custom properties where available. Pixel
+ * literals are used for values without a token (focus-ring thickness,
+ * dot dimensions) — same pattern as other content-components.
  */
 
 .carousel {
   position: relative;
   width: 100%;
   max-width: 100%;
-  user-select: none;
 }
 
 /*
- * Aspect wrapper — driven by a CSS custom property set inline on the
- * carousel root. `--carousel-aspect-ratio: auto` means "let the image's
- * intrinsic aspect apply", which we flag via a `data-aspect-auto` attr
- * rather than relying on parsing the var.
+ * The aspect-ratio variable comes from the React island as an inline
+ * style. `--carousel-aspect-ratio: auto` is flagged via the
+ * `data-aspect-auto` attribute so we can swap object-fit etc. without
+ * parsing the var.
  */
 .track {
-  position: relative;
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   width: 100%;
-  overflow: hidden;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
   aspect-ratio: var(--carousel-aspect-ratio);
   background: var(--color-surface);
   border-radius: var(--radius);
+  /* Hide native scrollbar — the dot indicators are the visible
+     position cue. Slides remain reachable via swipe / wheel / arrows. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/*
- * When aspect ratio is `auto` the track has no intrinsic size — we rely on
- * the image's natural dimensions and a min-height so the region still has
- * a shape before the image loads.
- */
+.track::-webkit-scrollbar {
+  display: none;
+}
+
 .track[data-aspect-auto="true"] {
   aspect-ratio: auto;
+  /* Min height so the focus ring is visible while images load. */
   min-height: 200px;
 }
 
-/*
- * Slides stack absolutely on the track. Only the active slide is visible.
- * Inactive slides cross-fade out via the opacity transition; the new
- * active slide animates in from the side that matches the navigation
- * direction (`data-direction` on the track is set by the React island).
- *
- * Animating only the entering slide — rather than translating both — keeps
- * the leaving slide's exit predictable regardless of wrap-around.
- */
+.track:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
 .slide {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
-}
-
-.slideActive {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.track[data-direction="forward"] .slideActive {
-  animation: image-carousel-enter-from-right 0.4s ease;
-}
-
-.track[data-direction="backward"] .slideActive {
-  animation: image-carousel-enter-from-left 0.4s ease;
-}
-
-@keyframes image-carousel-enter-from-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes image-carousel-enter-from-left {
-  from {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  flex: 0 0 100%;
+  width: 100%;
+  /* `start` aligns the left edge of each slide to the track's left edge,
+     which matches LTR reading order and keeps `scrollTo({left})` math
+     trivial. `scroll-snap-stop: always` prevents flick-scroll from
+     skipping past slides. */
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+  margin: 0;
 }
 
 .slide img {
@@ -99,28 +75,28 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 
 .track[data-aspect-auto="true"] .slide img {
   object-fit: contain;
+  height: auto;
 }
 
-/* Respect reduced-motion preference — disable transitions and animations. */
+/*
+ * Reduced-motion: skip the smooth-scroll animation entirely. Snap still
+ * works, just instantly.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .slide {
-    transition: none;
-  }
-  .track[data-direction="forward"] .slideActive,
-  .track[data-direction="backward"] .slideActive {
-    animation: none;
+  .track {
+    scroll-behavior: auto;
   }
 }
 
 /*
- * Arrow controls — overlaid on top of the track. Positioned against the
- * sides with a small inset so they don't cover crucial image content.
- * Focus ring uses `--color-secondary` to match other focus styles in the
- * template (FormGroup's input focus uses the same token).
+ * Arrow controls — overlaid on the track. Hidden at the corresponding
+ * end via the `disabled` attribute (set by the React island when the
+ * active index sits at 0 / last).
  */
 .arrow {
   position: absolute;
@@ -140,16 +116,21 @@
   cursor: pointer;
   font-size: 1.25rem;
   line-height: 1;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
-.arrow:hover {
+.arrow:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.7);
 }
 
 .arrow:focus-visible {
   outline: 2px solid var(--color-secondary);
   outline-offset: 2px;
+}
+
+.arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .arrowPrev {
@@ -161,8 +142,8 @@
 }
 
 /*
- * Dot row beneath the track. `aria-current="true"` marks the active dot;
- * we double up on visual state (filled vs outlined) so the affordance
+ * Dot row beneath the track. `aria-current="true"` marks the active
+ * dot; visual state is doubled (filled vs outlined) so the affordance
  * doesn't depend on color alone.
  */
 .dots {
@@ -182,9 +163,7 @@
   border: 2px solid var(--color-text-muted);
   background: transparent;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .dot:hover {
@@ -202,10 +181,8 @@
 }
 
 /*
- * aria-live region for screen-reader slide announcements. Visually hidden
- * but kept in the accessibility tree. Mirrors the template's
- * `.screenreader-only` utility but scoped via the module so it's available
- * without relying on the global stylesheet loading.
+ * aria-live region for screen-reader slide announcements. Visually
+ * hidden but kept in the accessibility tree.
  */
 .srOnly {
   position: absolute;

@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./ImageCarousel.module.css";
-import { clampIndex, nextIndex, prevIndex } from "./indexMath";
 import type { CarouselAspectRatio } from "../_shared/types";
 
 /**
- * ImageCarousel — React island that hydrates on top of the Astro shell.
+ * ImageCarousel — scroll-snap carousel with React-driven controls.
  *
- * The Astro renderer bakes every slide into the page as a static `<img>` so
- * the no-JS experience still shows all photos (horizontal-scroll fallback).
- * When this component hydrates it replaces that shell with an interactive
- * carousel: one slide visible at a time, prev/next arrow buttons, dot
- * indicators, keyboard navigation, and an `aria-live` region that reads
- * the active slide's alt text to assistive tech.
+ * Track architecture
+ * ------------------
+ * The slide track is a horizontally-scrolling `<ul>` with
+ * `scroll-snap-type: x mandatory`, so native trackpad / touch / wheel
+ * scrolling lands on slide boundaries automatically. Pre-hydration the
+ * SSR'd track is already functional — visitors can drag through slides
+ * before JS arrives. React's job after hydration is just:
  *
- * No autoplay. Wrap-around at both ends (left arrow on slide 0 jumps to
- * last; right arrow on last slide jumps to 0). Home/End keys clamp
- * (saturate, no wrap) — matches the convention used in desktop apps.
+ *   1. Wire prev/next buttons to programmatic `scrollTo` on the track.
+ *   2. Track which slide is the active snap target via IntersectionObserver
+ *      so the dot indicators, arrow disabled state, and aria-live region
+ *      update as the user scrolls (regardless of input modality).
+ *
+ * No wrap-around. With native scroll the user can't infinitely scroll
+ * past either end, and JS-only wrap (resetting scrollLeft mid-animation)
+ * fights the snap engine. Hitting an edge disables the corresponding
+ * arrow — same convention Bandcamp's design system uses.
+ *
+ * Why IntersectionObserver instead of a `scroll` listener: the observer
+ * only fires when intersection state changes (cheap), and combined with
+ * a high threshold (0.6) it naturally debounces — no rAF throttling
+ * needed.
  */
 
 export interface ImageCarouselSlide {
@@ -37,45 +48,78 @@ export default function ImageCarousel({
   areDotsHidden = false,
   aspectRatio = "16/9",
 }: ImageCarouselProps) {
+  const trackRef = useRef<HTMLUListElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  // Tracks the direction of the most recent navigation so the CSS can
-  // animate the new slide in from the matching side (forward → enters
-  // from the right, backward → enters from the left). Wrap-around at
-  // either end follows the user's arrow choice rather than the index
-  // delta — `goPrev` from slide 0 still feels like "going back".
-  const [direction, setDirection] = useState<"forward" | "backward">("forward");
-  const rootRef = useRef<HTMLDivElement>(null);
 
   const slideCount = slides.length;
-  const activeSlide = slides[activeIndex];
   const hasMultipleSlides = slideCount > 1;
+  const isFirst = activeIndex === 0;
+  const isLast = activeIndex === slideCount - 1;
+  const activeSlide = slides[activeIndex];
+
+  const scrollToSlide = useCallback((target: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const slide = track.children[target] as HTMLElement | undefined;
+    if (!slide) return;
+    // Compute the absolute scroll offset that places the slide flush at
+    // the track's left edge. `scrollIntoView` would also work, but it
+    // sometimes scrolls ancestor scrollers too — explicit `scrollTo`
+    // confines the motion to the track.
+    track.scrollTo({
+      left: slide.offsetLeft - track.offsetLeft,
+      behavior: "smooth",
+    });
+  }, []);
 
   const goNext = useCallback(() => {
-    setDirection("forward");
-    setActiveIndex((i) => nextIndex(i, slideCount));
-  }, [slideCount]);
+    if (!isLast) scrollToSlide(activeIndex + 1);
+  }, [activeIndex, isLast, scrollToSlide]);
 
   const goPrev = useCallback(() => {
-    setDirection("backward");
-    setActiveIndex((i) => prevIndex(i, slideCount));
-  }, [slideCount]);
+    if (!isFirst) scrollToSlide(activeIndex - 1);
+  }, [activeIndex, isFirst, scrollToSlide]);
 
-  const goTo = useCallback(
-    (target: number) => {
-      setActiveIndex((current) => {
-        const clamped = clampIndex(target, slideCount);
-        setDirection(clamped >= current ? "forward" : "backward");
-        return clamped;
-      });
-    },
-    [slideCount],
-  );
+  // Track the active slide as the user scrolls. The observer fires
+  // whenever a slide crosses the 60% intersection threshold inside the
+  // track viewport — high enough that a slide only "becomes active" once
+  // it's the dominant one on screen, low enough that flick-scrolls land
+  // on the right index quickly.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || !hasMultipleSlides) return;
 
-  // Keyboard navigation — bound to the root element (not window) so arrow
-  // keys inside unrelated UI don't hijack focus. Tab is handled natively
-  // by the browser, no need to wire it here.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // During scroll multiple slides may briefly satisfy the threshold
+        // (e.g. when the snap is between two slides). Pick the entry with
+        // the highest ratio so the dot state stays deterministic.
+        let best: IntersectionObserverEntry | undefined;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          if (!best || entry.intersectionRatio > best.intersectionRatio) {
+            best = entry;
+          }
+        }
+        if (!best) return;
+        const idx = Number((best.target as HTMLElement).dataset.slideIndex);
+        if (Number.isFinite(idx)) setActiveIndex(idx);
+      },
+      { root: track, threshold: 0.6 },
+    );
+
+    for (const child of Array.from(track.children)) {
+      observer.observe(child);
+    }
+    return () => observer.disconnect();
+  }, [hasMultipleSlides, slideCount]);
+
+  // Keyboard navigation when the track has focus. Arrow keys advance one
+  // slide; Home/End jump to the ends. We let the browser handle Tab and
+  // PageUp/PageDown natively (the track is overflow:auto so default
+  // keyboard scrolling already works there).
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLUListElement>) => {
       if (!hasMultipleSlides) return;
       switch (event.key) {
         case "ArrowRight":
@@ -88,27 +132,18 @@ export default function ImageCarousel({
           break;
         case "Home":
           event.preventDefault();
-          goTo(0);
+          scrollToSlide(0);
           break;
         case "End":
           event.preventDefault();
-          goTo(slideCount - 1);
+          scrollToSlide(slideCount - 1);
           break;
         default:
           break;
       }
     },
-    [goNext, goPrev, goTo, hasMultipleSlides, slideCount],
+    [goNext, goPrev, hasMultipleSlides, scrollToSlide, slideCount],
   );
-
-  // If the slide array length ever shrinks below the active index (e.g.
-  // in a live-editing scenario), clamp back into range. Defensive; the
-  // carousel prop is usually stable post-build.
-  useEffect(() => {
-    if (activeIndex >= slideCount && slideCount > 0) {
-      setActiveIndex(slideCount - 1);
-    }
-  }, [activeIndex, slideCount]);
 
   if (slideCount === 0) return null;
 
@@ -119,64 +154,62 @@ export default function ImageCarousel({
 
   return (
     <div
-      ref={rootRef}
       className={styles.carousel}
       role="region"
       aria-roledescription="carousel"
       aria-label="Image carousel"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
     >
-      <div
+      <ul
+        ref={trackRef}
         className={styles.track}
         data-aspect-auto={isAspectAuto ? "true" : "false"}
-        data-direction={direction}
         style={aspectStyle}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
       >
-        {slides.map((slide, index) => {
-          const isActive = index === activeIndex;
-          return (
-            <div
-              key={`${slide.src}-${index}`}
-              className={`${styles.slide} ${isActive ? styles.slideActive : ""}`}
-              role="group"
-              aria-roledescription="slide"
-              aria-label={`Slide ${index + 1} of ${slideCount}`}
-              aria-hidden={!isActive}
-            >
-              <img
-                src={slide.src}
-                alt={slide.alt}
-                loading={index === 0 ? "eager" : "lazy"}
-                draggable={false}
-              />
-            </div>
-          );
-        })}
+        {slides.map((slide, index) => (
+          <li
+            key={`${slide.src}-${index}`}
+            className={styles.slide}
+            data-slide-index={index}
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`Slide ${index + 1} of ${slideCount}`}
+          >
+            <img
+              src={slide.src}
+              alt={slide.alt}
+              loading={index === 0 ? "eager" : "lazy"}
+              draggable={false}
+            />
+          </li>
+        ))}
+      </ul>
 
-        {hasMultipleSlides && !areArrowsHidden && (
-          <>
-            <button
-              type="button"
-              className={`${styles.arrow} ${styles.arrowPrev}`}
-              onClick={goPrev}
-              aria-label="Previous slide"
-            >
-              {/* Unicode left-pointing angle. Decorative — aria-label above
-                  gives the accessible name. */}
-              <span aria-hidden="true">&#8249;</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles.arrow} ${styles.arrowNext}`}
-              onClick={goNext}
-              aria-label="Next slide"
-            >
-              <span aria-hidden="true">&#8250;</span>
-            </button>
-          </>
-        )}
-      </div>
+      {hasMultipleSlides && !areArrowsHidden && (
+        <>
+          <button
+            type="button"
+            className={`${styles.arrow} ${styles.arrowPrev}`}
+            onClick={goPrev}
+            disabled={isFirst}
+            aria-label="Previous slide"
+          >
+            {/* Unicode left-pointing angle. Decorative — aria-label gives
+                the accessible name. */}
+            <span aria-hidden="true">&#8249;</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.arrow} ${styles.arrowNext}`}
+            onClick={goNext}
+            disabled={isLast}
+            aria-label="Next slide"
+          >
+            <span aria-hidden="true">&#8250;</span>
+          </button>
+        </>
+      )}
 
       {hasMultipleSlides && !areDotsHidden && (
         <ul className={styles.dots} role="tablist" aria-label="Slide indicators">
@@ -187,7 +220,7 @@ export default function ImageCarousel({
                 <button
                   type="button"
                   className={`${styles.dot} ${isActive ? styles.dotActive : ""}`}
-                  onClick={() => goTo(index)}
+                  onClick={() => scrollToSlide(index)}
                   aria-label={`Go to slide ${index + 1}`}
                   aria-current={isActive ? "true" : undefined}
                   role="tab"
@@ -198,8 +231,8 @@ export default function ImageCarousel({
         </ul>
       )}
 
-      {/* Live region — announces the active slide's alt text to assistive
-          tech. `polite` so the announcement doesn't preempt other speech. */}
+      {/* Live region — announces the active slide's alt text. `polite` so
+          the announcement doesn't preempt other speech. */}
       <div className={styles.srOnly} aria-live="polite" aria-atomic="true">
         {activeSlide ? activeSlide.alt : ""}
       </div>

@@ -1,36 +1,31 @@
 ---
 /**
- * `image-carousel` — server-side shell plus a React interactivity island.
+ * `image-carousel` — thin Astro wrapper around the React island.
  *
  * Data source
  * -----------
  * Queries the `photos` collection. When `photosCollection` is set we filter
- * to entries whose `usageSlot` matches; otherwise all photos are included.
- * (Inline-photos mode is not yet supported — see schema.ts TODO for the
- * wrapper+child-tag pattern that would enable it.)
+ * to entries whose `usageSlot` matches; `"all"` includes every photo.
+ * (Inline-photos mode is not yet supported — see schema.ts TODO.)
  *
- * No-JS fallback
- * --------------
- * Every slide is baked into the page as a `<img>` node inside a
- * horizontally-scrolling container. If JS never loads (or is disabled) the
- * visitor can still reach each image by scrolling the track — no content
- * is hidden. When the React island hydrates it replaces the shell with the
- * interactive carousel (one slide at a time + controls).
+ * No-JS / pre-hydration behavior
+ * ------------------------------
+ * The React island is SSR'd (`client:visible`), so the rendered HTML is
+ * already a functional scroll-snap track — visitors can swipe / wheel /
+ * keyboard-scroll through every slide before JS arrives. Hydration only
+ * adds the arrow + dot interactivity and the IntersectionObserver that
+ * keeps active state in sync.
  *
  * Validation
  * ----------
- * Authors must leave at least one navigation mechanism visible. Both
- * `areArrowsHidden` and `areDotsHidden` set to true would leave the
- * carousel inoperable on touch/screen-reader devices. We render an inline
- * warning when that combination is used so editors see the issue in
- * preview rather than discovering it at build time.
+ * Authors must leave at least one of (arrows, dots) visible. We render
+ * an inline warning when both are hidden so editors catch the issue in
+ * preview rather than at runtime.
  */
-import { Image } from "astro:assets";
 import { getCollection } from "astro:content";
-// React island — imported under an alias because the Astro file shares
-// the `ImageCarousel` name with the component folder, and referring to
-// the default export as `ImageCarousel` directly would collide with the
-// Astro component's implicit declaration of the same name.
+// Import alias — the Astro file shares the `ImageCarousel` name with the
+// component folder; the alias avoids colliding with the implicit Astro
+// component declaration of the same name.
 import ImageCarouselIsland from "./ImageCarousel";
 import type { CarouselAspectRatio, PhotosFilter } from "./schema";
 
@@ -69,8 +64,6 @@ const islandSlides = photos.map((photo) => ({
   caption: photo.caption,
 }));
 
-// Runtime validation: both arrows and dots hidden is an accessibility
-// dead-end. Surface this inline so editors catch it in preview.
 const hasNavError = areArrowsHidden && areDotsHidden;
 ---
 
@@ -83,100 +76,16 @@ const hasNavError = areArrowsHidden && areDotsHidden;
     </span>
   </div>
 ) : photos.length > 0 ? (
-  <div class="image-carousel">
-    {/*
-      No-JS fallback: a scrollable track of all slides. `tabindex="0"`
-      makes the scroll region keyboard-focusable so sighted-keyboard users
-      can still reach each image via tab + arrow keys. Once the React
-      island hydrates it replaces this shell entirely.
-    */}
-    <div class="image-carousel-fallback" tabindex="0" aria-label="Image carousel (static)">
-      {photos.map((photo) => (
-        <figure class="image-carousel-slide">
-          <Image src={photo.src} alt={photo.alt} />
-          {photo.caption && (
-            <figcaption class="image-carousel-caption">{photo.caption}</figcaption>
-          )}
-        </figure>
-      ))}
-    </div>
-
-    {/*
-      React island — `client:visible` defers hydration until the carousel
-      scrolls into view, matching the hydration strategy used by other
-      interactive blocks in this template (Lightbox uses `client:only`
-      because it's modal; the carousel is inline and can hydrate later).
-    */}
-    <ImageCarouselIsland
-      client:visible
-      slides={islandSlides}
-      aspectRatio={aspectRatio}
-      areArrowsHidden={areArrowsHidden}
-      areDotsHidden={areDotsHidden}
-    />
-  </div>
+  <ImageCarouselIsland
+    client:visible
+    slides={islandSlides}
+    aspectRatio={aspectRatio}
+    areArrowsHidden={areArrowsHidden}
+    areDotsHidden={areDotsHidden}
+  />
 ) : null}
 
 <style>
-  /*
-   * When the React island hydrates it mounts its own UI — we hide the
-   * fallback track via a MutationObserver-like CSS trick: the island
-   * renders its root with `[role="region"][aria-roledescription="carousel"]`,
-   * and when that sibling exists we hide the fallback. Simpler approach:
-   * the island replaces the static shell's visual role. Authors will see
-   * the carousel once hydration completes; the fallback exists for the
-   * (small) window where JS hasn't loaded yet or is disabled entirely.
-   */
-  .image-carousel {
-    position: relative;
-    width: 100%;
-  }
-
-  .image-carousel-fallback {
-    display: flex;
-    gap: 0.75rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    border-radius: var(--radius);
-  }
-
-  .image-carousel-fallback:focus-visible {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 2px;
-  }
-
-  .image-carousel-slide {
-    flex: 0 0 100%;
-    margin: 0;
-    scroll-snap-align: start;
-  }
-
-  .image-carousel-slide img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: var(--radius);
-  }
-
-  .image-carousel-caption {
-    margin-top: 0.5rem;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    text-align: center;
-  }
-
-  /*
-   * Once the React island mounts, it renders a sibling with
-   * [role="region"][aria-roledescription="carousel"]. Hide the fallback
-   * in that case so users don't see two stacked carousels. Scoped via
-   * `:has()` (widely supported in modern browsers — the same bar
-   * everything else in this template relies on).
-   */
-  .image-carousel:has([aria-roledescription="carousel"]) .image-carousel-fallback {
-    display: none;
-  }
-
   /*
    * Inline admin-preview error — mirrors the `embed-error` pattern in
    * Embed.astro so editors get consistent feedback across components.

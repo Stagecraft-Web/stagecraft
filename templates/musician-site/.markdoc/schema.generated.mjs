@@ -135,15 +135,44 @@ export default {
         "successMessage": { type: String, default: "Thanks for subscribing!" },
       },
     },
-    "newsletter-field": {
+    "newsletter-email": {
       selfClosing: true,
       attributes: {
-        "type": { type: String, default: "text", matches: ["text","email","tel","select"] },
-        "label": { type: String },
-        "name": { type: String },
-        "autocomplete": { type: String, matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "name": { type: String, default: "email" },
+        "label": { type: String, default: "Email" },
+        "autocomplete": { type: String, default: "email", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: true },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-phone": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, default: "phone" },
+        "label": { type: String, default: "Phone" },
+        "autocomplete": { type: String, default: "tel", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
         "isRequired": { type: Boolean, default: false },
-        "options": { type: String },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-text": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, required: true },
+        "label": { type: String, required: true },
+        "autocomplete": { type: String, default: "off", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: false },
+        "placeholder": { type: String },
+      },
+    },
+    "newsletter-select": {
+      selfClosing: true,
+      attributes: {
+        "name": { type: String, required: true },
+        "label": { type: String, required: true },
+        "options": { type: String, required: true },
+        "autocomplete": { type: String, default: "off", matches: ["off","name","given-name","additional-name","family-name","nickname","email","tel","organization","organization-title","country-name","postal-code","bday"] },
+        "isRequired": { type: Boolean, default: false },
         "placeholder": { type: String },
       },
     },

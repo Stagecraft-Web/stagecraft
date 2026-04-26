@@ -116,24 +116,7 @@ export const NEWSLETTER_SERVICE_LABELS: Record<NewsletterService, string> = {
 };
 
 /**
- * Input type for a `{% newsletter-field %}` child tag. Controls which HTML
- * control renders inside the FormGroup wrapper. Keep this list tight — the
- * newsletter form is intentionally limited to a handful of common shapes so
- * it stays easy to style and accessible. "select" uses a pipe-separated
- * `options` string (`"A|B|C"`) authored on the same tag.
- */
-export const FIELD_TYPES = ["text", "email", "tel", "select"] as const;
-export type FieldType = (typeof FIELD_TYPES)[number];
-
-export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
-  text: "Text",
-  email: "Email",
-  tel: "Phone",
-  select: "Select (dropdown)",
-};
-
-/**
- * Curated subset of HTML `autocomplete` tokens for `{% newsletter-field %}`.
+ * Curated subset of HTML `autocomplete` tokens for newsletter-field tags.
  * Limited to values that make sense for a newsletter signup so the keystatic
  * picker stays scannable; the full HTML spec list is much longer but most of
  * it (credit-card, shipping address, OTP, …) has no place on a mailing-list

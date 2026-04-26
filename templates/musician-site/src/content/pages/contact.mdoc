@@ -15,9 +15,9 @@ Have a question, booking inquiry, or just want to say hello? Fill out the form b
 Subscribe to occasional updates — new releases, tour dates, the odd postcard.
 
 {% newsletter-signup service="generic" actionUrl="https://httpbin.org/post" title="Mailing List" submitLabel="Subscribe" successMessage="Thanks — you'll hear from us soon." %}
-{% newsletter-field type="text" name="first_name" label="First name" autocomplete="given-name" isRequired=true /%}
-{% newsletter-field type="email" isRequired=true /%}
-{% newsletter-field type="select" name="referrer" label="How did you hear about us?" options="Friend|Social|Show|Other" /%}
+{% newsletter-text name="first_name" label="First name" autocomplete="given-name" isRequired=true /%}
+{% newsletter-email /%}
+{% newsletter-select name="referrer" label="How did you hear about us?" options="Friend|Social|Show|Other" /%}
 {% /newsletter-signup %}
 
 {% /section %}

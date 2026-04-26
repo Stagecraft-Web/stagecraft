@@ -25,19 +25,16 @@ import { NewsletterSignupPreview } from "./preview";
  * target — silently defaulting to one service would mask a misconfigured
  * action URL.
  *
- * Wrapper tag: authors compose the form by nesting `{% newsletter-field %}`
- * children — including the mandatory email field. The email field is *not*
- * rendered by this block; authors must add a `newsletter-field` with
- * `type="email"` themselves so the field name (which varies per provider —
- * `EMAIL` for Mailchimp, `email_address` for ConvertKit, `email` for the
- * rest) is authored alongside everything else and stays editable.
+ * Wrapper tag: authors compose the form by nesting newsletter-field child
+ * blocks (`{% newsletter-email %}`, `{% newsletter-phone %}`,
+ * `{% newsletter-text %}`, `{% newsletter-select %}`). The email block is
+ * mandatory — every newsletter provider needs the subscriber's email.
  *
- * The `validate` callback below enforces the email-field requirement at
- * build time so a misconfigured form fails the build instead of silently
- * shipping without an email input. Markdoc's `Schema.children` filters by
- * AST *node type* ("tag", "paragraph", …) — not tag name — so we can't use
- * it to narrow children to `newsletter-field`; the explicit `validate`
- * walk is the workable equivalent.
+ * The `validate` callback below walks descendants for at least one
+ * `newsletter-email` tag and fails the build with a clear error if it's
+ * missing. Markdoc's `Schema.children` filters by AST *node type* ("tag",
+ * "paragraph", …) — not tag name — so it can't narrow children to a
+ * specific tag; the explicit `validate` walk is the workable equivalent.
  */
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/NewsletterSignup/NewsletterSignup.astro",
@@ -68,12 +65,7 @@ export const markdoc: MarkdocTagDefinition = {
     let hasEmailField = false;
     for (const descendant of node.walk()) {
       if (descendant.type !== "tag") continue;
-      if (descendant.tag !== "newsletter-field") continue;
-      // Raw attribute — markdoc applies the schema's `default` at transform
-      // time, not validate time, so an omitted `type` reads as undefined
-      // here. That matches our intent: the email field must be declared
-      // explicitly with `type="email"`.
-      if (descendant.attributes?.type === "email") {
+      if (descendant.tag === "newsletter-email") {
         hasEmailField = true;
         break;
       }
@@ -84,7 +76,7 @@ export const markdoc: MarkdocTagDefinition = {
         id: "newsletter-signup-missing-email",
         level: "error",
         message:
-          'newsletter-signup must contain a newsletter-field with type="email" — every newsletter provider requires the subscriber\'s email address.',
+          "newsletter-signup must contain a newsletter-email block — every newsletter provider requires the subscriber's email address.",
       },
     ];
   },
@@ -93,7 +85,7 @@ export const markdoc: MarkdocTagDefinition = {
 export const keystatic: KeystaticContentComponent = wrapper({
   label: "Newsletter Signup",
   description:
-    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Add `Newsletter Field` blocks inside — at minimum one with type=Email (required) plus any extras you want (first name, referral source, etc.). Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
+    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Add `Newsletter Field: Email` (required) plus any other field blocks you want (`Text`, `Phone`, `Select`). Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
   schema: {
     service: fields.select({
       label: "Service",

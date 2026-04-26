@@ -93,7 +93,8 @@ export default {
     "tour-dates": {
       selfClosing: true,
       attributes: {
-        "filter": { type: String, default: "upcoming", matches: ["upcoming","all"] },
+        "pastPadding": { type: Number, default: 3 },
+        "emptyMessage": { type: String, default: "No upcoming shows. Check back soon." },
       },
     },
     "store-items": {

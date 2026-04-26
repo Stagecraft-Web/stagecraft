@@ -79,15 +79,6 @@ export const COLUMNS_LAYOUT_LABELS: Record<ColumnsLayout, string> = {
   "1-1-1": "Three Equal (1:1:1)",
 };
 
-/** Filter mode for `{% tour-dates-list %}`. */
-export const TOUR_DATES_FILTERS = ["upcoming", "all"] as const;
-export type TourDatesFilter = (typeof TOUR_DATES_FILTERS)[number];
-
-export const TOUR_DATES_FILTER_LABELS: Record<TourDatesFilter, string> = {
-  upcoming: "Upcoming only",
-  all: "All dates",
-};
-
 /** Layout for `{% posts-list %}`. */
 export const POSTS_LIST_LAYOUTS = ["grid", "list"] as const;
 export type PostsListLayout = (typeof POSTS_LIST_LAYOUTS)[number];

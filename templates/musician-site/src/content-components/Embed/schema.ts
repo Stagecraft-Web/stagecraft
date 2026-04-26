@@ -31,6 +31,20 @@ import { EmbedPreview } from "./preview";
  * Trusting the author's snippet is acceptable here (single-author site),
  * but we still parse + sanitize it (see ./extractIframe.ts) so the page
  * doesn't ship arbitrary HTML, just the iframe with an attribute allowlist.
+ *
+ * Why aspectRatio / minHeight / maxWidth aren't conditionally hidden
+ * -----------------------------------------------------------------
+ * They only matter when `responsive` is on, so it'd be cleaner to hide
+ * them in the editor when `responsive` is off — but Keystatic's `block()`
+ * content-component API has the same limitation documented in
+ * Video/schema.ts: there's no parse/serialize hook to bridge a
+ * `fields.conditional` to flat Markdoc tag attributes. Empirically (tested
+ * 2026-04-25), wrapping these three under a conditional causes Keystatic
+ * to *silently drop* existing `{% embed %}` blocks from the editor —
+ * the block disappears with no error, and saving the post wipes it from
+ * disk. Until Keystatic adds a serialization hook (or a non-conditional
+ * "show only when X" mechanism), the fields stay flat with
+ * "(responsive only)" labels + descriptions to signal the dependency.
  */
 
 /**

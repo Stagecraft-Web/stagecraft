@@ -14,7 +14,8 @@
     "tiktok": ""
   },
   "contactEmail": "contact@example.com",
-  "copyright": "© 2026 Artist Name. All rights reserved.",
+  "copyrightName": "",
+  "isFooterHidden": false,
   "headerStyle": "solid",
   "headerForegroundColor": "",
   "headerPosition": "sticky"

@@ -79,15 +79,6 @@ export const COLUMNS_LAYOUT_LABELS: Record<ColumnsLayout, string> = {
   "1-1-1": "Three Equal (1:1:1)",
 };
 
-/** Filter mode for `{% tour-dates-list %}`. */
-export const TOUR_DATES_FILTERS = ["upcoming", "all"] as const;
-export type TourDatesFilter = (typeof TOUR_DATES_FILTERS)[number];
-
-export const TOUR_DATES_FILTER_LABELS: Record<TourDatesFilter, string> = {
-  upcoming: "Upcoming only",
-  all: "All dates",
-};
-
 /** Layout for `{% posts-list %}`. */
 export const POSTS_LIST_LAYOUTS = ["grid", "list"] as const;
 export type PostsListLayout = (typeof POSTS_LIST_LAYOUTS)[number];
@@ -122,6 +113,46 @@ export const NEWSLETTER_SERVICE_LABELS: Record<NewsletterService, string> = {
   convertkit: "ConvertKit",
   buttondown: "Buttondown",
   generic: "Generic (custom endpoint)",
+};
+
+/**
+ * Curated subset of HTML `autocomplete` tokens for newsletter-field tags.
+ * Limited to values that make sense for a newsletter signup so the keystatic
+ * picker stays scannable; the full HTML spec list is much longer but most of
+ * it (credit-card, shipping address, OTP, …) has no place on a mailing-list
+ * form. "off" disables autofill entirely for the field.
+ */
+export const AUTOCOMPLETE_TOKENS = [
+  "off",
+  "name",
+  "given-name",
+  "additional-name",
+  "family-name",
+  "nickname",
+  "email",
+  "tel",
+  "organization",
+  "organization-title",
+  "country-name",
+  "postal-code",
+  "bday",
+] as const;
+export type AutocompleteToken = (typeof AUTOCOMPLETE_TOKENS)[number];
+
+export const AUTOCOMPLETE_TOKEN_LABELS: Record<AutocompleteToken, string> = {
+  off: "Off (no autofill)",
+  name: "Full name",
+  "given-name": "First name",
+  "additional-name": "Middle name",
+  "family-name": "Last name",
+  nickname: "Nickname",
+  email: "Email",
+  tel: "Phone",
+  organization: "Organization / company",
+  "organization-title": "Job title",
+  "country-name": "Country",
+  "postal-code": "Postal / ZIP code",
+  bday: "Birthday",
 };
 
 /**

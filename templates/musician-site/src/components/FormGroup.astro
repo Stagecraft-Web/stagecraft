@@ -1,29 +1,49 @@
 ---
+/**
+ * Generic labelled form control. The `type` prop covers all three control
+ * shapes the form library renders: any standard `<input>` type
+ * (`text`, `email`, `tel`, `url`, `password`, …), `"textarea"`, and
+ * `"select"`. Internally the component switches on those three buckets so
+ * callers don't have to thread `isTextarea` / `isSelect` flags.
+ */
+type FormGroupType =
+  | astroHTML.JSX.HTMLInputTypeAttribute
+  | "textarea"
+  | "select";
+
 interface Props {
   /** Input label text */
   label: string;
   /** Input name and id attribute */
   name: string;
-  /** Input type (ignored for textarea) */
-  type?: astroHTML.JSX.HTMLInputTypeAttribute;
-  /** Render as textarea instead of input */
-  isTextarea?: boolean;
-  /** Number of rows for textarea */
+  /** Control shape — any standard `<input>` type, or `"textarea"` / `"select"`. */
+  type?: FormGroupType;
+  /** Number of rows for `type="textarea"`. */
   rows?: number;
+  /** Choices for `type="select"`. Each string is used for both the option's
+   *  value and its display label. */
+  selectOptions?: string[];
   /** Whether the field is required */
   isRequired?: boolean;
-  /** Autocomplete attribute */
-  autocomplete?: "name" | "email" | "tel" | "organization" | "street-address" | "address-line1" | "address-line2" | "city" | "state" | "postal-code" | "country" | "off" | "on";
+  /** Autocomplete attribute. `string` is permitted so content-component
+   * authors can pass arbitrary tokens (e.g. `given-name`, `family-name`) —
+   * the built-in first-party forms still benefit from the narrowed union
+   * via direct prop usage. */
+  autocomplete?: string;
+  /** Optional placeholder text. For `<select>` it appears as the empty-value
+   *  prompt option (only when the field isn't required). */
+  placeholder?: string;
 }
 
 const {
   label,
   name,
   type = "text",
-  isTextarea = false,
   rows = 5,
+  selectOptions = [],
   isRequired = false,
   autocomplete,
+  placeholder,
 } = Astro.props;
 ---
 
@@ -32,10 +52,17 @@ const {
     {label}
     {isRequired && <span class="form-group-required">*</span>}
   </label>
-  {isTextarea ? (
-    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} />
+  {type === "select" ? (
+    <select id={name} name={name} required={isRequired} autocomplete={autocomplete}>
+      {!isRequired && <option value="">{placeholder ?? "Select an option"}</option>}
+      {selectOptions.map((opt) => (
+        <option value={opt}>{opt}</option>
+      ))}
+    </select>
+  ) : type === "textarea" ? (
+    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   ) : (
-    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} />
+    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
   )}
 </div>
 
@@ -56,7 +83,8 @@ const {
   }
 
   .form-group input,
-  .form-group textarea {
+  .form-group textarea,
+  .form-group select {
     width: 100%;
     padding: 0.625rem 0.75rem;
     border: 1px solid var(--color-border);
@@ -68,7 +96,8 @@ const {
   }
 
   .form-group input:focus,
-  .form-group textarea:focus {
+  .form-group textarea:focus,
+  .form-group select:focus {
     outline: 2px solid var(--color-secondary);
     outline-offset: 1px;
     border-color: transparent;

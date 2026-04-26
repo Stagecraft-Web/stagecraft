@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Button from "../react/Button";
 import FormGroup from "../react/FormGroup";
 import { pxToRem } from "../../lib/font-sizing";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
@@ -259,26 +260,34 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
           )}
 
           {isGitHub ? (
-            <FormGroup label="Editing on branch">
-              <select
-                className={styles.select}
-                value={branch ?? ""}
-                onChange={(e) => setBranch(e.target.value)}
-                disabled={branches.length === 0}
-              >
-                {branches.length === 0 && <option>Loading…</option>}
-                {branches.map((b) => (
-                  <option key={b.name} value={b.name}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+            <div className={styles.field}>
+              {branches.length === 0 ? (
+                // Loading state: stub a single-option select so the layout
+                // doesn't jump when branches arrive. FormGroup is self-
+                // contained so we feed it a singleton "Loading…" option.
+                <FormGroup
+                  label="Editing on branch"
+                  type="select"
+                  selectOptions={[{ label: "Loading…", value: "" }]}
+                  value=""
+                  onChange={() => {}}
+                  isDisabled
+                />
+              ) : (
+                <FormGroup
+                  label="Editing on branch"
+                  type="select"
+                  selectOptions={branches.map((b) => ({ label: b.name, value: b.name }))}
+                  value={branch ?? ""}
+                  onChange={setBranch}
+                />
+              )}
               <p className={styles.hint}>
                 Commits land on this branch. Use{" "}
                 <a href={`/keystatic/branch/${branch ?? "main"}`}>Keystatic</a> to create a new branch
                 or open a pull request.
               </p>
-            </FormGroup>
+            </div>
           ) : (
             <div className={styles.field}>
               <p className={styles.hint}>
@@ -336,19 +345,17 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
             </div>
           )}
           <div className={styles.footerButtons}>
-            <button
-              type="button"
-              className={styles.secondaryButton}
+            <Button
+              variant="outline"
               onClick={revert}
-              disabled={!dirty || saveStatus.kind === "saving"}
+              isDisabled={!dirty || saveStatus.kind === "saving"}
             >
               Revert
-            </button>
-            <button
-              type="button"
-              className={styles.primaryButton}
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSave}
-              disabled={
+              isDisabled={
                 !dirty ||
                 saveStatus.kind === "saving" ||
                 // Only github mode needs a branch selected; local mode has
@@ -357,7 +364,7 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
               }
             >
               {saveStatus.kind === "saving" ? "Saving…" : "Save"}
-            </button>
+            </Button>
           </div>
         </footer>
       </aside>
@@ -486,7 +493,6 @@ function BodyFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
           check fonts.google.com if a weight looks wrong after saving.
         </p>
         <WeightSelectRow
-          bucket="body"
           label="Body"
           value={typography.bodyWeights.body}
           onChange={(next) =>
@@ -500,7 +506,6 @@ function BodyFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
           }
         />
         <WeightSelectRow
-          bucket="bodyBold"
           label="Body bold"
           value={typography.bodyWeights.bodyBold}
           onChange={(next) =>
@@ -525,29 +530,29 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
   const { typography } = draft;
   return (
     <>
-      <FormGroup label="Heading font">
-        <select
-          className={styles.select}
-          value={typography.mode}
-          onChange={(e) =>
-            onChange((prev) => {
-              const mode = e.target.value as "single" | "split";
-              if (mode === "single") {
-                return { ...prev, typography: { ...prev.typography, mode, heading: null } };
-              }
-              // Switching to split: seed heading with a reasonable default if
-              // one isn't already present.
-              const heading =
-                prev.typography.heading ??
-                ({ category: "serif" as FontCategory, family: "Merriweather" });
-              return { ...prev, typography: { ...prev.typography, mode, heading } };
-            })
-          }
-        >
-          <option value="single">Same font as body</option>
-          <option value="split">Different font for headings</option>
-        </select>
-      </FormGroup>
+      <FormGroup
+        label="Heading font"
+        type="select"
+        selectOptions={[
+          { label: "Same font as body", value: "single" },
+          { label: "Different font for headings", value: "split" },
+        ]}
+        value={typography.mode}
+        onChange={(next) =>
+          onChange((prev) => {
+            const mode = next as "single" | "split";
+            if (mode === "single") {
+              return { ...prev, typography: { ...prev.typography, mode, heading: null } };
+            }
+            // Switching to split: seed heading with a reasonable default if
+            // one isn't already present.
+            const heading =
+              prev.typography.heading ??
+              ({ category: "serif" as FontCategory, family: "Merriweather" });
+            return { ...prev, typography: { ...prev.typography, mode, heading } };
+          })
+        }
+      />
 
       {typography.mode === "split" && typography.heading && (
         <FontPickerField
@@ -598,7 +603,6 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
         ).map(([key, label]) => (
           <WeightSelectRow
             key={key}
-            bucket={key}
             label={label}
             value={typography.headingWeights[key]}
             onChange={(next) =>
@@ -697,30 +701,20 @@ function SizeStepperRow({ bucket, value, baseline, onChange }: SizeStepperRowPro
 
 
 interface WeightSelectRowProps {
-  bucket: string;
   label: string;
   value: number;
   onChange: (next: number) => void;
 }
 
-function WeightSelectRow({ bucket, label, value, onChange }: WeightSelectRowProps) {
-  const id = useId();
+function WeightSelectRow({ label, value, onChange }: WeightSelectRowProps) {
   return (
-    <FormGroup label={label} htmlFor={id}>
-      <select
-        id={id}
-        className={styles.select}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        data-bucket={bucket}
-      >
-        {FONT_WEIGHTS.map((w) => (
-          <option key={w} value={w}>
-            {w}
-          </option>
-        ))}
-      </select>
-    </FormGroup>
+    <FormGroup
+      label={label}
+      type="select"
+      selectOptions={FONT_WEIGHTS.map((w) => String(w))}
+      value={String(value)}
+      onChange={(next) => onChange(Number(next))}
+    />
   );
 }
 
@@ -730,11 +724,18 @@ interface FontPickerProps {
   onChange: (next: { category: FontCategory; family: string }) => void;
 }
 
+/**
+ * Two stacked FormGroups — one for the font's category, one for the family
+ * (or, when category === "custom", a free-text input). FormGroup is
+ * intentionally self-contained, so we render two distinct labelled groups
+ * rather than nesting controls under a single label.
+ */
 function FontPickerField({ label, value, onChange }: FontPickerProps) {
   // When the user picks a new category, auto-select the first font of that
   // category so the form is always in a valid state. Custom starts empty so
   // the user types a name.
-  const handleCategoryChange = (category: FontCategory) => {
+  const handleCategoryChange = (categoryRaw: string) => {
+    const category = categoryRaw as FontCategory;
     if (category === "custom") {
       onChange({ category, family: "" });
       return;
@@ -744,44 +745,36 @@ function FontPickerField({ label, value, onChange }: FontPickerProps) {
   };
 
   return (
-    <FormGroup label={label}>
-      <select
-        className={styles.select}
+    <>
+      <FormGroup
+        label={`${label} category`}
+        type="select"
+        selectOptions={FONT_CATEGORIES.map((cat) => ({
+          label: FONT_CATEGORY_LABELS[cat],
+          value: cat,
+        }))}
         value={value.category}
-        onChange={(e) => handleCategoryChange(e.target.value as FontCategory)}
-        aria-label={`${label} category`}
-      >
-        {FONT_CATEGORIES.map((cat) => (
-          <option key={cat} value={cat}>
-            {FONT_CATEGORY_LABELS[cat]}
-          </option>
-        ))}
-      </select>
+        onChange={handleCategoryChange}
+      />
       {value.category === "custom" ? (
-        <input
+        <FormGroup
+          label={label}
           type="text"
-          className={styles.textInput}
           placeholder="Space Grotesk"
           value={value.family}
-          onChange={(e) => onChange({ category: value.category, family: e.target.value })}
+          onChange={(family) => onChange({ category: value.category, family })}
           spellCheck={false}
-          aria-label={`${label} family`}
         />
       ) : (
-        <select
-          className={styles.select}
+        <FormGroup
+          label={label}
+          type="select"
+          selectOptions={GOOGLE_FONTS[value.category as GoogleFontCategory].map((f) => f.family)}
           value={value.family}
-          onChange={(e) => onChange({ category: value.category, family: e.target.value })}
-          aria-label={`${label} family`}
-        >
-          {GOOGLE_FONTS[value.category as GoogleFontCategory].map((f) => (
-            <option key={f.family} value={f.family}>
-              {f.family}
-            </option>
-          ))}
-        </select>
+          onChange={(family) => onChange({ category: value.category, family })}
+        />
       )}
-    </FormGroup>
+    </>
   );
 }
 

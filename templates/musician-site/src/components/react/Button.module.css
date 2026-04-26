@@ -15,9 +15,14 @@
   font-family: inherit;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   opacity: 0.9;
   text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .primary {

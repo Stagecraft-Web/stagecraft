@@ -25,6 +25,9 @@ export interface ButtonProps {
   /** Click handler. Wired through to the underlying element; on Astro/SSR
    *  pages this is a no-op (no React runtime), so use sparingly. */
   onClick?: MouseEventHandler<HTMLButtonElement | HTMLAnchorElement>;
+  /** Disable the underlying `<button>`. Ignored when `href` is set —
+   *  there's no native disabled state for `<a>`. */
+  isDisabled?: boolean;
   /** Optional `id` for the rendered element. */
   id?: string;
   /** Visible text. Markdoc tags pass this via the `label` prop because
@@ -51,6 +54,7 @@ export default function Button({
   isExternal,
   isDownload,
   onClick,
+  isDisabled,
   id,
   label,
   children,
@@ -92,6 +96,7 @@ export default function Button({
       className={classes}
       aria-label={ariaLabel}
       onClick={onClick}
+      disabled={isDisabled}
     >
       {content}
     </button>

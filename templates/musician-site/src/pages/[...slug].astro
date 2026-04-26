@@ -38,6 +38,10 @@ const { entry } = Astro.props;
 const { Content } = await render(entry);
 ---
 
-<BaseLayout title={entry.data.title} isSplashPage={entry.data.isSplashPage}>
+<BaseLayout
+  title={entry.data.title}
+  isSplashPage={entry.data.isSplashPage}
+  isFooterHidden={entry.data.isFooterHidden}
+>
   <Content />
 </BaseLayout>

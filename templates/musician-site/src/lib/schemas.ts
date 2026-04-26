@@ -78,11 +78,24 @@ export const siteConfigSchema = z.object({
       }
       return val;
     }, wordmarkSchema.optional()),
+  // Site favicon (path to uploaded asset). When set, the <link rel="icon">
+  // in BaseLayout points here instead of the default `/favicons/favicon.svg`
+  // shipped in `public/`.
+  favicon: z.string().min(1).optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
   contactEmail: z.string().email(),
-  copyright: z.string(),
+  // Who holds copyright for the site. The footer renders
+  //   "© {current year} {copyrightName || artistName}. All rights reserved."
+  // Authors only need to set this when copyright is held under a name
+  // that differs from the performer's stage name (e.g. legal entity or
+  // civil name); leaving it blank falls back to `artistName`.
+  copyrightName: z.string().optional(),
+  // Hide the site-level social-links/copyright footer across every page.
+  // Per-page frontmatter may override (`isFooterHidden` in pageFrontmatterSchema).
+  // Default false = footer visible (common-sense default).
+  isFooterHidden: z.boolean().default(false),
 });
 
 // Nav config — what's stored in nav.json.
@@ -290,6 +303,9 @@ export const pageFrontmatterSchema = z.object({
   // or footer. The regular "home" page (if any) auto-moves to `/home`.
   // Only one page may be marked as a splash.
   isSplashPage: z.boolean().optional(),
+  // Per-page override for the site-level footer toggle. When set, this value
+  // wins for this page only; leave unset to inherit the site-level default.
+  isFooterHidden: z.boolean().optional(),
 });
 
 // ============================================================

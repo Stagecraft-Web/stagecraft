@@ -275,26 +275,19 @@ describe("appearanceSchema", () => {
     border: "#e5e7eb",
   };
 
-  const validWeights = {
-    body: 400,
-    bodyBold: 700,
-    h1: 700,
-    h2: 700,
-    h3: 700,
-    h4: 700,
-    h5: 600,
-    h6: 600,
-  };
+  const validBodyWeights = { body: 400, bodyBold: 700 };
+  const validHeadingWeights = { h1: 700, h2: 700, h3: 700, h4: 700 };
 
   const splitInput = {
     colors: validColors,
     typography: {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      bodyWeights: validBodyWeights,
       heading: {
         discriminant: "split" as const,
         value: { discriminant: "serif" as const, value: "Merriweather" },
       },
-      weights: validWeights,
+      headingWeights: validHeadingWeights,
     },
   };
 
@@ -302,8 +295,9 @@ describe("appearanceSchema", () => {
     colors: validColors,
     typography: {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
+      bodyWeights: validBodyWeights,
       heading: { discriminant: "single" as const, value: null },
-      weights: validWeights,
+      headingWeights: validHeadingWeights,
     },
   };
 
@@ -326,26 +320,24 @@ describe("appearanceSchema", () => {
     expect(result.typography.heading).toEqual({ category: "serif", family: "Merriweather" });
   });
 
+  it("splits weights into bodyWeights and headingWeights blocks", () => {
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.typography.bodyWeights).toEqual({ body: 400, bodyBold: 700 });
+    expect(result.typography.headingWeights).toEqual({ h1: 700, h2: 700, h3: 700, h4: 700 });
+  });
+
   it("coerces string weights (as Keystatic's select emits) into numbers", () => {
     const withStringWeights = {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: {
-          body: "400",
-          bodyBold: "700",
-          h1: "700",
-          h2: "700",
-          h3: "700",
-          h4: "700",
-          h5: "600",
-          h6: "600",
-        },
+        bodyWeights: { body: "400", bodyBold: "700" },
+        headingWeights: { h1: "700", h2: "700", h3: "700", h4: "700" },
       },
     };
     const result = appearanceSchema.parse(withStringWeights);
-    expect(result.typography.weights.body).toBe(400);
-    expect(result.typography.weights.h1).toBe(700);
+    expect(result.typography.bodyWeights.body).toBe(400);
+    expect(result.typography.headingWeights.h1).toBe(700);
   });
 
   it("rejects weights outside the 100–900 range", () => {
@@ -353,7 +345,7 @@ describe("appearanceSchema", () => {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: { ...validWeights, body: 50 },
+        bodyWeights: { ...validBodyWeights, body: 50 },
       },
     };
     expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
@@ -364,7 +356,7 @@ describe("appearanceSchema", () => {
       ...splitInput,
       typography: {
         ...splitInput.typography,
-        weights: { ...validWeights, body: 450 },
+        bodyWeights: { ...validBodyWeights, body: 450 },
       },
     };
     expect(() => appearanceSchema.parse(withBadWeight)).toThrow();
@@ -452,6 +444,94 @@ describe("appearanceSchema", () => {
     };
     const result = appearanceSchema.parse(withLink);
     expect(result.colors.linkColor).toBe("#ff00aa");
+  });
+
+  // ---- per-bucket size overrides (integer pixels) ------------------------
+  it("defaults bodySizes/headingSizes to all-zero when missing", () => {
+    // Backwards-compat: pre-existing appearance.json files have no size
+    // blocks. Each field defaults to 0, which computeFontSizes treats as
+    // "use the theme.json baseline."
+    const result = appearanceSchema.parse(splitInput);
+    expect(result.typography.bodySizes).toEqual({ xs: 0, sm: 0, base: 0, lg: 0 });
+    expect(result.typography.headingSizes).toEqual({
+      xl: 0,
+      "2xl": 0,
+      "3xl": 0,
+      "4xl": 0,
+    });
+  });
+
+  it("accepts explicit per-bucket overrides as integer pixels", () => {
+    const withSizes = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { xs: 11, sm: 0, base: 18, lg: 0 },
+        headingSizes: { xl: 26, "2xl": 0, "3xl": 0, "4xl": 64 },
+      },
+    };
+    const result = appearanceSchema.parse(withSizes);
+    expect(result.typography.bodySizes.xs).toBe(11);
+    expect(result.typography.bodySizes.base).toBe(18);
+    expect(result.typography.headingSizes.xl).toBe(26);
+    expect(result.typography.headingSizes["4xl"]).toBe(64);
+  });
+
+  it("coerces string-valued sizes (as Keystatic's number input may emit)", () => {
+    const withStringSizes = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: "18", xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    const result = appearanceSchema.parse(withStringSizes);
+    expect(result.typography.bodySizes.base).toBe(18);
+  });
+
+  it("rejects non-integer sizes", () => {
+    const withFractional = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: 16.5, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withFractional)).toThrow();
+  });
+
+  it("rejects sizes outside the [0, 96]px range", () => {
+    const withTooBig = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: 200, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withTooBig)).toThrow();
+    const withNegative = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: -1, xs: 0, sm: 0, lg: 0 },
+      },
+    };
+    expect(() => appearanceSchema.parse(withNegative)).toThrow();
+  });
+
+  it("treats per-bucket fields as optional within the size blocks", () => {
+    // Authors can supply a partial map (e.g. only `base`); the schema fills
+    // the rest with defaults.
+    const withPartial = {
+      ...splitInput,
+      typography: {
+        ...splitInput.typography,
+        bodySizes: { base: 17 },
+      },
+    };
+    const result = appearanceSchema.parse(withPartial);
+    expect(result.typography.bodySizes.base).toBe(17);
+    expect(result.typography.bodySizes.xs).toBe(0);
   });
 });
 

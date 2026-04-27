@@ -15,6 +15,16 @@
       "discriminant": "sans-serif",
       "value": "Inter"
     },
+    "bodySizes": {
+      "xs": 0,
+      "sm": 0,
+      "base": 0,
+      "lg": 0
+    },
+    "bodyWeights": {
+      "body": "400",
+      "bodyBold": "700"
+    },
     "heading": {
       "discriminant": "split",
       "value": {
@@ -22,15 +32,17 @@
         "value": "Merriweather"
       }
     },
-    "weights": {
-      "body": "400",
-      "bodyBold": "700",
+    "headingSizes": {
+      "xl": 0,
+      "2xl": 0,
+      "3xl": 0,
+      "4xl": 0
+    },
+    "headingWeights": {
       "h1": "700",
       "h2": "700",
       "h3": "700",
-      "h4": "700",
-      "h5": "600",
-      "h6": "600"
+      "h4": "700"
     }
   }
 }

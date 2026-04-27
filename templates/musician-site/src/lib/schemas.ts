@@ -260,15 +260,126 @@ const headingSelectionSchema = z
       : { mode: "split" as const, heading: input.value },
   );
 
-const weightsSchema = z.object({
+// Per-bucket font-size overrides. Each key matches the eight buckets in
+// theme.json (`xs`, `sm`, `base`, `lg`, `xl`, `2xl`, `3xl`, `4xl`); a missing
+// or empty value falls back to the theme.json baseline at render time. Stored
+// as rem strings ("1.25rem") so the on-disk format mirrors theme.json.
+//
+// Replaces the earlier `fontSizeScale` / `fontSizeAdjust` / `headingScale`
+// multipliers — per-bucket overrides give authors the same expressiveness
+// without three layered knobs.
+export const FONT_SIZE_BUCKETS = [
+  "xs",
+  "sm",
+  "base",
+  "lg",
+  "xl",
+  "2xl",
+  "3xl",
+  "4xl",
+] as const;
+export type FontSizeBucket = (typeof FONT_SIZE_BUCKETS)[number];
+
+// Buckets driven primarily by heading-level CSS (xl → h4, 2xl → h3, 3xl → h2,
+// 4xl → h1) vs body-tier (lg / base / sm / xs). Used by the Keystatic +
+// sidebar grouping that splits the size editor into a Body group and a
+// Headings group. Both arrays are listed largest-first so the admin UI
+// reads top-down from "h1 / large body" down to "captions" — the order an
+// author scans when tuning the type scale.
+//
+// Members are themselves `FontSizeBucket`s; we don't export narrower
+// per-group types because every consumer either iterates the array (no
+// narrower type needed) or accepts any bucket.
+export const HEADING_FONT_SIZE_BUCKETS = ["4xl", "3xl", "2xl", "xl"] as const;
+export const BODY_FONT_SIZE_BUCKETS = ["lg", "base", "sm", "xs"] as const;
+
+// Friendly labels — used by both the Keystatic admin and the in-page sidebar.
+// Pairs the bucket key with a hint about which heading level (if any) it
+// drives in `global.css`.
+export const FONT_SIZE_BUCKET_LABELS: Record<FontSizeBucket, string> = {
+  xs: "xs (caption)",
+  sm: "sm (small body)",
+  base: "base (body / h6)",
+  lg: "lg (large body / h5)",
+  xl: "xl (h4)",
+  "2xl": "2xl (h3)",
+  "3xl": "3xl (h2)",
+  "4xl": "4xl (h1)",
+};
+
+// Per-bucket sizes are stored as integer pixels with a 16px = 1rem
+// convention. `0` means "fall back to the theme.json baseline at render
+// time" — the stepper UI in both surfaces treats 0 as "default" and steps
+// up to 8px (0.5rem) on first increment. Bounded to [0, 96] (0.5rem to
+// 6rem) so the steppers can't run off into ridiculous territory.
+//
+// Why pixels (not rem strings)? A constrained integer prevents authors
+// from typing free-form values like "1.347rem" or "16px" — the stepper
+// can only emit valid values, and `fields.integer` gives Keystatic a
+// native number input with +/− buttons.
+export const PX_PER_REM = 16;
+export const FONT_SIZE_PX_MIN = 0;
+export const FONT_SIZE_PX_MAX = 96;
+export const FONT_SIZE_PX_STEP_MIN = 8;
+
+const fontSizePxSchema = z.coerce
+  .number()
+  .int()
+  .min(FONT_SIZE_PX_MIN)
+  .max(FONT_SIZE_PX_MAX);
+
+// Builds a `{bucket: schema, ...}` map for a fixed set of buckets so the Zod
+// shape preserves the literal-union types. Without this helper the shape is
+// inferred as `{[k: string]: ...}` and downstream `.default()` calls lose
+// type-safety.
+const sizesShapeFor = <T extends FontSizeBucket>(
+  buckets: readonly T[],
+): Record<T, ReturnType<typeof fontSizePxSchema.default>> =>
+  buckets.reduce(
+    (acc, bucket) => {
+      acc[bucket] = fontSizePxSchema.default(0);
+      return acc;
+    },
+    {} as Record<T, ReturnType<typeof fontSizePxSchema.default>>,
+  );
+
+// Helper: builds a `Record<bucket, 0>` for the schema's top-level default.
+// Each individual bucket's `.default(0)` would suffice when the parent block
+// is supplied, but the parent itself also needs a default for the case where
+// `bodySizes` / `headingSizes` is missing entirely (e.g. an old
+// `appearance.json` from before the size block existed).
+const blankSizesFor = <T extends string>(buckets: readonly T[]): Record<T, number> =>
+  buckets.reduce(
+    (acc, bucket) => {
+      acc[bucket] = 0;
+      return acc;
+    },
+    {} as Record<T, number>,
+  );
+
+const bodySizesSchema = z
+  .object(sizesShapeFor(BODY_FONT_SIZE_BUCKETS))
+  .default(() => blankSizesFor(BODY_FONT_SIZE_BUCKETS));
+
+const headingSizesSchema = z
+  .object(sizesShapeFor(HEADING_FONT_SIZE_BUCKETS))
+  .default(() => blankSizesFor(HEADING_FONT_SIZE_BUCKETS));
+
+// Body and heading weight blocks are split so the admin can group them with
+// their respective font + sizes. h5 / h6 weights are intentionally not
+// surfaced — global.css's `@layer defaults` provides sensible fallbacks
+// (semibold) and authors who really need to change them can edit the
+// stylesheet directly.
+const bodyWeightsSchema = z.object({
   body: fontWeightSchema.default(400),
   bodyBold: fontWeightSchema.default(700),
+});
+
+const headingWeightsSchema = z.object({
   h1: fontWeightSchema.default(700),
   h2: fontWeightSchema.default(700),
   h3: fontWeightSchema.default(700),
   h4: fontWeightSchema.default(700),
-  h5: fontWeightSchema.default(600),
-  h6: fontWeightSchema.default(600),
 });
 
 export const appearanceSchema = z
@@ -292,8 +403,11 @@ export const appearanceSchema = z
     }),
     typography: z.object({
       primary: fontSelectionSchema,
+      bodySizes: bodySizesSchema,
+      bodyWeights: bodyWeightsSchema.default({}),
       heading: headingSelectionSchema,
-      weights: weightsSchema,
+      headingSizes: headingSizesSchema,
+      headingWeights: headingWeightsSchema.default({}),
     }),
   })
   .transform((input) => ({
@@ -310,12 +424,21 @@ export const appearanceSchema = z
       primary: input.typography.primary,
       mode: input.typography.heading.mode,
       heading: input.typography.heading.heading,
-      weights: input.typography.weights,
+      // Body and heading size/weight blocks stay split in the runtime shape
+      // too — consumers (BaseLayout, live-preview) can compose them into a
+      // single CSS-variable map without losing the grouping. Each per-bucket
+      // value is either an explicit rem string ("1.25rem") or "" (use the
+      // theme.json baseline).
+      bodySizes: input.typography.bodySizes,
+      bodyWeights: input.typography.bodyWeights,
+      headingSizes: input.typography.headingSizes,
+      headingWeights: input.typography.headingWeights,
     },
   }));
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];
+export type AppearanceTypography = Appearance["typography"];
 
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),

@@ -1,7 +1,7 @@
 {
   "headerMode": "solid-sticky",
   "headerForegroundColor": "",
-  "headerTextSizeAdjust": 0,
+  "headerTextSizeAdjust": "0",
   "isHeaderTextUppercase": false,
   "headerSubtitle": "",
   "headerLayout": "logo-left-nav-right",

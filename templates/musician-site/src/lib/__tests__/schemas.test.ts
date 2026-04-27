@@ -117,12 +117,26 @@ describe("siteConfigSchema", () => {
     expect(result.pageBackgroundOverlay).toBeUndefined();
   });
 
+  it("collapses a 'none'-discriminant pageBackground to undefined", () => {
+    // Keystatic's `fields.conditional` always serialises a value — the "none"
+    // branch writes `{ discriminant: "none", value: null }` rather than
+    // omitting the key. The schema treats that as "no background set."
+    const result = siteConfigSchema.parse({
+      ...valid,
+      pageBackground: { discriminant: "none", value: null },
+    });
+    expect(result.pageBackground).toBeUndefined();
+  });
+
   it("accepts a full pageBackground + overlay", () => {
     const withBackground = {
       ...valid,
       pageBackground: {
-        src: "../../assets/images/bg.jpg",
-        alt: "Abstract texture",
+        discriminant: "image",
+        value: {
+          src: "../../assets/images/bg.jpg",
+          alt: "Abstract texture",
+        },
       },
       pageBackgroundOverlay: { color: "#000000", opacity: 0.4 },
     };
@@ -141,7 +155,10 @@ describe("siteConfigSchema", () => {
     expect(() =>
       siteConfigSchema.parse({
         ...valid,
-        pageBackground: { src: "../../assets/images/bg.jpg", alt: "" },
+        pageBackground: {
+          discriminant: "image",
+          value: { src: "../../assets/images/bg.jpg", alt: "" },
+        },
       }),
     ).toThrow();
   });
@@ -150,8 +167,11 @@ describe("siteConfigSchema", () => {
     const withPartialOverlay = {
       ...valid,
       pageBackground: {
-        src: "../../assets/images/bg.jpg",
-        alt: "Abstract texture",
+        discriminant: "image",
+        value: {
+          src: "../../assets/images/bg.jpg",
+          alt: "Abstract texture",
+        },
       },
       pageBackgroundOverlay: {},
     };
@@ -208,14 +228,28 @@ describe("headerAndNavSchema", () => {
   });
 
   // ---- Wordmark -----------------------------------------------------------
-  it("parses without a wordmark (optional field)", () => {
+  it("parses without a wordmark (back-compat: pre-conditional seeds omit the key)", () => {
     expect(headerAndNavSchema.parse(valid).wordmark).toBeUndefined();
   });
 
-  it("accepts a valid wordmark (src + alt)", () => {
+  it("collapses a 'none'-discriminant wordmark to undefined", () => {
+    // Keystatic writes `{ discriminant: "none", value: null }` when the
+    // "None" branch of the conditional is selected — equivalent to "no
+    // wordmark set" but explicit on disk.
     const result = headerAndNavSchema.parse({
       ...valid,
-      wordmark: { src: "../../assets/images/wordmark.svg", alt: "Jane Doe" },
+      wordmark: { discriminant: "none", value: null },
+    });
+    expect(result.wordmark).toBeUndefined();
+  });
+
+  it("accepts a valid wordmark (src + alt) and unwraps the discriminant shape", () => {
+    const result = headerAndNavSchema.parse({
+      ...valid,
+      wordmark: {
+        discriminant: "image",
+        value: { src: "../../assets/images/wordmark.svg", alt: "Jane Doe" },
+      },
     });
     expect(result.wordmark).toEqual({
       src: "../../assets/images/wordmark.svg",
@@ -227,7 +261,10 @@ describe("headerAndNavSchema", () => {
     expect(() =>
       headerAndNavSchema.parse({
         ...valid,
-        wordmark: { src: "", alt: "Jane Doe" },
+        wordmark: {
+          discriminant: "image",
+          value: { src: "", alt: "Jane Doe" },
+        },
       }),
     ).toThrow();
   });
@@ -236,17 +273,12 @@ describe("headerAndNavSchema", () => {
     expect(() =>
       headerAndNavSchema.parse({
         ...valid,
-        wordmark: { src: "../../assets/images/wordmark.svg", alt: "" },
+        wordmark: {
+          discriminant: "image",
+          value: { src: "../../assets/images/wordmark.svg", alt: "" },
+        },
       }),
     ).toThrow();
-  });
-
-  it("coerces an empty wordmark object to undefined (Keystatic save artifact)", () => {
-    // Keystatic's fields.object writes `"wordmark": {}` when both the
-    // image and text inputs are blank. The schema treats this as "no
-    // wordmark set" rather than throwing.
-    const result = headerAndNavSchema.parse({ ...valid, wordmark: {} });
-    expect(result.wordmark).toBeUndefined();
   });
 
   // ---- Header mode --------------------------------------------------------
@@ -651,12 +683,23 @@ describe("pageFrontmatterSchema", () => {
     expect(result.pageBackgroundOverlay).toBeUndefined();
   });
 
+  it("collapses a 'none'-discriminant pageBackground to undefined", () => {
+    const result = pageFrontmatterSchema.parse({
+      title: "About",
+      pageBackground: { discriminant: "none", value: null },
+    });
+    expect(result.pageBackground).toBeUndefined();
+  });
+
   it("accepts a per-page pageBackground + overlay override", () => {
     const result = pageFrontmatterSchema.parse({
       title: "About",
       pageBackground: {
-        src: "../../assets/images/about-bg.jpg",
-        alt: "Studio shot",
+        discriminant: "image",
+        value: {
+          src: "../../assets/images/about-bg.jpg",
+          alt: "Studio shot",
+        },
       },
       pageBackgroundOverlay: { color: "#112233", opacity: 0.55 },
     });
@@ -674,7 +717,10 @@ describe("pageFrontmatterSchema", () => {
     expect(() =>
       pageFrontmatterSchema.parse({
         title: "About",
-        pageBackground: { src: "../../assets/images/about-bg.jpg", alt: "" },
+        pageBackground: {
+          discriminant: "image",
+          value: { src: "../../assets/images/about-bg.jpg", alt: "" },
+        },
       }),
     ).toThrow();
   });

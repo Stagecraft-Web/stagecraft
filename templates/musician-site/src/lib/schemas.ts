@@ -46,6 +46,27 @@ export const imageMetadataSchema = z.object({
   usageSlot: z.enum(IMAGE_USAGE_SLOTS).optional(), // semantic slot — what this image is used for
 });
 
+// Optional images in Keystatic are authored through `fields.conditional`
+// with a "none" / "image" select — when the author picks "Image" the inner
+// fields render as required, so the editor can't save a half-filled image
+// (which would later break the site at content-validation time).
+//
+// On disk that serialises as `{ discriminant, value }`. This helper accepts
+// that shape and transforms it into the flat `T | undefined` form downstream
+// renderers already use, so no consumer needs to know about the wrapper.
+//
+// Wrap the result in `.optional()` at the call site to handle older content
+// files that omit the key entirely.
+const optionalImageFromConditional = <T extends z.ZodTypeAny>(inner: T) =>
+  z
+    .discriminatedUnion("discriminant", [
+      z.object({ discriminant: z.literal("none"), value: z.null() }),
+      z.object({ discriminant: z.literal("image"), value: inner }),
+    ])
+    .transform((input): z.infer<T> | undefined =>
+      input.discriminant === "none" ? undefined : input.value,
+    );
+
 // ============================================================
 // Config singletons
 // ============================================================
@@ -116,7 +137,7 @@ export const siteConfigSchema = z.object({
   // Site-wide default background image painted behind all page content. Each
   // page may override this via page frontmatter (pageBackground). Absent =
   // no background (plain --color-bg). Required shape: src + alt.
-  pageBackground: imageMetadataSchema.optional(),
+  pageBackground: optionalImageFromConditional(imageMetadataSchema).optional(),
   // Tint painted over `pageBackground` for text legibility. When the
   // background is unset the overlay is ignored. Defaults kick in when the
   // field is present but `color`/`opacity` are missing.
@@ -137,21 +158,12 @@ export const siteConfigSchema = z.object({
   isFooterHidden: z.boolean().default(false),
 });
 
-// Keystatic's fields.object writes `"wordmark": {}` when both the image and
-// text inputs are blank — indistinguishable from "no wordmark set". Coerce
-// that to undefined so .optional() accepts it. Reused inside the
-// headerAndNav singleton.
-const optionalWordmark = z.preprocess((val) => {
-  if (
-    val &&
-    typeof val === "object" &&
-    !Array.isArray(val) &&
-    Object.keys(val).length === 0
-  ) {
-    return undefined;
-  }
-  return val;
-}, wordmarkSchema.optional());
+// Wordmark is authored via `fields.conditional` in Keystatic (see
+// `optionalImageFromConditional`), so on disk it serialises as
+// `{ discriminant, value }` and transforms to `{src, alt} | undefined` here.
+// `.optional()` covers the back-compat case where header.json predates the
+// conditional and omits the key entirely.
+const optionalWordmark = optionalImageFromConditional(wordmarkSchema).optional();
 
 // Header & Navigation config — what's stored in header.json.
 // Bundles the site header's brand mark (wordmark), appearance/position
@@ -521,7 +533,7 @@ export const pageFrontmatterSchema = z.object({
   // pageBackground for this page only; when absent, the page inherits the
   // site-level default. Splash pages ignore this entirely (they render their
   // own full-bleed imagery via FullscreenSection).
-  pageBackground: imageMetadataSchema.optional(),
+  pageBackground: optionalImageFromConditional(imageMetadataSchema).optional(),
   // Per-page overlay override. Same inheritance rules as pageBackground.
   pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
 });
@@ -644,7 +656,7 @@ export const postFrontmatterSchema = z.object({
   publishedDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be an ISO date (YYYY-MM-DD)"),
-  featuredImage: imageMetadataSchema.optional(),
+  featuredImage: optionalImageFromConditional(imageMetadataSchema).optional(),
   excerpt: z.string().max(300).optional(),
   category: z.enum(POST_CATEGORIES).default("news"),
   externalUrl: z.string().url().optional(),
@@ -690,7 +702,7 @@ export const storeItemSchema = z.object({
   format: z.enum(STORE_ITEM_FORMATS),
   price: z.number().nonnegative(),
   currency: z.string().length(3).default("USD"),
-  image: imageMetadataSchema.optional(),
+  image: optionalImageFromConditional(imageMetadataSchema).optional(),
   description: z.string().optional(),
   buyUrl: z.string().url(),
   status: z.enum(STORE_ITEM_STATUSES).default("available"),

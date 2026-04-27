@@ -34,6 +34,27 @@ const imageMetadataSchema = ({ image }: SchemaContext) =>
     usageSlot: z.enum(IMAGE_USAGE_SLOTS).optional(),
   });
 
+// Mirror of the helper in src/lib/schemas.ts. Keystatic authors optional
+// images via `fields.conditional` (None / Image), which serialises as
+// `{ discriminant, value }`. This helper accepts that shape and transforms
+// it into the flat `T | undefined` shape downstream code already uses.
+// Wrap the result in `.optional()` at the call site so older content files
+// that omit the key entirely still parse.
+const optionalImageFromConditional = <T extends z.ZodTypeAny>(inner: T) =>
+  z
+    .discriminatedUnion("discriminant", [
+      z.object({ discriminant: z.literal("none"), value: z.null() }),
+      z.object({ discriminant: z.literal("image"), value: inner }),
+    ])
+    // Cast: astro/zod v4 widens the `value` field of the "image" branch into
+    // a Zod-internal mapped type, so even after narrowing on `discriminant`
+    // TS can't see `value` as `z.infer<T>`. The runtime parse already
+    // validated the shape, so casting here is safe.
+    .transform((input): z.infer<T> | undefined => {
+      if (input.discriminant === "none") return undefined;
+      return (input as { value: z.infer<T> }).value;
+    });
+
 // ---------------------------------------------------------------------------
 // Pages — unified collection with minimal shared frontmatter.
 // Page-specific structured content (hero sections, images, EPK links) lives
@@ -65,12 +86,12 @@ const pages = defineCollection({
     // helper) so the path travels through the same `resolveImage()` codepath
     // that the site-wide default uses — one background resolution strategy,
     // not two. `resolveImage()` handles the optimisation at render time.
-    pageBackground: z
-      .object({
+    pageBackground: optionalImageFromConditional(
+      z.object({
         src: z.string().min(1),
         alt: z.string().min(1),
-      })
-      .optional(),
+      }),
+    ).optional(),
     // Optional per-page overlay override (tint painted over the background
     // image for text legibility). Same inheritance rules as pageBackground.
     // `color`/`opacity` default to black @ 0.3 when omitted.
@@ -152,7 +173,7 @@ const storeItems = defineCollection({
       format: z.enum(STORE_ITEM_FORMATS),
       price: z.number().nonnegative(),
       currency: z.string().length(3).default("USD"),
-      image: imageMetadataSchema(ctx).optional(),
+      image: optionalImageFromConditional(imageMetadataSchema(ctx)).optional(),
       description: z.string().optional(),
       buyUrl: z.url(),
       status: z.enum(STORE_ITEM_STATUSES).default("available"),
@@ -178,7 +199,7 @@ const posts = defineCollection({
       publishedDate: z
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be an ISO date (YYYY-MM-DD)"),
-      featuredImage: imageMetadataSchema(ctx).optional(),
+      featuredImage: optionalImageFromConditional(imageMetadataSchema(ctx)).optional(),
       excerpt: z.string().max(300).optional(),
       category: z.enum(POST_CATEGORIES).default("news"),
       externalUrl: z.url().optional(),

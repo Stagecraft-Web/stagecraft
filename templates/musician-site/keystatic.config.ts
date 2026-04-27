@@ -2,14 +2,17 @@ import { config, fields, collection, singleton } from "@keystatic/core";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
 import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
+  BODY_FONT_SIZE_BUCKETS,
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  FONT_SIZE_BUCKET_LABELS,
+  FONT_SIZE_PX_MAX,
+  FONT_SIZE_PX_MIN,
   HEADER_LAYOUTS,
   HEADER_LAYOUT_LABELS,
-  HEADER_POSITIONS,
-  HEADER_POSITION_LABELS,
-  HEADER_STYLES,
-  HEADER_STYLE_LABELS,
+  HEADER_MODES,
+  HEADER_MODE_LABELS,
+  HEADING_FONT_SIZE_BUCKETS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
@@ -25,9 +28,9 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type FontSizeBucket,
   type HeaderLayout,
-  type HeaderPosition,
-  type HeaderStyle,
+  type HeaderMode,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
 
@@ -121,6 +124,35 @@ const weightField = (label: string, defaultValue: number) =>
     defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
   });
 
+// Per-bucket font-size editor. Renders as a `fields.object` of integer
+// number-inputs (one per bucket) — Keystatic gives them browser-native +/−
+// spinner buttons. Stored as pixels (1rem = 16px); `0` falls back to
+// theme.json's baseline at render time. Used twice in the Appearance
+// singleton — once for body buckets (xs/sm/base/lg), once for heading
+// buckets (xl/2xl/3xl/4xl).
+const sizesObject = <T extends FontSizeBucket>(
+  buckets: readonly T[],
+  label: string,
+) =>
+  fields.object(
+    Object.fromEntries(
+      buckets.map((b) => [
+        b,
+        fields.integer({
+          label: FONT_SIZE_BUCKET_LABELS[b],
+          description: "Pixels (16 = 1rem). 0 inherits the theme.json default.",
+          defaultValue: 0,
+          validation: { min: FONT_SIZE_PX_MIN, max: FONT_SIZE_PX_MAX },
+        }),
+      ]),
+    ) as Record<T, ReturnType<typeof fields.integer>>,
+    {
+      label,
+      description:
+        "Per-bucket overrides on top of theme.json's font-size scale. Step the spinners or leave at 0 to inherit the default.",
+    },
+  );
+
 // Build a curated "Usage Slot" select that exposes only the subset of
 // IMAGE_USAGE_SLOTS relevant to a given collection (e.g. photos rarely need
 // "release-cover"). Preserves the canonical order from IMAGE_USAGE_SLOTS and
@@ -190,6 +222,66 @@ export default config({
       format: { data: "json" },
       schema: {
         artistName: fields.text({ label: "Artist Name", validation: { isRequired: true } }),
+        // Optional site favicon (the icon shown in the browser tab). When
+        // unset, BaseLayout falls back to /favicons/favicon.svg in public/.
+        // Dedicated subdirectory so favicons don't mix with photo/cover
+        // assets; publicPath walks back two levels from site.json's location
+        // (src/content/config/) to reach src/assets/favicons/.
+        favicon: fields.image({
+          label: "Favicon",
+          description:
+            "Optional browser-tab icon. SVG recommended (scales crisply); PNG and JPG also supported. Leave blank to use the default favicon.",
+          directory: "src/assets/favicons",
+          publicPath: "../../assets/favicons/",
+        }),
+        siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
+        siteDescription: fields.text({ label: "Site Description", multiline: true }),
+        socialLinks: fields.object(
+          {
+            instagram: fields.text({ label: "Instagram URL" }),
+            twitter: fields.text({ label: "Twitter / X URL" }),
+            facebook: fields.text({ label: "Facebook URL" }),
+            youtube: fields.text({ label: "YouTube URL" }),
+            spotify: fields.text({ label: "Spotify URL" }),
+            appleMusic: fields.text({ label: "Apple Music URL" }),
+            bandcamp: fields.text({ label: "Bandcamp URL" }),
+            soundcloud: fields.text({ label: "SoundCloud URL" }),
+            tiktok: fields.text({ label: "TikTok URL" }),
+          },
+          { label: "Social Links" },
+        ),
+        contactEmail: fields.text({ label: "Contact Email", validation: { isRequired: true } }),
+        copyrightName: fields.text({
+          label: "Copyright holder",
+          description:
+            "Name shown in the footer's copyright line. Leave blank to use your artist name. Set this only when copyright is held under a different name (legal entity, civil name, etc.). The year and \"All rights reserved.\" boilerplate are filled in automatically.",
+        }),
+        isFooterHidden: fields.checkbox({
+          label: "Hide footer site-wide",
+          description:
+            "When enabled, the site footer (social links + copyright) is hidden on every page. Individual pages can override this via their own 'Hide footer on this page' toggle.",
+          defaultValue: false,
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Header & Navigation — bundles the brand wordmark, header
+    // appearance/position settings, and nav membership/order in a
+    // single editor screen so all header authoring lives together.
+    //
+    // `multiRelationship` (items) renders two parts in the editor:
+    //   1. A combobox at the top listing pages NOT yet in the nav
+    //      (i.e. omitted pages). Pick one to add it.
+    //   2. A drag-and-drop list below of the pages currently in the
+    //      nav, in order.
+    // -----------------------------------------------------------------
+
+    headerAndNavigation: singleton({
+      label: "Header & Navigation",
+      path: "src/content/config/header",
+      format: { data: "json" },
+      schema: {
         // Optional brand wordmark image. When set, the Header renders this
         // image in place of the artist-name text. All other uses of
         // artistName (document <title>, meta tags, footer) are unaffected —
@@ -198,7 +290,7 @@ export default config({
         // Directory is `src/assets/images/` (top-level, not a collection
         // subfolder) because the wordmark is a site-wide brand asset rather
         // than content belonging to a single release/photo/etc. publicPath
-        // walks back two levels from site.json's location
+        // walks back two levels from header.json's location
         // (src/content/config/) to reach src/assets/images/.
         wordmark: fields.object(
           {
@@ -219,65 +311,35 @@ export default config({
               "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
           },
         ),
-        siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
-        siteDescription: fields.text({ label: "Site Description", multiline: true }),
-        socialLinks: fields.object(
-          {
-            instagram: fields.text({ label: "Instagram URL" }),
-            twitter: fields.text({ label: "Twitter / X URL" }),
-            facebook: fields.text({ label: "Facebook URL" }),
-            youtube: fields.text({ label: "YouTube URL" }),
-            spotify: fields.text({ label: "Spotify URL" }),
-            appleMusic: fields.text({ label: "Apple Music URL" }),
-            bandcamp: fields.text({ label: "Bandcamp URL" }),
-            soundcloud: fields.text({ label: "SoundCloud URL" }),
-            tiktok: fields.text({ label: "TikTok URL" }),
-          },
-          { label: "Social Links" },
-        ),
-        contactEmail: fields.text({ label: "Contact Email", validation: { isRequired: true } }),
-        copyright: fields.text({ label: "Copyright Line" }),
         // -------------------------------------------------------------
-        // Header appearance
-        //
-        // "Solid" paints the surface color behind the nav so content
-        // scrolling underneath is hidden. "Transparent" lets the page
-        // background read through (designed to pair with a full-bleed
-        // hero image or fullscreen-section at the top of the page);
-        // when the user scrolls the surface color fades back in so
-        // the nav stays readable over regular content.
+        // Header mode — bundles header style + scroll behavior into one
+        // pick. "Solid, sticky" (default) is the standard nav that
+        // pins to the top on scroll. "Solid, scrolls with page" keeps
+        // the surface paint but lets the header scroll away. "Trans-
+        // parent, scrolls with page" lets a hero image / fullscreen
+        // section read through and is meant to disappear as the
+        // reader scrolls past — sticky is intentionally not offered
+        // alongside transparent because content scrolling under a
+        // partly-transparent pinned header flashes through.
         // -------------------------------------------------------------
-        headerStyle: fields.select({
-          label: "Header style",
+        headerMode: fields.select({
+          label: "Header mode",
           description:
-            "Solid keeps the nav on its own surface background. Transparent lets the page background (e.g. a hero image or fullscreen section) read through; the background fades in automatically once the reader scrolls. Pair transparent with a page that starts with a fullscreen-section so the nav has something to sit over.",
-          options: HEADER_STYLES.map((v) => ({
-            label: HEADER_STYLE_LABELS[v],
+            "Pick how the header looks and behaves as the page scrolls. Default is solid + sticky (the nav pins to the top). 'Transparent, scrolls with page' is meant to pair with a page that opens with a fullscreen-section or hero image — the nav sits over it and scrolls away.",
+          options: HEADER_MODES.map((v) => ({
+            label: HEADER_MODE_LABELS[v],
             value: v,
           })) as [
-            { label: string; value: HeaderStyle },
-            ...{ label: string; value: HeaderStyle }[],
+            { label: string; value: HeaderMode },
+            ...{ label: string; value: HeaderMode }[],
           ],
-          defaultValue: "solid",
+          defaultValue: "solid-sticky",
         }),
         headerForegroundColor: fields.text({
           label: "Header foreground color",
           description:
-            "Optional. Only applied when header style is 'transparent'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
+            "Optional. Only applied when header mode is 'Transparent, scrolls with page'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
           defaultValue: "",
-        }),
-        headerPosition: fields.select({
-          label: "Header position",
-          description:
-            "How the header behaves as the page scrolls. 'Sticky' (default) pins it at the top after the user scrolls past. 'Fixed' keeps it permanently overlaid. 'Static' lets it scroll away with the page.",
-          options: HEADER_POSITIONS.map((v) => ({
-            label: HEADER_POSITION_LABELS[v],
-            value: v,
-          })) as [
-            { label: string; value: HeaderPosition },
-            ...{ label: string; value: HeaderPosition }[],
-          ],
-          defaultValue: "sticky",
         }),
         // -------------------------------------------------------------
         // Header style variations (§2.3)
@@ -332,24 +394,6 @@ export default config({
           ],
           defaultValue: "logo-left-nav-right",
         }),
-      },
-    }),
-
-    // -----------------------------------------------------------------
-    // Navigation — owns both membership and order.
-    //
-    // `multiRelationship` renders two parts in the editor:
-    //   1. A combobox at the top listing pages NOT yet in the nav
-    //      (i.e. omitted pages). Pick one to add it.
-    //   2. A drag-and-drop list below of the pages currently in the
-    //      nav, in order.
-    // -----------------------------------------------------------------
-
-    navigation: singleton({
-      label: "Navigation",
-      path: "src/content/config/nav",
-      format: { data: "json" },
-      schema: {
         items: fields.multiRelationship({
           label: "Navigation Items",
           collection: "pages",
@@ -362,17 +406,18 @@ export default config({
     // -----------------------------------------------------------------
     // Appearance — colors and typography (Google Fonts).
     //
-    // Typography picker is category-first: choose Sans-serif/Serif/
+    // Typography is split into a Body group and a Headings group; each
+    // owns its font family, per-bucket sizes, and weights. Per-bucket
+    // size fields accept rem values ("1.25rem"); leave a field blank
+    // to inherit from theme.json's baseline.
+    //
+    // The font picker is category-first: choose Sans-serif/Serif/
     // Monospace/Display/Handwriting to get a curated list, or choose
     // "Custom" to type any family name from fonts.google.com.
     //
-    // By default the same font is used site-wide. Switching "Font
-    // Strategy" to "Separate heading + body" activates the Heading
-    // font picker.
-    //
-    // Weight pickers exist per heading level and for body/body-bold,
-    // so the Google Fonts URL emitted at runtime requests ONLY the
-    // weights actually in use (keeps page weight small).
+    // Heading mode is single (same font as body) or split (own family);
+    // weight pickers per heading level let the runtime fetch only the
+    // exact weights actually in use.
     // -----------------------------------------------------------------
 
     appearance: singleton({
@@ -408,16 +453,32 @@ export default config({
         ),
         typography: fields.object(
           {
+            // Body font picker. The body's family is the fallback when
+            // headings use "Same as body".
             primary: fontPicker("Body font", {
               category: "sans-serif",
               family: "Inter",
             }),
+            // Body sizes — xs / sm / base / lg map to body / small body /
+            // captions and h6 / h5 in global.css. Empty string means "use
+            // theme.json baseline" (the default).
+            bodySizes: sizesObject(BODY_FONT_SIZE_BUCKETS, "Body sizes"),
+            bodyWeights: fields.object(
+              {
+                body: weightField("Body", 400),
+                bodyBold: weightField("Body bold", 700),
+              },
+              {
+                label: "Body weights",
+                description:
+                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+              },
+            ),
             // `mode` is the discriminant: "single" hides the heading picker
-            // entirely; "split" reveals it (Keystatic conditional UX). This
-            // replaces the older parallel `mode` + `heading` fields.
+            // entirely; "split" reveals it (Keystatic conditional UX).
             heading: fields.conditional(
               fields.select({
-                label: "Headings",
+                label: "Heading font",
                 description: "Use the same font as the body, or pick a different font for headings.",
                 options: [
                   { label: "Same as body", value: "single" },
@@ -433,28 +494,26 @@ export default config({
                 }),
               },
             ),
-            weights: fields.object(
+            // Heading sizes — xl / 2xl / 3xl / 4xl map to h4..h1 in global.css.
+            headingSizes: sizesObject(HEADING_FONT_SIZE_BUCKETS, "Heading sizes"),
+            headingWeights: fields.object(
               {
-                body: weightField("Body", 400),
-                bodyBold: weightField("Body bold", 700),
                 h1: weightField("H1", 700),
                 h2: weightField("H2", 700),
                 h3: weightField("H3", 700),
                 h4: weightField("H4", 700),
-                h5: weightField("H5", 600),
-                h6: weightField("H6", 600),
               },
               {
-                label: "Font weights",
+                label: "Heading weights",
                 description:
-                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+                  "Only the weights you pick here are downloaded. h5 and h6 inherit sensible defaults — edit theme.json directly if you need to change them.",
               },
             ),
           },
           {
             label: "Typography",
             description:
-              "Pick fonts and weights. Google Fonts are loaded with only the exact weights in use.",
+              "Body group then headings — each owns a font family, per-bucket sizes, and weights. Leave any size blank to inherit the theme.json default.",
           },
         ),
       },
@@ -482,6 +541,11 @@ export default config({
           label: "Splash page",
           description:
             'When enabled, this page appears at "/" (the site root) and renders without the site header or footer. Your regular home page automatically moves to "/home". Link the "Enter Site" button in this page\'s body to /home. Only one page can be marked as a splash.',
+          defaultValue: false,
+        }),
+        isFooterHidden: fields.checkbox({
+          label: "Hide footer on this page",
+          description: "Overrides the site-level setting for this page only.",
           defaultValue: false,
         }),
         content: fields.markdoc({
@@ -601,22 +665,6 @@ export default config({
           defaultValue: "youtube",
         }),
         description: fields.text({ label: "Description", multiline: true }),
-      },
-    }),
-
-    // -----------------------------------------------------------------
-    // Press quotes — one YAML file per quote
-    // -----------------------------------------------------------------
-
-    pressQuotes: collection({
-      label: "Press Quotes",
-      slugField: "source",
-      path: "src/content/collections/pressQuotes/*",
-      schema: {
-        quote: fields.text({ label: "Quote", multiline: true, validation: { isRequired: true } }),
-        source: fields.slug({ name: { label: "Source", validation: { isRequired: true } } }),
-        url: fields.text({ label: "URL" }),
-        date: fields.date({ label: "Date" }),
       },
     }),
 

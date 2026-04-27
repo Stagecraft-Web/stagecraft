@@ -1,8 +1,9 @@
 import { fields } from "@keystatic/core";
-import { block } from "@keystatic/core/content-components";
+import { wrapper } from "@keystatic/core/content-components";
 import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
+  NewsletterService,
 } from "../_shared/types";
 import {
   NEWSLETTER_SERVICES,
@@ -19,23 +20,24 @@ import { NewsletterSignupPreview } from "./preview";
  * identifiers at build time).
  *
  * Single discriminator (`service`) selects the newsletter provider; the
- * renderer emits the service-specific form field names at build time so a
- * Mailchimp form gets `EMAIL`/`FNAME`, ConvertKit gets `email_address`/
- * `first_name`, etc. The discriminator is required (no default) so authors
- * explicitly pick a target — silently defaulting to one service would mask
- * a misconfigured action URL.
+ * renderer emits a service-specific Mailchimp honeypot at build time. The
+ * discriminator is required (no default) so authors explicitly pick a
+ * target — silently defaulting to one service would mask a misconfigured
+ * action URL.
+ *
+ * Wrapper tag: authors compose the form by nesting newsletter-field child
+ * blocks (`{% newsletter-email %}`, `{% newsletter-phone %}`,
+ * `{% newsletter-text %}`, `{% newsletter-select %}`). The email block is
+ * mandatory — every newsletter provider needs the subscriber's email.
+ *
+ * The `validate` callback below walks descendants for at least one
+ * `newsletter-email` tag and fails the build with a clear error if it's
+ * missing. Markdoc's `Schema.children` filters by AST *node type* ("tag",
+ * "paragraph", …) — not tag name — so it can't narrow children to a
+ * specific tag; the explicit `validate` walk is the workable equivalent.
  */
-
-/**
- * Re-export from `_shared/types` so sibling modules
- * (`NewsletterSignup.astro`, `preview.tsx`) can keep importing from
- * `./schema` without knowing the canonical location moved.
- */
-export type NewsletterService = (typeof NEWSLETTER_SERVICES)[number];
-
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/NewsletterSignup/NewsletterSignup.astro",
-  selfClosing: true,
   attributes: {
     service: {
       type: String,
@@ -58,17 +60,32 @@ export const markdoc: MarkdocTagDefinition = {
       type: String,
       default: "Thanks for subscribing!",
     },
-    captureName: {
-      type: Boolean,
-      default: false,
-    },
+  },
+  validate(node) {
+    let hasEmailField = false;
+    for (const descendant of node.walk()) {
+      if (descendant.type !== "tag") continue;
+      if (descendant.tag === "newsletter-email") {
+        hasEmailField = true;
+        break;
+      }
+    }
+    if (hasEmailField) return [];
+    return [
+      {
+        id: "newsletter-signup-missing-email",
+        level: "error",
+        message:
+          "newsletter-signup must contain a newsletter-email block — every newsletter provider requires the subscriber's email address.",
+      },
+    ];
   },
 };
 
-export const keystatic: KeystaticContentComponent = block({
+export const keystatic: KeystaticContentComponent = wrapper({
   label: "Newsletter Signup",
   description:
-    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
+    "Email-capture form that POSTs to Mailchimp, ConvertKit, Buttondown, or a custom endpoint. Add `Newsletter Field: Email` (required) plus any other field blocks you want (`Text`, `Phone`, `Select`). Uses a hidden honeypot field to deter simple bots. Note: Mailchimp's real bot-trap field is audience-specific (a random `b_xxx_xxx` suffix). This block emits a generic `b_subscribe_honeypot` — it helps, but isn't a full replacement for reCAPTCHA on Mailchimp embeds. For strict anti-spam, paste Mailchimp's own embed HTML directly into a page.",
   schema: {
     service: fields.select({
       label: "Service",
@@ -101,11 +118,6 @@ export const keystatic: KeystaticContentComponent = block({
       label: "Success message",
       description: "Shown inline after a successful submit.",
       defaultValue: "Thanks for subscribing!",
-    }),
-    captureName: fields.checkbox({
-      label: "Capture first name",
-      description: "Adds a first-name input alongside the email field.",
-      defaultValue: false,
     }),
   },
   ContentView: NewsletterSignupPreview,

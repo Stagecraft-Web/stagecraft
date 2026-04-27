@@ -9,14 +9,15 @@
  * escaped. This keeps the trust boundary inside the parser — anything
  * surprising in the snippet is dropped before it reaches the page.
  *
- * Aspect ratio
- * ------------
- * - "auto" (default) lets the iframe's intrinsic width/height attributes
- *   apply, capped to 100% width via CSS so it stays inside the page on
- *   mobile. Best for fixed-height players (Spotify, Bandcamp).
- * - A ratio string like "16/9" wraps the iframe in a positioned container
- *   that enforces the ratio and sizes the iframe absolutely to fill it.
- *   Best for video embeds that should scale.
+ * Sizing
+ * ------
+ * No magic. The iframe renders at whatever width/height its source attributes
+ * specify (Bandcamp's 350×470 player stays 350×470). The only default is
+ * `max-width: 100%` so a hardcoded-pixel embed can't horizontally overflow
+ * its column on a narrow viewport.
+ *
+ * Want responsive scaling (fill the column, maintain aspect ratio)? Use
+ * `{% embed-responsive %}` instead.
  *
  * Title fallback chain
  * --------------------
@@ -24,153 +25,36 @@
  * generic "Embedded content from <host>" string. Always set so the iframe
  * has an a11y label.
  */
-import { extractIframe, extractEmbedHost } from "./extractIframe";
-import type { EmbedAspectRatio } from "./schema";
+import { extractIframe, buildIframeAttrs, type IframeAttrs } from "./extractIframe";
 
 interface Props {
   code: string;
-  aspectRatio?: EmbedAspectRatio;
   title?: string;
 }
 
-const { code, aspectRatio = "auto", title } = Astro.props;
+const { code, title } = Astro.props;
 
 const parsed = extractIframe(code);
-const hasParseError = parsed === null;
-
-// Compute the final attribute set. We work on a fresh object so we can
-// override `title`, force `loading="lazy"`, and skip the (now-redundant)
-// width/height when an aspect ratio is enforced.
-const isRatioEnforced = !hasParseError && aspectRatio !== "auto";
-
-/**
- * Astro's IframeHTMLAttributes types each attribute narrowly:
- *
- *   - `loading`: `"lazy" | "eager" | null | undefined`
- *   - `allowfullscreen`: `boolean | string`
- *   - `frameborder`: `string`
- *   - everything else on our allowlist: `string`
- *
- * The parser hands us `string` values across the board, so we narrow
- * `loading` to its accepted union and convert the bare-boolean
- * `allowfullscreen=""` to `true` (Astro drops empty-string attributes
- * during spread, which would otherwise lose the attribute entirely).
- */
-type IframeLoading = "lazy" | "eager";
-type IframeAttrs = {
-  src?: string;
-  width?: string;
-  height?: string;
-  title?: string;
-  allow?: string;
-  loading?: IframeLoading;
-  style?: string;
-  frameborder?: string;
-  allowfullscreen?: boolean;
-};
-
-function narrowLoading(raw: string | undefined): IframeLoading {
-  return raw === "eager" ? "eager" : "lazy";
-}
-
-let attrs: IframeAttrs = {};
-let resolvedTitle = "";
-
-if (parsed) {
-  const source = parsed.attributes;
-  const host = extractEmbedHost(source.src);
-  resolvedTitle =
-    title?.trim() ||
-    source.title?.trim() ||
-    (host ? `Embedded content from ${host}` : "Embedded content");
-
-  attrs = {
-    src: source.src,
-    width: source.width,
-    height: source.height,
-    allow: source.allow,
-    style: source.style,
-    frameborder: source.frameborder,
-    title: resolvedTitle,
-    // Lazy-load by default — embed iframes are network-heavy and rarely
-    // above the fold. Authors who want eager loading can edit the snippet.
-    loading: narrowLoading(source.loading),
-    // Bare boolean attribute (`<iframe allowfullscreen>`). Storing `true`
-    // tells Astro to render it without a value.
-    allowfullscreen: source.allowfullscreen !== undefined ? true : undefined,
-  };
-
-  // When we enforce an aspect ratio the wrapper sizes the iframe via
-  // `position: absolute; inset: 0; width: 100%; height: 100%;`. Stripping
-  // the inline width/height/style here avoids fighting the wrapper rules.
-  if (isRatioEnforced) {
-    delete attrs.width;
-    delete attrs.height;
-    delete attrs.style;
-  }
-}
-
-// CSS custom property holds the ratio so the same .embed-ratio rule
-// applies for any value the author picks. Keeps the styles below static.
-const ratioStyle = isRatioEnforced ? `--embed-aspect-ratio: ${aspectRatio};` : undefined;
+const attrs: IframeAttrs | null = parsed ? buildIframeAttrs(parsed, { title }) : null;
 ---
 
-{hasParseError ? (
+{attrs === null ? (
   <div class="embed-error" role="alert">
     <strong>Embed code couldn't be parsed.</strong>
     <span>Paste the full <code>&lt;iframe&gt;</code> snippet from the service's "Share / Embed" UI.</span>
   </div>
-) : isRatioEnforced ? (
-  <div class="embed-wrapper embed-ratio" style={ratioStyle}>
-    <iframe {...attrs} />
-  </div>
 ) : (
-  <div class="embed-wrapper">
-    <iframe {...attrs} />
-  </div>
+  <iframe class="embed" {...attrs} />
 )}
 
 <style>
-  .embed-wrapper {
-    margin: var(--space-md, 1rem) 0;
-    max-width: 100%;
-  }
-
-  /*
-   * Auto wrapper: let the iframe's intrinsic dimensions apply, but never
-   * let it overflow the column. Block display + max-width:100% handles
-   * fixed-height players (Spotify's 352px tall card) on mobile gracefully.
-   */
-  .embed-wrapper iframe {
+  .embed {
     display: block;
     max-width: 100%;
     border: 0;
+    margin: var(--space-md, 1rem) 0;
   }
 
-  /*
-   * Aspect-ratio wrapper: position the iframe to fill a box constrained
-   * by `aspect-ratio`. Modern browsers (95%+) support `aspect-ratio` so
-   * we don't need the padding-bottom hack.
-   */
-  .embed-ratio {
-    position: relative;
-    width: 100%;
-    aspect-ratio: var(--embed-aspect-ratio);
-  }
-
-  .embed-ratio iframe {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  /*
-   * Inline error block — surfaces parse failures so editors notice the
-   * problem in dev/preview rather than seeing an empty page region.
-   * Colors come from the design tokens; the error styling mirrors the
-   * form-status-error pattern used in ContactForm.
-   */
   .embed-error {
     margin: var(--space-md, 1rem) 0;
     padding: 0.75rem 1rem;

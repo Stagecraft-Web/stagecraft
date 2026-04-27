@@ -408,7 +408,6 @@ Content falls into four categories with a strict preference ordering for AI edit
 | Releases | `src/content/collections/releases/*.json` |
 | Photos | `src/content/collections/photos/gallery.json` |
 | Videos | `src/content/collections/videos/videos.json` |
-| Press quotes | `src/content/collections/pressQuotes/quotes.json` |
 | Tour dates | `src/content/collections/tourDates/dates.json` |
 
 #### Normalized image metadata

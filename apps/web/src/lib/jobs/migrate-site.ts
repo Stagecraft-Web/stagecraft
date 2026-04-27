@@ -96,8 +96,13 @@ export async function handleMigrateSite(ctx: JobContext): Promise<JobResult> {
     const netlifySite = await createNetlifySite({
       userId,
       name: `stagecraft-site-${slug}`,
-      repoOwner: repo.owner,
-      repoName: repo.name,
+      repo: {
+        provider: "github",
+        repo_path: `${repo.owner}/${repo.name}`,
+        repo_branch: repo.defaultBranch,
+        cmd: "npm run build",
+        dir: "dist",
+      },
     });
 
     // ── Step 7: Mark site active ─────────────────────────────────────────────

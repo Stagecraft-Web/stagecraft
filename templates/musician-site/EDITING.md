@@ -1,64 +1,61 @@
 # Editing Guide
 
-This document explains how to edit your musician website. You can either use the **Keystatic CMS** (visual editor) or edit files directly.
-
----
+How to edit your site. Two options: the **Keystatic CMS** (visual
+editor) or edit files directly.
 
 ## Keystatic CMS
 
-The site includes a visual content editor at `/keystatic`. Run the dev server and visit `http://localhost:4321/keystatic` to manage pages, releases, photos, press quotes, tour dates, and site settings through a web UI.
+Run `npm run dev`, then visit
+<http://localhost:4321/keystatic>. You can manage pages, releases,
+photos, tour dates, and site settings through a web UI. Press quotes
+are authored inline on the press page (see below) — there's no
+separate Press Quotes collection.
 
 **In production**, `/keystatic` requires GitHub OAuth — see
-[`docs/keystatic-github-setup.md`](docs/keystatic-github-setup.md) for the
-one-time setup (register a GitHub App, set Netlify env vars). Once
-configured, signed-in editors also see an **Appearance** sidebar on the
-live site (bottom-right corner) with live preview and a single-click save.
+[`docs/keystatic-github-setup.md`](docs/keystatic-github-setup.md) for
+the one-time setup. Once configured, signed-in editors also see an
+**Appearance** button on the live site (bottom-right corner) that
+opens a drawer with live-preview color + typography editing and
+single-click save.
 
----
-
-## Quick Start
+## Quick start
 
 ```bash
 npm install
-npm run dev       # Start dev server at localhost:4321
-npm run build     # Production build
-npm run preview   # Preview production build
-npm run validate:content  # Check content files for errors
+npm run dev               # Dev server at localhost:4321
+npm run build             # Production build
+npm run validate:content  # Check content files against schemas
 ```
 
----
+## Content structure
 
-## Content Structure
-
-All site content lives in `src/content/`. This is the only directory you need to edit for routine updates.
+All site content lives in `src/content/`. This is the only directory
+you need to edit for routine updates.
 
 ```
 src/content/
   config/
-    site.json       ← Artist name, social links, contact email, copyright
-    nav.json        ← Navigation menu items
+    site.json       ← Artist name, social links, contact email
+    header.json     ← Header mode + nav menu (order + pages)
     appearance.json ← Colors + typography (Google Fonts picker)
-    theme.json      ← Dev-level tokens (font-size scale, spacing, breakpoints)
+    theme.json      ← Font-size scale, spacing, breakpoints
   pages/
-    home.mdoc       ← Homepage (fullscreen hero, CTA button)
-    about.mdoc      ← Bio / about page (image + text layout)
-    music.mdoc      ← Music page intro text + release grid
+    home.mdoc       ← Homepage (fullscreen hero, CTA)
+    about.mdoc      ← Bio / about page (image + text)
+    music.mdoc      ← Music page intro + release grid
     photos.mdoc     ← Photos page + gallery
-    press.mdoc      ← Press page, reviews, EPK link
-    contact.mdoc    ← Contact page intro text + form
+    press.mdoc      ← Press page, reviews (inline quotes), EPK link
+    contact.mdoc    ← Contact page intro + form
   collections/
     releases/       ← One YAML file per album/single/EP
     photos/         ← One YAML file per photo
     videos/         ← One YAML file per video
-    pressQuotes/    ← One YAML file per press quote
     tourDates/      ← One YAML file per tour date
 ```
 
 ---
 
-## Singletons
-
-### Site identity — `src/content/config/site.json`
+## Site identity — `src/content/config/site.json`
 
 ```json
 {
@@ -72,47 +69,54 @@ src/content/
     "bandcamp": ""
   },
   "contactEmail": "you@example.com",
-  "copyright": "© 2026 Your Name. All rights reserved."
+  "copyrightName": ""
 }
 ```
 
-Leave any social link blank (`""`) to hide it from the footer.
+Leave any social link blank (`""`) to hide it from the footer. The
+footer renders `© {current year} {copyrightName || artistName}. All
+rights reserved.` — only set `copyrightName` if copyright is held
+under a different name (label, estate, etc.).
 
-### Navigation — `src/content/config/nav.json`
+## Header & navigation — `src/content/config/header.json`
 
 ```json
 {
+  "headerMode": "solid-sticky",
+  "headerForegroundColor": "",
   "items": ["home", "about", "music", "photos", "press", "contact"]
 }
 ```
 
-An ordered array of page slugs. Add a slug to include the page in the nav; remove it to hide it. Drag to reorder in Keystatic (`/keystatic` → Navigation), or edit the JSON directly.
+- `headerMode`: `solid-sticky` (default), `solid-static`, or
+  `transparent-static`. Transparent mode is for hero pages whose
+  fullscreen section starts at the top.
+- `headerForegroundColor`: only meaningful in `transparent-static`
+  mode. Sets the nav link color against the hero background. Accepts
+  hex / `rgb(...)` / `rgba(...)`. Leave blank to use token defaults.
+- `items`: ordered array of page slugs. Add a slug to include it in
+  the nav; remove to hide. Drag to reorder in Keystatic, or edit the
+  JSON directly. Nav labels come from each page's `title` field.
 
-The Navigation singleton is the single source of truth for both nav membership and order. The nav label for each page comes from the page's `title` field.
+## Appearance — `src/content/config/appearance.json`
 
-### Appearance (colors + typography) — `src/content/config/appearance.json`
+Edit in Keystatic (Appearance) or by hand. The `<head>` of every
+page reads this and injects CSS custom properties plus a Google
+Fonts `<link>` that requests only the weights actually in use.
 
-Edit this singleton in Keystatic (`/keystatic` → Appearance) or by hand. It's the
-source of truth for the site's palette and typography. The `<head>` of every
-page reads this and injects CSS custom properties, plus a Google Fonts
-`<link>` that requests **only the weights actually in use** (so the page stays
-light).
+**Typography**
 
-#### Typography
-
-- **Font Strategy**: pick "Single font for everything" or "Separate heading +
-  body fonts".
+- **Font Strategy**: "Single font for everything" or "Separate heading
+  + body fonts".
 - **Body / Primary Font**: category-first picker (Sans-serif, Serif,
-  Monospace, Display, Handwriting). Each category has a curated list of
-  popular Google Fonts. Pick **Custom** to type any family name from
-  [fonts.google.com](https://fonts.google.com) instead.
-- **Heading Font**: same picker, only used when Font Strategy is "Separate".
-- **Font Weights**: pick weights 100–900 per role (body, body-bold, h1–h6).
-  Only the selected weights are downloaded — unused weights aren't requested.
-  Some fonts don't ship every weight; check fonts.google.com if a weight
-  looks wrong after you pick it.
+  Monospace, Display, Handwriting). Each category has a curated list;
+  pick **Custom** to type any family from
+  [fonts.google.com](https://fonts.google.com).
+- **Heading Font**: same picker, only shown in split mode.
+- **Font Weights**: pick weights 100–900 per role (body, bodyBold,
+  h1–h6). Only selected weights are downloaded.
 
-Example `appearance.json` (split mode — separate heading font):
+Example (split mode):
 
 ```json
 {
@@ -131,69 +135,61 @@ Example `appearance.json` (split mode — separate heading font):
 }
 ```
 
-Single mode (one font everywhere):
+Single mode: `"heading": { "discriminant": "single", "value": null }`.
 
-```json
-{
-  "typography": {
-    "primary": { "discriminant": "sans-serif", "value": "Inter" },
-    "heading": { "discriminant": "single", "value": null },
-    "weights": { ... }
-  }
-}
-```
+Custom font names are validated — both in format (capitalised, letters
+/ digits / spaces) and by pinging Google Fonts during
+`npm run validate:content`. A 400 response means the family is
+unknown; network failures produce a warning and don't block.
 
-The `{ discriminant, value }` shape is how Keystatic serialises its
-conditional fields. For the font picker, `discriminant` is the category
-and `value` is the family. For the heading picker, `discriminant` is the
-mode (`"single"` or `"split"`) and `value` is the nested heading font
-config (or `null`). Weights may be written as numbers (`400`) or strings
-(`"400"`) — both are accepted.
+**Colors**
 
-#### Custom font validation
+Edit the `colors` object. Any CSS color (`#ffffff`, `rgb(...)`,
+`rgba(...)`) works. Field names: `primary`, `secondary`, `accent`,
+`background`, `surface`, `text`, `textMuted`, `border`.
 
-Choosing the "Custom" category lets you type any family name from
-fonts.google.com. Two validations apply:
+## Theme — `src/content/config/theme.json`
 
-1. **Format check** (always on, runs at build / content validation):
-   name must start with a capital, contain only letters / digits / spaces.
-2. **Network check** (runs in `npm run validate:content`): pings
-   `fonts.googleapis.com` to confirm the family actually resolves. A 400
-   response (unknown family) fails validation. Network failures / offline
-   dev produce a warning and skip — they don't block the build.
-
-#### Colors
-
-Edit the `colors` object. Any CSS color (`#ffffff`, `rgb(...)`, `rgba(...)`)
-is accepted. Field names:
-`primary`, `secondary`, `accent`, `background`, `surface`, `text`,
-`textMuted`, `border`.
-
-### Legacy design tokens — `src/content/config/theme.json`
-
-Contains font-size scale, spacing, breakpoints, and layout tokens not
-exposed in the CMS. These rarely change; edit the JSON directly and the
-matching CSS custom properties in `src/styles/global.css` if you need to.
+Font-size scale, spacing, breakpoints, layout tokens not exposed in
+the CMS. These rarely change; edit directly if needed.
 
 ---
 
 ## Pages
 
-Each page has a Markdoc file (`.mdoc`) with two parts: **frontmatter** (between `---` markers) and **body text** (below).
+Each page is a Markdoc file (`.mdoc`) with **frontmatter** (between
+`---` markers) and **body text** below. Only `title` is required in
+frontmatter — it's used for the browser tab and the nav label.
 
-### Shared frontmatter
+Page layout is built from Markdoc tags in the body:
 
-All pages have one frontmatter field:
+**Layout**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `title` | yes | Page title (used in browser tab and as the nav label) |
+- `{% section title="..." %}` — standard titled section.
+- `{% fullscreen-section image="..." alt="..." %}` — 100vw × 100vh
+  hero with a background image.
+- `{% columns layout="1-2" %}` + `{% column %}` — side-by-side grid
+  (collapses vertically on mobile). Layout strings: `1-1`, `1-2`,
+  `2-1`, `1-1-1`.
+- `{% centered-block %}` — centered, narrower text block.
 
-Navigation membership is controlled by the Navigation singleton, not by page frontmatter. Page titles/headings displayed on the page itself are handled by the `{% section title="..." %}` Markdoc tag in the body.
+**Content blocks**
 
-### Homepage — `src/content/pages/home.mdoc`
+- `{% button label="..." href="..." variant="primary" /%}` — CTA.
+  `variant`: `primary` or `outline`. Add `isExternal=true` for
+  `target="_blank"`.
+- `{% content-image src="..." alt="..." /%}` — optimised image.
+- `{% release-list /%}` — grid of every release from the collection.
+- `{% quote text="..." attribution="..." /%}` — featured pull-quote
+  (used for press quotes and testimonials).
+- `{% photo-gallery /%}` — gallery with lightbox.
+- `{% contact-form /%}` — contact form with spam protection.
+- `{% embed code="..." /%}` — paste a Spotify / Bandcamp / etc.
+  embed snippet at its native size.
+- `{% embed-responsive code="..." aspectRatio="16/9" /%}` — same,
+  but scaled to fill its column at a chosen aspect ratio.
 
-Page-specific structured content uses Markdoc tags in the body. All page layout is fully self-contained in the `.mdoc` file.
+### Homepage
 
 ```markdoc
 ---
@@ -204,7 +200,7 @@ title: Home
 
 # Your Name
 
-Musician - Performer - Creator
+Musician · Performer · Creator
 
 {% button label="Listen Now" href="/music" /%}
 
@@ -217,9 +213,7 @@ Welcome text that appears below the hero section.
 {% /section %}
 ```
 
-The `{% fullscreen-section %}` tag renders a 100vw x 100vh section with a background image and content overlay. The `{% button %}` tag renders a styled CTA button.
-
-### About — `src/content/pages/about.mdoc`
+### About
 
 ```markdoc
 ---
@@ -236,8 +230,7 @@ title: About
 
 {% column %}
 
-Your bio goes here. Write as many paragraphs as you like.
-Each blank line creates a new paragraph.
+Your bio goes here. Blank lines create paragraphs.
 
 {% /column %}
 
@@ -246,9 +239,7 @@ Each blank line creates a new paragraph.
 {% /section %}
 ```
 
-The `{% section %}` tag wraps content in a titled section. The `{% columns layout="1-2" %}` tag creates a two-column layout (1:2 ratio). Use `{% content-image %}` for optimised images inside columns.
-
-### Press — `src/content/pages/press.mdoc`
+### Press
 
 ```markdoc
 ---
@@ -261,15 +252,21 @@ Introductory text for the press page.
 
 {% button label="Download EPK" href="/downloads/epk.pdf" variant="outline" /%}
 
-{% press-quotes /%}
+{% quote
+   text="A remarkable debut that showcases genuine artistry and emotional depth."
+   attribution="Music Publication" /%}
+
+{% quote
+   text="A bold new voice in contemporary music — original, confident, and deeply moving."
+   attribution="Critic's Name, Magazine" /%}
 
 {% /section %}
 ```
 
-- The `{% button %}` tag (with an EPK download URL) renders a download button. Remove the tag to hide it.
-- The `{% press-quotes %}` tag pulls in all quotes from the Press Quotes collection. Remove the tag to hide them.
+Each press quote is its own `{% quote %}` tag. Add or remove tags to
+manage the list. `attribution` is optional.
 
-### Music — `src/content/pages/music.mdoc`
+### Music
 
 ```markdoc
 ---
@@ -278,16 +275,14 @@ title: Music
 
 {% section title="Music & Releases" %}
 
-Browse the latest releases and discography below.
+Browse the latest releases below.
 
 {% release-list /%}
 
 {% /section %}
 ```
 
-- The `{% release-list %}` tag renders all releases from the Releases collection in a grid. It can be inserted into any page.
-
-### Photos — `src/content/pages/photos.mdoc`
+### Photos
 
 ```markdoc
 ---
@@ -301,9 +296,7 @@ title: Photos
 {% /section %}
 ```
 
-- The `{% photo-gallery %}` tag renders all photos from the Photos collection in a grid with lightbox. It can be inserted into any page.
-
-### Contact — `src/content/pages/contact.mdoc`
+### Contact
 
 ```markdoc
 ---
@@ -312,20 +305,17 @@ title: Contact
 
 {% section title="Get in Touch" %}
 
-Have a question, booking inquiry, or just want to say hello? Fill out the form below and we'll get back to you.
+Have a booking inquiry or just want to say hello? Fill out the form
+and we'll get back to you.
 
 {% contact-form /%}
 
 {% /section %}
 ```
 
-- The `{% contact-form %}` tag renders the contact form (name, email, subject, message). It can be inserted into any page.
-
 ### Creating a new page
 
-You can create new pages via the Keystatic CMS at `/keystatic` → Pages → "Create new", or by creating a file directly:
-
-1. Create a `.mdoc` file in `src/content/pages/` (e.g. `src/content/pages/tour-schedule.mdoc`):
+Create a `.mdoc` file in `src/content/pages/`, e.g. `tour-schedule.mdoc`:
 
 ```markdoc
 ---
@@ -334,50 +324,43 @@ title: Tour Schedule
 
 {% section title="Upcoming Shows" %}
 
-Your page content here. Use layout tags (section, fullscreen-section, columns, column) to structure the page and content tags (button, content-image, release-list, press-quotes, photo-gallery, contact-form) for content blocks.
+Your content here.
 
 {% /section %}
 ```
 
-2. The page is automatically available at `/tour-schedule` (the filename becomes the URL slug). All page layout is self-contained in the `.mdoc` body -- wrap content in `{% section %}` tags for standard sections or `{% fullscreen-section %}` for hero-style areas.
+The filename becomes the URL slug (`/tour-schedule`). To show it in
+the nav, add its slug to `header.json` → `items` (or add it via
+Keystatic → Navigation).
 
-3. To show the page in navigation, add its slug to the Navigation singleton in Keystatic, or edit `src/content/config/nav.json` directly:
-
-```json
-{
-  "items": ["home", "tour-schedule", "about", "music", "photos", "press", "contact"]
-}
-```
-
-Pages not listed in Navigation are still accessible by URL — they just won't appear in the site nav (useful for landing pages, link-in-bio destinations, etc.).
+Pages not listed in the nav stay accessible by URL — useful for
+link-in-bio landing pages, etc.
 
 ---
 
 ## Collections
 
-Each collection entry is a separate YAML file. You can add entries via the Keystatic CMS at `/keystatic` or by creating files directly.
+Each entry is its own YAML file. You can add entries via Keystatic or
+by creating files directly.
 
-### Add a tour date — `src/content/collections/tourDates/`
-
-Create a new YAML file, e.g. `2026-09-15-venue-name.yaml`:
+### Tour date — `src/content/collections/tourDates/`
 
 ```yaml
 date: "2026-09-15"
 venue: The Venue Name
 city: City, State
 ticketUrl: https://tickets.example.com
-status: upcoming
+status: upcoming   # upcoming | sold_out | canceled | past
 ```
 
-Valid status values: `upcoming`, `sold_out`, `canceled`, `past`.
+If a page uses the `{% tour-dates /%}` block, entries are
+automatically grouped into upcoming and past sections based on date.
 
-### Add a release — `src/content/collections/releases/`
-
-Create a new YAML file, e.g. `new-album.yaml`:
+### Release — `src/content/collections/releases/`
 
 ```yaml
 title: Album Title
-type: album
+type: album        # album | single | ep
 releaseDate: "2026-01-15"
 coverImage:
   src: ../../../assets/images/cover.jpg
@@ -395,116 +378,92 @@ tracks:
     duration: "4:12"
 ```
 
-Valid type values: `album`, `single`, `ep`.
+### Photo — `src/content/collections/photos/`
 
-### Add a photo — `src/content/collections/photos/`
-
-Place the image in `src/assets/images/`, then create a YAML file, e.g. `your-photo.yaml`:
+Place the image in `src/assets/images/` first, then:
 
 ```yaml
 src: ../../../assets/images/your-photo.jpg
-alt: Describe what is in the photo
+alt: Describe what's in the photo   # required
 caption: Optional display caption
 credit: Photo by Jane Smith
 usageSlot: gallery
 ```
 
-**`alt` is required** and must describe the image for accessibility and SEO. Never leave it blank.
-
-### Add a video — `src/content/collections/videos/`
-
-Create a YAML file, e.g. `music-video-title.yaml`:
+### Video — `src/content/collections/videos/`
 
 ```yaml
 title: Music Video Title
 url: https://www.youtube.com/embed/VIDEO_ID
-type: youtube
+type: youtube      # youtube | vimeo | other
 description: Optional description.
 ```
 
-Valid type values: `youtube`, `vimeo`, `other`.
+### Press quote — inline on the press page
 
-### Add a press quote — `src/content/collections/pressQuotes/`
-
-Create a YAML file, e.g. `publication-name.yaml`:
-
-```yaml
-quote: A remarkable debut that showcases genuine artistry.
-source: Publication Name
-url: https://publication.com/review
-date: "2024-04-01"
-```
-
-`url` and `date` are optional.
+Press quotes are authored inline using the `{% quote %}` tag on the
+press page (see the Press example above). There is no separate
+collection. Add as many `{% quote %}` tags as you have quotes;
+`attribution` is optional.
 
 ---
 
-## Image Conventions
+## Images
 
-All images go in `src/assets/images/`. Astro processes them at build time — optimising formats, adding content hashes, and detecting dimensions automatically.
+Images go in `src/assets/images/`. Astro processes them at build
+time — optimised format, content-hashed URLs, automatic dimensions.
 
-### Image paths
+Paths in content files are **relative** from the content file to
+`src/assets/images/`:
 
-Image paths in content files are **relative** from the content file to `src/assets/images/`:
+| Content location                    | Prefix                     |
+| ----------------------------------- | -------------------------- |
+| `src/content/pages/*.mdoc`          | `../../assets/images/`     |
+| `src/content/collections/*/*.yaml`  | `../../../assets/images/`  |
 
-| Content location | Relative path prefix |
-|-----------------|---------------------|
-| `src/content/pages/*.mdoc` | `../../assets/images/` |
-| `src/content/collections/*/*.yaml` | `../../../assets/images/` |
+YAML content files use the metadata shape:
 
-### Image metadata (for YAML content files)
+| Field        | Required | Description                                                     |
+| ------------ | -------- | --------------------------------------------------------------- |
+| `src`        | yes      | Relative path to image                                          |
+| `alt`        | yes      | Descriptive alt text — never blank                              |
+| `caption`    | no       | Display caption shown below the image                           |
+| `credit`     | no       | Photographer / source, e.g. `"Photo by Jane Smith"`             |
+| `focalPoint` | no       | `{ "x": 0.5, "y": 0.3 }` — crop hint (0–1 range)                |
+| `usageSlot`  | no       | Context hint: `hero`, `about`, `release-cover`, `gallery`, etc. |
 
-Whenever you add an image reference to a YAML content file (releases, photos, etc.), use the full metadata shape:
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `src` | yes | Relative path to image in `src/assets/images/` |
-| `alt` | yes | Descriptive alt text for accessibility |
-| `caption` | no | Display caption shown below the image |
-| `credit` | no | Photographer or source credit, e.g. `"Photo by Jane Smith"` |
-| `focalPoint` | no | `{ "x": 0.5, "y": 0.3 }` — crop hint (0–1 range) |
-| `usageSlot` | no | Context hint: `"hero"`, `"about"`, `"release-cover"`, `"gallery"`, etc. |
-
-The SVG placeholders included in the template are for demo purposes only. Replace them with real image files.
+The SVG placeholders in the template are for demo purposes — replace
+them with real images.
 
 ---
 
-## Validating Your Changes
+## Validating changes
 
-After editing any content file, run:
+After any edit, run:
 
 ```bash
 npm run validate:content
 ```
 
-This checks all JSON, YAML, and Markdoc files against their schemas and reports field-level errors. Fix any errors before committing.
+It checks every JSON, YAML, and Markdoc file against its schema and
+reports field-level errors. Fix errors before committing.
 
 ---
 
-## Component Reference
+## API routes
 
-| Component | Description |
-|-----------|-------------|
-| `content-components/Button/` | Links and buttons (`primary` / `outline` variants, also Markdoc tag: `{% button %}`) |
-| `FormGroup.astro` | Labeled form inputs and textareas |
-| `content-components/Section/` | Section wrapper with optional title (Markdoc tag: `{% section %}`) |
-| `content-components/FullscreenSection/` | Full-viewport hero section with background image (Markdoc tag: `{% fullscreen-section %}`) |
-| `content-components/Columns/` | CSS grid side-by-side layout (Markdoc tag: `{% columns %}`) |
-| `content-components/Column/` | Individual column inside Columns (Markdoc tag: `{% column %}`) |
-| `content-components/Image/` | Optimised image for content areas (Markdoc tag: `{% content-image %}`) |
-| `content-components/ReleaseList/` | Music releases grid (Markdoc tag: `{% release-list %}`) |
-| `content-components/PressQuotes/` | Press quotes display (Markdoc tag: `{% press-quotes %}`) |
-| `content-components/PhotoGallery/` | Photo gallery with lightbox (Markdoc tag: `{% photo-gallery %}`) |
-| `content-components/ContactForm/` | Contact form with spam protection (Markdoc tag: `{% contact-form %}`) |
-| `Header.astro` | Site navigation |
-| `Footer.astro` | Footer with social links |
-| `ReleaseCard.astro` | Music release display card |
-| `PhotoGallery.astro` | Photo grid with lightbox |
-| `Lightbox.tsx` | Fullscreen image viewer (React) |
-| `Image.tsx` | Image with loading/error states (React, Lightbox only) |
+### `POST /api/contact`
+
+Sends contact-form emails via [Resend](https://resend.com). Requires
+`RESEND_API_KEY` set in your environment. Sends to `contactEmail`
+from `site.json`. Honeypot + per-IP rate limit (3 req/min) built in.
+
+The `from` address uses Resend's sandbox domain by default — update
+it once you've verified a custom domain.
 
 ---
 
 ## Deployment
 
-This site deploys to Netlify. Pushing to `main` triggers a production deploy. Pull requests create preview deploys automatically.
+Deploys to Netlify. Pushes to `main` trigger production; pull
+requests create preview deploys automatically.

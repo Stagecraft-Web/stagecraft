@@ -1,13 +1,23 @@
 # Musician Website
 
-A static musician website built with Astro, React, and TypeScript. Created and managed by [Stagecraft](https://stagecraft.dev).
+Your musician website, built with Astro + React + TypeScript.
+Created and managed by [Stagecraft](https://stagecraft.dev).
 
 ## Setup
 
 ```bash
 npm install
-npm run dev       # Start dev server at localhost:4321
+npm run dev
 ```
+
+- Public site: <http://localhost:4321>
+- Keystatic CMS: <http://localhost:4321/keystatic>
+
+## Editing
+
+All site content lives under `src/content/`. You can edit it
+visually via the Keystatic CMS, or by changing files directly.
+See [EDITING.md](./EDITING.md) for a walkthrough.
 
 ## Scripts
 
@@ -16,51 +26,45 @@ npm run dev       # Start dev server at localhost:4321
 | `npm run dev` | Start development server |
 | `npm run build` | Production build (includes typecheck) |
 | `npm run preview` | Preview production build locally |
-| `npm run validate:content` | Validate content files against schemas |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm run test` | Run unit tests (vitest) |
-| `npm run test:smoke` | Run Playwright smoke tests |
-| `npm run validate` | Run all validation (content + lint + typecheck + build) |
+| `npm run validate:content` | Check content files against schemas |
+| `npm run typecheck` | TypeScript check |
+| `npm run test` | Unit tests (vitest) |
+| `npm run test:smoke` | Playwright smoke tests (build first) |
+| `npm run validate` | All of the above |
 
-## Project Structure
+## Project structure
 
 ```
 src/
-  assets/images/    Source images (optimized at build time)
-  components/       Reusable .astro and .tsx components
-  content/          Structured content (JSON, Markdown)
-  layouts/          Page layouts
-  lib/              Utilities, schemas, and markdown helpers
-  pages/            Route files
-  styles/           Global CSS and design tokens
-public/             Static assets (favicons, downloads)
-tests/smoke/        Playwright smoke tests
+  assets/images/   Source images (optimised at build)
+  content/         Your site content — edit here
+  components/      Astro + React components
+  content-components/   Markdoc content blocks
+  layouts/         Page layouts
+  lib/             Utilities + schemas
+  pages/           Routes
+  styles/          Global CSS + design tokens
+public/            Static files (favicons, downloads)
+tests/smoke/       Playwright smoke tests
 ```
 
-## Design System
+## Deployment
 
-The site uses a token-based design system. All colors, font sizes, font weights, and layout values are defined as CSS custom properties in `src/styles/global.css`, sourced from `src/content/config/theme.json`.
+The site deploys to [Netlify](https://www.netlify.com). Pushes to
+`main` trigger a production deploy; pull requests create preview
+deploys automatically.
 
-### Component library
-
-| Component | Type | Description |
-|-----------|------|-------------|
-| `Button` | Astro | Polymorphic button/link with variants (primary, outline) |
-| `FormGroup` | Astro | Labeled form input/textarea with required indicator |
-| `Image` | React | Image with loading placeholder and error fallback |
-
-See [CLAUDE.md](./CLAUDE.md) for full component and editing conventions.
-
-## Editing Content
-
-See [EDITING.md](./EDITING.md) for a guide to common content edits.
+For production editing via Keystatic (GitHub OAuth + the live-preview
+Appearance sidebar), follow the one-time setup in
+[docs/keystatic-github-setup.md](./docs/keystatic-github-setup.md).
 
 ## Technology
 
 - [Astro](https://astro.build) — static site framework
-- [React](https://react.dev) — interactive component islands
-- [TypeScript](https://www.typescriptlang.org) — type safety
+- [React](https://react.dev) — interactive islands
+- [Keystatic](https://keystatic.com) — visual CMS
 - [Zod](https://zod.dev) — content schema validation
-- [Vitest](https://vitest.dev) — unit testing
-- [Playwright](https://playwright.dev) — smoke testing
-- [Netlify](https://www.netlify.com) — hosting and deploy previews
+- [TypeScript](https://www.typescriptlang.org) — type safety
+- [Vitest](https://vitest.dev) — unit tests
+- [Playwright](https://playwright.dev) — smoke tests
+- [Netlify](https://www.netlify.com) — hosting

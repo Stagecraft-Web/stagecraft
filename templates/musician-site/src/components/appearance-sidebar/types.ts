@@ -15,6 +15,11 @@ export interface SidebarConfig {
    *   - "disabled"       → hide the sidebar entirely (e.g. prod + local storage)
    *  Computed in BaseLayout from storageMode + import.meta.env.DEV. */
   saveMode: "github-graphql" | "local-api" | "disabled";
+  /** Baseline font-size scale from theme.json. The sidebar runs this through
+   *  computeFontSizes() on every keystroke to project the Sizing knobs onto
+   *  the page without a round-trip. Shape matches theme.typography.fontSize
+   *  (bucket → rem string). */
+  baseFontSizes: Record<string, string>;
 }
 
 // The initial appearance state embedded in the page, post-validation (i.e. the

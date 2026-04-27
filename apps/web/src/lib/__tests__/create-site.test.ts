@@ -44,6 +44,8 @@ function makeContext(overrides = {}): JobContext {
       requestPayload: { name: "Sarah Chen Music", slug: "sarah-chen-music", blueprintType: "solo-artist" },
       resultPayload: null,
       errorMessage: null,
+      failureCategory: null,
+      repairAttempts: 0,
       startedAt: new Date(),
       completedAt: null,
       createdAt: new Date(),

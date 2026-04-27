@@ -61,30 +61,39 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
-// Header style — controls whether the site header paints its own surface
-// background or lets the page background (e.g. a full-bleed hero image)
-// read through. "transparent" is intended to pair with a hero-section page
-// layout that owns its own backdrop; the header emits no background or
-// bottom border until the user scrolls.
-export const HEADER_STYLES = ["solid", "transparent"] as const;
-export type HeaderStyle = (typeof HEADER_STYLES)[number];
+// Header mode — a single discriminator that bundles the two valid
+// header configurations into one author-facing choice. Splitting style
+// (solid/transparent) and position (sticky/static) into two fields used
+// to expose an invalid combination: transparent + sticky paints the
+// surface back in as the user scrolls past the threshold, but content
+// that scrolls under the header reads through during the paint and
+// flashes. Collapsing to one field means transparent is always paired
+// with static, so the page-background-bleed-through case can't be
+// configured at all.
+//
+// Naming: each value reads "<style>-<position>" so the underlying CSS
+// modifiers are easy to derive in the renderer.
+export const HEADER_MODES = [
+  "solid-sticky",
+  "solid-static",
+  "transparent-static",
+] as const;
+export type HeaderMode = (typeof HEADER_MODES)[number];
 
-export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
-  solid: "Solid (default)",
-  transparent: "Transparent (renders over page background)",
+export const HEADER_MODE_LABELS: Record<HeaderMode, string> = {
+  "solid-sticky": "Solid, sticky (default)",
+  "solid-static": "Solid, scrolls with page",
+  "transparent-static": "Transparent, scrolls with page",
 };
 
-// Header position — CSS positioning mode for the header element. "sticky"
-// matches the historical default; "fixed" keeps the header permanently
-// pinned to the viewport; "static" lets it scroll away with the page.
-export const HEADER_POSITIONS = ["static", "fixed", "sticky"] as const;
-export type HeaderPosition = (typeof HEADER_POSITIONS)[number];
-
-export const HEADER_POSITION_LABELS: Record<HeaderPosition, string> = {
-  static: "Static (scrolls with page)",
-  fixed: "Fixed (always on top)",
-  sticky: "Sticky (default — follows scroll, pins at top)",
-};
+// Helpers so renderers can ask "is this transparent?" / "is this sticky?"
+// without re-parsing the discriminator string everywhere.
+export function isTransparentHeader(mode: HeaderMode): boolean {
+  return mode === "transparent-static";
+}
+export function isStickyHeader(mode: HeaderMode): boolean {
+  return mode === "solid-sticky";
+}
 
 // Relative size adjustment — a coarse multiplier used across the template for
 // fields where the author wants "default, a bit smaller, a bit larger" without
@@ -125,23 +134,61 @@ export const HEADER_LAYOUT_LABELS: Record<HeaderLayout, string> = {
 
 export const siteConfigSchema = z.object({
   artistName: z.string().min(1),
-  wordmark: wordmarkSchema.optional(),
+  // Site favicon (path to uploaded asset). When set, the <link rel="icon">
+  // in BaseLayout points here instead of the default `/favicons/favicon.svg`
+  // shipped in `public/`.
+  favicon: z.string().min(1).optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
   contactEmail: z.string().email(),
-  copyright: z.string(),
-  // Header appearance. All three fields have Zod defaults so existing
-  // site.json files without these keys keep parsing — the admin UI (and
-  // seed) surface them explicitly, but runtime consumers can treat them as
+  // Who holds copyright for the site. The footer renders
+  //   "© {current year} {copyrightName || artistName}. All rights reserved."
+  // Authors only need to set this when copyright is held under a name
+  // that differs from the performer's stage name (e.g. legal entity or
+  // civil name); leaving it blank falls back to `artistName`.
+  copyrightName: z.string().optional(),
+  // Hide the site-level social-links/copyright footer across every page.
+  // Per-page frontmatter may override (`isFooterHidden` in pageFrontmatterSchema).
+  // Default false = footer visible (common-sense default).
+  isFooterHidden: z.boolean().default(false),
+});
+
+// Keystatic's fields.object writes `"wordmark": {}` when both the image and
+// text inputs are blank — indistinguishable from "no wordmark set". Coerce
+// that to undefined so .optional() accepts it. Reused inside the
+// headerAndNav singleton.
+const optionalWordmark = z.preprocess((val) => {
+  if (
+    val &&
+    typeof val === "object" &&
+    !Array.isArray(val) &&
+    Object.keys(val).length === 0
+  ) {
+    return undefined;
+  }
+  return val;
+}, wordmarkSchema.optional());
+
+// Header & Navigation config — what's stored in header.json.
+// Bundles the site header's brand mark (wordmark), appearance/position
+// settings, and nav membership/order in a single Keystatic singleton so
+// header authoring lives in one place.
+//
+// `items` is an ordered array of page slugs (managed via Keystatic's
+// relationship field) and owns both nav membership and order.
+export const headerAndNavSchema = z.object({
+  wordmark: optionalWordmark,
+  // Single header-behavior discriminator (style + position). Defaulted
+  // so existing config files without the key keep parsing — the admin
+  // UI surfaces it explicitly, but runtime consumers can treat it as
   // always-present.
-  headerStyle: z.enum(HEADER_STYLES).default("solid"),
-  // Only meaningful when headerStyle === "transparent". Colors nav links
-  // and the artist-name title against the page background (typically a
-  // hero image). Accepts hex / rgb() / rgba(). Empty string = unset; the
-  // renderer falls back to the usual token colors.
+  headerMode: z.enum(HEADER_MODES).default("solid-sticky"),
+  // Only meaningful when headerMode === "transparent-static". Colors
+  // nav links and the artist-name title against the page background
+  // (typically a hero image). Accepts hex / rgb() / rgba(). Empty
+  // string = unset; the renderer falls back to the usual token colors.
   headerForegroundColor: z.string().optional(),
-  headerPosition: z.enum(HEADER_POSITIONS).default("sticky"),
   // Relative multiplier applied to `.site-title` font-size AND the wordmark
   // `max-height`. Keystatic's `fields.select` emits the value as a string
   // ("0", "-1", …), so we coerce before range-checking — JSON authors can
@@ -157,13 +204,6 @@ export const siteConfigSchema = z.object({
   // Arrangement of logo + nav inside `.header-inner`. Default preserves
   // the historical flex layout; the two centered variants use CSS Grid.
   headerLayout: z.enum(HEADER_LAYOUTS).default("logo-left-nav-right"),
-});
-
-// Nav config — what's stored in nav.json.
-// An ordered array of page slugs. The Navigation singleton owns both
-// membership (which pages appear) and order (what sequence).
-// Uses fields.relationship in Keystatic, so each entry is a page slug.
-export const navConfigSchema = z.object({
   items: z.array(z.string().min(1)),
 });
 
@@ -272,15 +312,126 @@ const headingSelectionSchema = z
       : { mode: "split" as const, heading: input.value },
   );
 
-const weightsSchema = z.object({
+// Per-bucket font-size overrides. Each key matches the eight buckets in
+// theme.json (`xs`, `sm`, `base`, `lg`, `xl`, `2xl`, `3xl`, `4xl`); a missing
+// or empty value falls back to the theme.json baseline at render time. Stored
+// as rem strings ("1.25rem") so the on-disk format mirrors theme.json.
+//
+// Replaces the earlier `fontSizeScale` / `fontSizeAdjust` / `headingScale`
+// multipliers — per-bucket overrides give authors the same expressiveness
+// without three layered knobs.
+export const FONT_SIZE_BUCKETS = [
+  "xs",
+  "sm",
+  "base",
+  "lg",
+  "xl",
+  "2xl",
+  "3xl",
+  "4xl",
+] as const;
+export type FontSizeBucket = (typeof FONT_SIZE_BUCKETS)[number];
+
+// Buckets driven primarily by heading-level CSS (xl → h4, 2xl → h3, 3xl → h2,
+// 4xl → h1) vs body-tier (lg / base / sm / xs). Used by the Keystatic +
+// sidebar grouping that splits the size editor into a Body group and a
+// Headings group. Both arrays are listed largest-first so the admin UI
+// reads top-down from "h1 / large body" down to "captions" — the order an
+// author scans when tuning the type scale.
+//
+// Members are themselves `FontSizeBucket`s; we don't export narrower
+// per-group types because every consumer either iterates the array (no
+// narrower type needed) or accepts any bucket.
+export const HEADING_FONT_SIZE_BUCKETS = ["4xl", "3xl", "2xl", "xl"] as const;
+export const BODY_FONT_SIZE_BUCKETS = ["lg", "base", "sm", "xs"] as const;
+
+// Friendly labels — used by both the Keystatic admin and the in-page sidebar.
+// Pairs the bucket key with a hint about which heading level (if any) it
+// drives in `global.css`.
+export const FONT_SIZE_BUCKET_LABELS: Record<FontSizeBucket, string> = {
+  xs: "xs (caption)",
+  sm: "sm (small body)",
+  base: "base (body / h6)",
+  lg: "lg (large body / h5)",
+  xl: "xl (h4)",
+  "2xl": "2xl (h3)",
+  "3xl": "3xl (h2)",
+  "4xl": "4xl (h1)",
+};
+
+// Per-bucket sizes are stored as integer pixels with a 16px = 1rem
+// convention. `0` means "fall back to the theme.json baseline at render
+// time" — the stepper UI in both surfaces treats 0 as "default" and steps
+// up to 8px (0.5rem) on first increment. Bounded to [0, 96] (0.5rem to
+// 6rem) so the steppers can't run off into ridiculous territory.
+//
+// Why pixels (not rem strings)? A constrained integer prevents authors
+// from typing free-form values like "1.347rem" or "16px" — the stepper
+// can only emit valid values, and `fields.integer` gives Keystatic a
+// native number input with +/− buttons.
+export const PX_PER_REM = 16;
+export const FONT_SIZE_PX_MIN = 0;
+export const FONT_SIZE_PX_MAX = 96;
+export const FONT_SIZE_PX_STEP_MIN = 8;
+
+const fontSizePxSchema = z.coerce
+  .number()
+  .int()
+  .min(FONT_SIZE_PX_MIN)
+  .max(FONT_SIZE_PX_MAX);
+
+// Builds a `{bucket: schema, ...}` map for a fixed set of buckets so the Zod
+// shape preserves the literal-union types. Without this helper the shape is
+// inferred as `{[k: string]: ...}` and downstream `.default()` calls lose
+// type-safety.
+const sizesShapeFor = <T extends FontSizeBucket>(
+  buckets: readonly T[],
+): Record<T, ReturnType<typeof fontSizePxSchema.default>> =>
+  buckets.reduce(
+    (acc, bucket) => {
+      acc[bucket] = fontSizePxSchema.default(0);
+      return acc;
+    },
+    {} as Record<T, ReturnType<typeof fontSizePxSchema.default>>,
+  );
+
+// Helper: builds a `Record<bucket, 0>` for the schema's top-level default.
+// Each individual bucket's `.default(0)` would suffice when the parent block
+// is supplied, but the parent itself also needs a default for the case where
+// `bodySizes` / `headingSizes` is missing entirely (e.g. an old
+// `appearance.json` from before the size block existed).
+const blankSizesFor = <T extends string>(buckets: readonly T[]): Record<T, number> =>
+  buckets.reduce(
+    (acc, bucket) => {
+      acc[bucket] = 0;
+      return acc;
+    },
+    {} as Record<T, number>,
+  );
+
+const bodySizesSchema = z
+  .object(sizesShapeFor(BODY_FONT_SIZE_BUCKETS))
+  .default(() => blankSizesFor(BODY_FONT_SIZE_BUCKETS));
+
+const headingSizesSchema = z
+  .object(sizesShapeFor(HEADING_FONT_SIZE_BUCKETS))
+  .default(() => blankSizesFor(HEADING_FONT_SIZE_BUCKETS));
+
+// Body and heading weight blocks are split so the admin can group them with
+// their respective font + sizes. h5 / h6 weights are intentionally not
+// surfaced — global.css's `@layer defaults` provides sensible fallbacks
+// (semibold) and authors who really need to change them can edit the
+// stylesheet directly.
+const bodyWeightsSchema = z.object({
   body: fontWeightSchema.default(400),
   bodyBold: fontWeightSchema.default(700),
+});
+
+const headingWeightsSchema = z.object({
   h1: fontWeightSchema.default(700),
   h2: fontWeightSchema.default(700),
   h3: fontWeightSchema.default(700),
   h4: fontWeightSchema.default(700),
-  h5: fontWeightSchema.default(600),
-  h6: fontWeightSchema.default(600),
 });
 
 export const appearanceSchema = z
@@ -304,8 +455,11 @@ export const appearanceSchema = z
     }),
     typography: z.object({
       primary: fontSelectionSchema,
+      bodySizes: bodySizesSchema,
+      bodyWeights: bodyWeightsSchema.default({}),
       heading: headingSelectionSchema,
-      weights: weightsSchema,
+      headingSizes: headingSizesSchema,
+      headingWeights: headingWeightsSchema.default({}),
     }),
   })
   .transform((input) => ({
@@ -322,12 +476,21 @@ export const appearanceSchema = z
       primary: input.typography.primary,
       mode: input.typography.heading.mode,
       heading: input.typography.heading.heading,
-      weights: input.typography.weights,
+      // Body and heading size/weight blocks stay split in the runtime shape
+      // too — consumers (BaseLayout, live-preview) can compose them into a
+      // single CSS-variable map without losing the grouping. Each per-bucket
+      // value is either an explicit rem string ("1.25rem") or "" (use the
+      // theme.json baseline).
+      bodySizes: input.typography.bodySizes,
+      bodyWeights: input.typography.bodyWeights,
+      headingSizes: input.typography.headingSizes,
+      headingWeights: input.typography.headingWeights,
     },
   }));
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];
+export type AppearanceTypography = Appearance["typography"];
 
 export const themeSchema = z.object({
   colorMode: z.enum(["light", "dark"]).default("light"),
@@ -354,8 +517,8 @@ export const themeSchema = z.object({
 // Page-specific structured content (sections, images, buttons,
 // columns) lives in the Markdoc body as custom tags, not frontmatter.
 //
-// Navigation membership is controlled by the Navigation singleton
-// (nav.json), not by page frontmatter.
+// Navigation membership is controlled by the Header & Navigation
+// singleton (header.json), not by page frontmatter.
 // ============================================================
 
 export const pageFrontmatterSchema = z.object({
@@ -364,6 +527,9 @@ export const pageFrontmatterSchema = z.object({
   // or footer. The regular "home" page (if any) auto-moves to `/home`.
   // Only one page may be marked as a splash.
   isSplashPage: z.boolean().optional(),
+  // Per-page override for the site-level footer toggle. When set, this value
+  // wins for this page only; leave unset to inherit the site-level default.
+  isFooterHidden: z.boolean().optional(),
 });
 
 // ============================================================
@@ -416,13 +582,6 @@ export const videoSchema = z.object({
   url: z.string().url(),
   type: z.enum(VIDEO_TYPES),
   description: z.string().optional(),
-});
-
-export const pressQuoteSchema = z.object({
-  quote: z.string().min(1),
-  source: z.string().min(1),
-  url: z.string().optional(),
-  date: z.string().optional(),
 });
 
 // Show status for a tour date. Matches the four states the TourDatesList
@@ -542,14 +701,13 @@ export const storeItemSchema = z.object({
 export type ImageMetadata = z.infer<typeof imageMetadataSchema>;
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 export type Wordmark = z.infer<typeof wordmarkSchema>;
-export type NavConfig = z.infer<typeof navConfigSchema>;
+export type HeaderAndNavConfig = z.infer<typeof headerAndNavSchema>;
 export type NavItem = z.infer<typeof navItemSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type PageFrontmatter = z.infer<typeof pageFrontmatterSchema>;
 export type Release = z.infer<typeof releaseSchema>;
 export type Photo = z.infer<typeof photoSchema>;
 export type Video = z.infer<typeof videoSchema>;
-export type PressQuote = z.infer<typeof pressQuoteSchema>;
 export type TourDate = z.infer<typeof tourDateSchema>;
 export type PostFrontmatter = z.infer<typeof postFrontmatterSchema>;
 export type StoreItem = z.infer<typeof storeItemSchema>;

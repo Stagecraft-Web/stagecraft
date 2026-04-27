@@ -4,40 +4,30 @@ import type {
   MarkdocTagDefinition,
   KeystaticContentComponent,
 } from "../_shared/types";
-import {
-  TOUR_DATES_FILTERS,
-  TOUR_DATES_FILTER_LABELS,
-} from "../_shared/types";
 import { TourDatesListPreview } from "./preview";
+
+const DEFAULT_EMPTY_MESSAGE = "No upcoming shows. Check back soon.";
 
 export const markdoc: MarkdocTagDefinition = {
   render: "./src/content-components/TourDatesList/TourDatesList.astro",
   selfClosing: true,
   attributes: {
-    filter: {
+    emptyMessage: {
       type: String,
-      default: "upcoming",
-      matches: [...TOUR_DATES_FILTERS],
+      default: DEFAULT_EMPTY_MESSAGE,
     },
   },
 };
 
 export const keystatic: KeystaticContentComponent = block({
   label: "Tour Dates List",
-  description: "Displays entries from the Tour Dates collection, sorted by date.",
+  description:
+    "Lists entries from the Tour Dates collection. Auto-groups into upcoming (ascending) and past (descending); when few upcoming shows remain, pads with recent past shows under a 'Recent shows' subheading.",
   schema: {
-    filter: fields.select({
-      label: "Filter",
-      description:
-        "Upcoming shows only (hides past/canceled), or all shows (e.g. for an archive page).",
-      options: TOUR_DATES_FILTERS.map((v) => ({
-        label: TOUR_DATES_FILTER_LABELS[v],
-        value: v,
-      })) as [
-        { label: string; value: (typeof TOUR_DATES_FILTERS)[number] },
-        ...{ label: string; value: (typeof TOUR_DATES_FILTERS)[number] }[],
-      ],
-      defaultValue: "upcoming",
+    emptyMessage: fields.text({
+      label: "Empty state message",
+      description: "Shown when there are no upcoming shows.",
+      defaultValue: DEFAULT_EMPTY_MESSAGE,
     }),
   },
   ContentView: TourDatesListPreview,

@@ -1,39 +1,43 @@
 ---
 import { Image } from "astro:assets";
-import { buildNav, getHomeHref, getSiteConfig } from "../lib/content";
+import { buildNav, getHomeHref, getHeaderAndNavConfig, getSiteConfig } from "../lib/content";
 import { resolveImage } from "../lib/resolve-image";
+import { isStickyHeader, isTransparentHeader } from "../lib/schemas";
 
 const nav = await buildNav();
 const site = getSiteConfig();
+const headerConfig = getHeaderAndNavConfig();
 const currentPath = Astro.url.pathname;
 
 // Resolve the wordmark image path (e.g. "../../assets/images/wordmark.svg")
 // into an Astro ImageMetadata object so Astro's <Image> can optimise it.
 // If the author hasn't set a wordmark, or the file no longer exists, we
 // fall through to the artist-name text below — safe default.
-const wordmarkImage = site.wordmark ? resolveImage(site.wordmark.src) : undefined;
-const hasWordmark = Boolean(site.wordmark && wordmarkImage);
+const wordmarkImage = headerConfig.wordmark ? resolveImage(headerConfig.wordmark.src) : undefined;
+const hasWordmark = Boolean(headerConfig.wordmark && wordmarkImage);
 
 // Logo targets the real home, not the splash page (which is meant to be
 // seen once on first visit — returning visitors shouldn't land on it again
 // when they click the logo).
 const homeHref = await getHomeHref();
 
-// Header style / position are driven by siteConfig. Both have Zod defaults
-// so `site.headerStyle` / `site.headerPosition` are always present.
-const isTransparent = site.headerStyle === "transparent";
-const headerPosition = site.headerPosition;
-const headerForegroundColor = site.headerForegroundColor?.trim() ?? "";
+// Style + position derive from the single `headerMode` discriminator.
+// The schema enforces that `transparent-static` is the only transparent
+// mode — sticky is not offered for transparent because page content
+// scrolling under a partly-transparent pinned header flashes through.
+const isTransparent = isTransparentHeader(headerConfig.headerMode);
+const headerPosition = isStickyHeader(headerConfig.headerMode) ? "sticky" : "static";
+const headerForegroundColor = headerConfig.headerForegroundColor?.trim() ?? "";
 const hasHeaderForeground = isTransparent && headerForegroundColor.length > 0;
 
 // §2.3 style variations — all four fields have Zod defaults, so downstream
 // reads never need a null-check.
-const headerLayout = site.headerLayout;
-const isUppercase = site.isHeaderTextUppercase;
+const headerLayout = headerConfig.headerLayout;
+const isUppercase = headerConfig.isHeaderTextUppercase;
 // Subtitle is hidden when a wordmark image is in use — wordmarks usually
 // incorporate their own brand hierarchy, and stacking a muted tagline
 // under a pre-rendered image looks disjointed.
-const headerSubtitle = !hasWordmark ? (site.headerSubtitle?.trim() ?? "") : "";
+const headerSubtitle = !hasWordmark ? (headerConfig.headerSubtitle?.trim() ?? "") : "";
 const hasSubtitle = headerSubtitle.length > 0;
 
 // Size-adjust multipliers — hand-picked to feel like coarse "notches" rather
@@ -49,7 +53,7 @@ const SIZE_MULTIPLIERS: Record<string, number> = {
   "1": 1.15,
   "2": 1.35,
 };
-const sizeMultiplier = SIZE_MULTIPLIERS[String(site.headerTextSizeAdjust)] ?? 1;
+const sizeMultiplier = SIZE_MULTIPLIERS[String(headerConfig.headerTextSizeAdjust)] ?? 1;
 
 // For `logo-center-nav-split`, split the nav list in half by index so one
 // half renders left of the centered logo and the other renders right. We
@@ -104,10 +108,10 @@ const innerClasses = [
       </nav>
     )}
     <a href={homeHref} class="site-logo" aria-label={site.artistName}>
-      {hasWordmark && site.wordmark && wordmarkImage ? (
+      {hasWordmark && headerConfig.wordmark && wordmarkImage ? (
         <Image
           src={wordmarkImage}
-          alt={site.wordmark.alt}
+          alt={headerConfig.wordmark.alt}
           class="site-wordmark"
           height={40}
           widths={[40, 80]}
@@ -175,27 +179,6 @@ const innerClasses = [
     toggle.setAttribute("aria-expanded", String(!expanded));
     navs.forEach((n) => n.classList.toggle("open"));
   });
-
-  // Scroll-state toggle — when the user scrolls past ~8px, we tag the
-  // header with `is-scrolled` so CSS can fade in a surface background +
-  // border. Only visible in transparent mode (the modifier class hides
-  // the surface paint until scrolled); applying unconditionally is fine
-  // and simpler than branching in JS.
-  const header = document.querySelector(".site-header");
-  if (header) {
-    const SCROLL_THRESHOLD = 8;
-    const updateScrollState = () => {
-      if (window.scrollY > SCROLL_THRESHOLD) {
-        header.classList.add("is-scrolled");
-      } else {
-        header.classList.remove("is-scrolled");
-      }
-    };
-    // passive: true because we're only reading scrollY, never calling
-    // preventDefault — tells the browser it can paint without waiting.
-    window.addEventListener("scroll", updateScrollState, { passive: true });
-    updateScrollState();
-  }
 </script>
 
 <style>
@@ -204,10 +187,6 @@ const innerClasses = [
     z-index: 100;
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    /* Transition on background + border so the scroll-state fade-in is
-       smooth for transparent headers. Solid headers see no visible change
-       (background is already the surface color). */
-    transition: background-color 150ms ease-out, border-color 150ms ease-out;
   }
 
   /* Position modifiers — mutually exclusive. "static" is the CSS default
@@ -221,23 +200,13 @@ const innerClasses = [
     position: sticky;
   }
 
-  .site-header--position-fixed {
-    position: fixed;
-    left: 0;
-    right: 0;
-  }
-
   /* Transparent modifier — drop the surface paint + border so the page
-     background (typically a hero image) reads through. The scroll-state
-     class restores the surface look once the user scrolls. */
+     background (typically a hero image) reads through. Schema enforces
+     that this can only pair with static positioning, so the header
+     scrolls away with the page rather than pinning over content. */
   .site-header--transparent {
     background: transparent;
     border-bottom-color: transparent;
-  }
-
-  .site-header--transparent.is-scrolled {
-    background: var(--color-surface);
-    border-bottom-color: var(--color-border);
   }
 
   /* Default (logo-left-nav-right) — the historical flex layout, kept as
@@ -378,11 +347,9 @@ const innerClasses = [
   }
 
   /* When a transparent header has a `--header-fg` custom property set
-     (from site.headerForegroundColor), prefer it for the title + nav
+     (from headerConfig.headerForegroundColor), prefer it for the title + nav
      links. Falls back to the usual tokens so sites without a custom
-     color keep current behavior. Once the user scrolls (is-scrolled),
-     the surface comes back and we restore the regular tokens so link
-     contrast against the surface is preserved. */
+     color keep current behavior. */
   .site-header--transparent .site-title {
     color: var(--header-fg, var(--color-primary));
   }
@@ -396,24 +363,6 @@ const innerClasses = [
 
   .site-header--transparent .main-nav a {
     color: var(--header-fg, var(--color-text-muted));
-  }
-
-  .site-header--transparent.is-scrolled .site-title {
-    color: var(--color-primary);
-  }
-
-  .site-header--transparent.is-scrolled .site-subtitle {
-    color: var(--color-text-muted);
-    opacity: 1;
-  }
-
-  .site-header--transparent.is-scrolled .main-nav a {
-    color: var(--color-text-muted);
-  }
-
-  .site-header--transparent.is-scrolled .main-nav a:hover,
-  .site-header--transparent.is-scrolled .main-nav a.active {
-    color: var(--color-secondary);
   }
 
   .nav-toggle {

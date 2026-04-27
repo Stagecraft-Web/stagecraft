@@ -346,7 +346,6 @@ by creating files directly.
 ### Tour date — `src/content/collections/tourDates/`
 
 ```yaml
-slug: 2026-09-15-venue-name
 date: "2026-09-15"
 venue: The Venue Name
 city: City, State
@@ -354,6 +353,9 @@ ticketUrl: https://tickets.example.com
 status: on_sale
 category: winter-tour
 ```
+
+The filename is the slugified venue (e.g. `the-venue-name.yaml`); same venue
+played twice gets `-1`, `-2` suffixes.
 
 Valid status values: `on_sale`, `sold_out`, `canceled`. Past dates are detected
 automatically by comparing `date` to today — no `past` status is needed.

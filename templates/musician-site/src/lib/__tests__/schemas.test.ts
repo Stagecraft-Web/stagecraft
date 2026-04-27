@@ -541,7 +541,6 @@ describe("photoSchema", () => {
 
 describe("tourDateSchema", () => {
   const valid = {
-    slug: "2024-06-15-the-venue",
     date: "2024-06-15",
     venue: "The Venue",
     city: "New York, NY",

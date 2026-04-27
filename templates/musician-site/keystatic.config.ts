@@ -566,19 +566,18 @@ export default config({
 
     tourDates: collection({
       label: "Tour Dates",
-      slugField: "slug",
+      slugField: "venue",
       path: "src/content/collections/tourDates/*",
       schema: {
-        slug: fields.slug({
+        venue: fields.slug({
           name: {
-            label: "Identifier",
+            label: "Venue",
             description:
-              "Unique label for this date. Convention: YYYY-MM-DD-venue (e.g. 2026-05-15-blue-note). Becomes the filename.",
+              "The venue name. Doubles as the filename (slugified). If the same venue plays twice, Keystatic appends -1, -2.",
             validation: { isRequired: true },
           },
         }),
         date: fields.date({ label: "Date", validation: { isRequired: true } }),
-        venue: fields.text({ label: "Venue", validation: { isRequired: true } }),
         city: fields.text({ label: "City", validation: { isRequired: true } }),
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({

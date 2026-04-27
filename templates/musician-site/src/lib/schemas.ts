@@ -426,11 +426,9 @@ export const TOUR_DATE_STATUS_LABELS: Record<TourDateStatus, string> = {
 };
 
 export const tourDateSchema = z.object({
-  // Unique identifier for this entry. Doubles as the YAML filename via
-  // Keystatic's `slugField: "slug"`. Convention: YYYY-MM-DD-venue (e.g.
-  // "2026-05-15-blue-note") so listings sort chronologically.
-  slug: z.string().min(1),
   date: z.string().min(1),
+  // Venue doubles as the Keystatic slug source — the filename is the
+  // slugified venue. Same venue played twice → Keystatic auto-suffixes -1.
   venue: z.string().min(1),
   city: z.string().min(1),
   ticketUrl: z.string().optional(),

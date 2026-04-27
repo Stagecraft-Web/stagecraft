@@ -95,7 +95,6 @@ const videos = defineCollection({
 const tourDates = defineCollection({
   loader: glob({ pattern: "*.yaml", base: "./src/content/collections/tourDates" }),
   schema: z.object({
-    slug: z.string().min(1),
     date: z.string().min(1),
     venue: z.string().min(1),
     city: z.string().min(1),

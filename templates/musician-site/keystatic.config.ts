@@ -568,6 +568,9 @@ export default config({
       label: "Tour Dates",
       slugField: "venue",
       path: "src/content/collections/tourDates/*",
+      // Show date + venue + city in the collection list so authors can
+      // scan upcoming/past shows without opening each entry.
+      columns: ["date", "city"],
       schema: {
         venue: fields.slug({
           name: {

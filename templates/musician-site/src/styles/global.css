@@ -43,7 +43,7 @@
   :root {
     /* Colors (overridden per-page by BaseLayout's inline <style>). */
     --color-primary: #1a1a2e;
-    --color-secondary: #e94560;
+    --color-secondary: #b91c4a;
     --color-accent: #0f3460;
     /* --color-link: authors can set `colors.linkColor` in appearance.json to
        decouple link color from the accent/CTA color. When unset, the schema
@@ -55,7 +55,7 @@
     --color-text: #1a1a2e;
     --color-text-muted: #6b7280;
     --color-text-light: #888888;
-    --color-border: #e5e7eb;
+    --color-border: #7c828b;
     --color-overlay: rgba(0, 0, 0, 0.9);
     --color-overlay-light: rgba(255, 255, 255, 0.15);
 

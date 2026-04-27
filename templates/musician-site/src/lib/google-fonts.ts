@@ -187,15 +187,15 @@ interface AppearanceLike {
     primary: { family: string };
     /** `null` when mode === "single". */
     heading: { family: string } | null;
-    weights: {
+    bodyWeights: {
       body: number;
       bodyBold: number;
+    };
+    headingWeights: {
       h1: number;
       h2: number;
       h3: number;
       h4: number;
-      h5: number;
-      h6: number;
     };
   };
 }
@@ -203,9 +203,9 @@ interface AppearanceLike {
 export function appearanceToFontRequests(
   appearance: AppearanceLike,
 ): FontFamilyRequest[] {
-  const { mode, primary, heading, weights } = appearance.typography;
-  const headingWeights = [weights.h1, weights.h2, weights.h3, weights.h4, weights.h5, weights.h6];
-  const bodyWeights = [weights.body, weights.bodyBold];
+  const { mode, primary, heading, bodyWeights: bw, headingWeights: hw } = appearance.typography;
+  const headingWeights = [hw.h1, hw.h2, hw.h3, hw.h4];
+  const bodyWeights = [bw.body, bw.bodyBold];
 
   // Single mode (or split with no heading somehow) → one family, all weights.
   if (mode === "single" || !heading) {

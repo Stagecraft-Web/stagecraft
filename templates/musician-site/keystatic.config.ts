@@ -2,10 +2,15 @@ import { config, fields, collection, singleton } from "@keystatic/core";
 import { GOOGLE_FONTS, FONT_WEIGHTS } from "./src/lib/google-fonts";
 import { pageContentComponents } from "./src/lib/keystatic-blocks";
 import {
+  BODY_FONT_SIZE_BUCKETS,
   FONT_CATEGORIES,
   FONT_CATEGORY_LABELS,
+  FONT_SIZE_BUCKET_LABELS,
+  FONT_SIZE_PX_MAX,
+  FONT_SIZE_PX_MIN,
   HEADER_MODES,
   HEADER_MODE_LABELS,
+  HEADING_FONT_SIZE_BUCKETS,
   IMAGE_USAGE_SLOTS,
   IMAGE_USAGE_SLOT_LABELS,
   POST_CATEGORIES,
@@ -19,6 +24,7 @@ import {
   VIDEO_TYPES,
   VIDEO_TYPE_LABELS,
   type FontCategory,
+  type FontSizeBucket,
   type HeaderMode,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
@@ -113,6 +119,35 @@ const weightField = (label: string, defaultValue: number) =>
     defaultValue: String(defaultValue) as (typeof weightOptions)[number]["value"],
   });
 
+// Per-bucket font-size editor. Renders as a `fields.object` of integer
+// number-inputs (one per bucket) — Keystatic gives them browser-native +/−
+// spinner buttons. Stored as pixels (1rem = 16px); `0` falls back to
+// theme.json's baseline at render time. Used twice in the Appearance
+// singleton — once for body buckets (xs/sm/base/lg), once for heading
+// buckets (xl/2xl/3xl/4xl).
+const sizesObject = <T extends FontSizeBucket>(
+  buckets: readonly T[],
+  label: string,
+) =>
+  fields.object(
+    Object.fromEntries(
+      buckets.map((b) => [
+        b,
+        fields.integer({
+          label: FONT_SIZE_BUCKET_LABELS[b],
+          description: "Pixels (16 = 1rem). 0 inherits the theme.json default.",
+          defaultValue: 0,
+          validation: { min: FONT_SIZE_PX_MIN, max: FONT_SIZE_PX_MAX },
+        }),
+      ]),
+    ) as Record<T, ReturnType<typeof fields.integer>>,
+    {
+      label,
+      description:
+        "Per-bucket overrides on top of theme.json's font-size scale. Step the spinners or leave at 0 to inherit the default.",
+    },
+  );
+
 // Build a curated "Usage Slot" select that exposes only the subset of
 // IMAGE_USAGE_SLOTS relevant to a given collection (e.g. photos rarely need
 // "release-cover"). Preserves the canonical order from IMAGE_USAGE_SLOTS and
@@ -194,6 +229,53 @@ export default config({
           directory: "src/assets/favicons",
           publicPath: "../../assets/favicons/",
         }),
+        // Site-wide default page-background image. Rendered as a fixed-position
+        // layer behind all page content (below the overlay). Individual pages
+        // can override this via their own `pageBackground` frontmatter.
+        //
+        // `src/assets/images/` with `../../assets/images/` matches the
+        // wordmark's convention — site.json lives in `src/content/config/`,
+        // so the publicPath walks back two levels.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required for accessibility even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background",
+            description:
+              "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Leave the image blank for no site-wide background.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description:
+                "Hex ('#000000') or rgb()/rgba() value painted over the background image. Darken the image to boost text contrast, or use a brand color for a tinted wash.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay",
+            description:
+              "Tint painted over the site-wide background image for text legibility. Ignored when no background image is set.",
+          },
+        ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(
@@ -313,17 +395,18 @@ export default config({
     // -----------------------------------------------------------------
     // Appearance — colors and typography (Google Fonts).
     //
-    // Typography picker is category-first: choose Sans-serif/Serif/
+    // Typography is split into a Body group and a Headings group; each
+    // owns its font family, per-bucket sizes, and weights. Per-bucket
+    // size fields accept rem values ("1.25rem"); leave a field blank
+    // to inherit from theme.json's baseline.
+    //
+    // The font picker is category-first: choose Sans-serif/Serif/
     // Monospace/Display/Handwriting to get a curated list, or choose
     // "Custom" to type any family name from fonts.google.com.
     //
-    // By default the same font is used site-wide. Switching "Font
-    // Strategy" to "Separate heading + body" activates the Heading
-    // font picker.
-    //
-    // Weight pickers exist per heading level and for body/body-bold,
-    // so the Google Fonts URL emitted at runtime requests ONLY the
-    // weights actually in use (keeps page weight small).
+    // Heading mode is single (same font as body) or split (own family);
+    // weight pickers per heading level let the runtime fetch only the
+    // exact weights actually in use.
     // -----------------------------------------------------------------
 
     appearance: singleton({
@@ -334,7 +417,7 @@ export default config({
         colors: fields.object(
           {
             primary: fields.text({ label: "Primary (headings, logo)", defaultValue: "#1a1a2e" }),
-            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#e94560" }),
+            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#b91c4a" }),
             accent: fields.text({ label: "Accent", defaultValue: "#0f3460" }),
             // Optional — leave blank to reuse Accent. Authors who want links to
             // read differently from the main accent/CTA color (e.g. a subdued
@@ -349,7 +432,7 @@ export default config({
             surface: fields.text({ label: "Surface (cards, panels)", defaultValue: "#ffffff" }),
             text: fields.text({ label: "Body text", defaultValue: "#1a1a2e" }),
             textMuted: fields.text({ label: "Muted text", defaultValue: "#6b7280" }),
-            border: fields.text({ label: "Borders & dividers", defaultValue: "#e5e7eb" }),
+            border: fields.text({ label: "Borders & dividers", defaultValue: "#7c828b" }),
           },
           {
             label: "Colors",
@@ -359,16 +442,32 @@ export default config({
         ),
         typography: fields.object(
           {
+            // Body font picker. The body's family is the fallback when
+            // headings use "Same as body".
             primary: fontPicker("Body font", {
               category: "sans-serif",
               family: "Inter",
             }),
+            // Body sizes — xs / sm / base / lg map to body / small body /
+            // captions and h6 / h5 in global.css. Empty string means "use
+            // theme.json baseline" (the default).
+            bodySizes: sizesObject(BODY_FONT_SIZE_BUCKETS, "Body sizes"),
+            bodyWeights: fields.object(
+              {
+                body: weightField("Body", 400),
+                bodyBold: weightField("Body bold", 700),
+              },
+              {
+                label: "Body weights",
+                description:
+                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+              },
+            ),
             // `mode` is the discriminant: "single" hides the heading picker
-            // entirely; "split" reveals it (Keystatic conditional UX). This
-            // replaces the older parallel `mode` + `heading` fields.
+            // entirely; "split" reveals it (Keystatic conditional UX).
             heading: fields.conditional(
               fields.select({
-                label: "Headings",
+                label: "Heading font",
                 description: "Use the same font as the body, or pick a different font for headings.",
                 options: [
                   { label: "Same as body", value: "single" },
@@ -384,28 +483,26 @@ export default config({
                 }),
               },
             ),
-            weights: fields.object(
+            // Heading sizes — xl / 2xl / 3xl / 4xl map to h4..h1 in global.css.
+            headingSizes: sizesObject(HEADING_FONT_SIZE_BUCKETS, "Heading sizes"),
+            headingWeights: fields.object(
               {
-                body: weightField("Body", 400),
-                bodyBold: weightField("Body bold", 700),
                 h1: weightField("H1", 700),
                 h2: weightField("H2", 700),
                 h3: weightField("H3", 700),
                 h4: weightField("H4", 700),
-                h5: weightField("H5", 600),
-                h6: weightField("H6", 600),
               },
               {
-                label: "Font weights",
+                label: "Heading weights",
                 description:
-                  "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
+                  "Only the weights you pick here are downloaded. h5 and h6 inherit sensible defaults — edit theme.json directly if you need to change them.",
               },
             ),
           },
           {
             label: "Typography",
             description:
-              "Pick fonts and weights. Google Fonts are loaded with only the exact weights in use.",
+              "Body group then headings — each owns a font family, per-bucket sizes, and weights. Leave any size blank to inherit the theme.json default.",
           },
         ),
       },
@@ -440,6 +537,53 @@ export default config({
           description: "Overrides the site-level setting for this page only.",
           defaultValue: false,
         }),
+        // Per-page background override. Leave unset to inherit the site-wide
+        // default from Site Settings → Page Background. Splash pages ignore
+        // this entirely — they render their own full-bleed imagery via
+        // FullscreenSection.
+        //
+        // pages live in `src/content/pages/*`, so publicPath walks back two
+        // levels to reach src/assets/images/ — same as the wordmark from
+        // src/content/config/.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background (override)",
+            description:
+              "Leave unset to inherit the site-wide default. When set, this page shows its own background photo behind the content.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description: "Hex ('#000000') or rgb()/rgba() value. Leave blank inputs to inherit defaults.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay (override)",
+            description:
+              "Leave unset to inherit the site-wide overlay. Only applies when a background image is resolved for this page.",
+          },
+        ),
         content: fields.markdoc({
           label: "Body Content",
           components: pageContentComponents,
@@ -568,9 +712,19 @@ export default config({
       label: "Tour Dates",
       slugField: "venue",
       path: "src/content/collections/tourDates/*",
+      // Show date + venue + city in the collection list so authors can
+      // scan upcoming/past shows without opening each entry.
+      columns: ["date", "city"],
       schema: {
         date: fields.date({ label: "Date", validation: { isRequired: true } }),
-        venue: fields.slug({ name: { label: "Venue", validation: { isRequired: true } } }),
+        venue: fields.slug({
+          name: {
+            label: "Venue",
+            description:
+              "The venue name. Doubles as the filename (slugified). If the same venue plays twice, Keystatic appends -1, -2.",
+            validation: { isRequired: true },
+          },
+        }),
         city: fields.text({ label: "City", validation: { isRequired: true } }),
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({
@@ -582,7 +736,34 @@ export default config({
             { label: string; value: (typeof TOUR_DATE_STATUSES)[number] },
             ...{ label: string; value: (typeof TOUR_DATE_STATUSES)[number] }[],
           ],
-          defaultValue: "upcoming",
+          defaultValue: "on_sale",
+        }),
+        category: fields.relationship({
+          label: "Category",
+          collection: "tourCategories",
+          description:
+            "Optional series or show type. Pick an existing category or add a new one in the Tour Categories collection.",
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Tour categories — lightweight tag collection backing
+    // `tourDates.category` and the `tour-dates` block's category filter.
+    // -----------------------------------------------------------------
+
+    tourCategories: collection({
+      label: "Tour Categories",
+      slugField: "name",
+      path: "src/content/collections/tourCategories/*",
+      schema: {
+        name: fields.slug({
+          name: {
+            label: "Name",
+            description:
+              "Display name for the category (e.g. 'Winter Tour'). The slug links tour dates to this category.",
+            validation: { isRequired: true },
+          },
         }),
       },
     }),

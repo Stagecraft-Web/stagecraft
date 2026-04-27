@@ -11,7 +11,15 @@
 // so if the schema evolves we only have to change it here.
 // ============================================================
 
+import { pxToRem } from "../../lib/font-sizing";
+import { BODY_FONT_SIZE_BUCKETS, HEADING_FONT_SIZE_BUCKETS } from "../../lib/schemas";
 import type { AppearanceState } from "./types";
+
+/** Render a per-bucket pixel override for a commit-message diff line.
+ *  `0` reads as "(default)"; non-zero reads as the rem equivalent. */
+function formatSizeChange(px: number): string {
+  return px > 0 ? pxToRem(px) : "(default)";
+}
 
 /** Serialise an AppearanceState into the JSON string that belongs at
  *  `src/content/config/appearance.json`. Indent matches the existing file
@@ -37,6 +45,16 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
       ? state.colors.linkColor
       : "";
 
+  // Build size objects with explicit per-bucket entries so the on-disk shape
+  // matches the Keystatic schema exactly (field order = bucket order). Values
+  // are integer pixels — `0` means "use theme.json baseline".
+  const bodySizesOut = Object.fromEntries(
+    BODY_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.bodySizes[b] ?? 0]),
+  );
+  const headingSizesOut = Object.fromEntries(
+    HEADING_FONT_SIZE_BUCKETS.map((b) => [b, state.typography.headingSizes[b] ?? 0]),
+  );
+
   const payload = {
     colors: {
       primary: state.colors.primary,
@@ -54,18 +72,20 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
         discriminant: state.typography.primary.category,
         value: state.typography.primary.family,
       },
-      heading,
-      weights: {
+      bodySizes: bodySizesOut,
+      bodyWeights: {
         // Weights are stored as strings because Keystatic's <select> emits
         // strings; the reader-side schema coerces to number.
-        body: String(state.typography.weights.body),
-        bodyBold: String(state.typography.weights.bodyBold),
-        h1: String(state.typography.weights.h1),
-        h2: String(state.typography.weights.h2),
-        h3: String(state.typography.weights.h3),
-        h4: String(state.typography.weights.h4),
-        h5: String(state.typography.weights.h5),
-        h6: String(state.typography.weights.h6),
+        body: String(state.typography.bodyWeights.body),
+        bodyBold: String(state.typography.bodyWeights.bodyBold),
+      },
+      heading,
+      headingSizes: headingSizesOut,
+      headingWeights: {
+        h1: String(state.typography.headingWeights.h1),
+        h2: String(state.typography.headingWeights.h2),
+        h3: String(state.typography.headingWeights.h3),
+        h4: String(state.typography.headingWeights.h4),
       },
     },
   };
@@ -130,24 +150,62 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
     changes.push({ label: "heading font", from: prevHeadingFamily, to: nextHeadingFamily });
   }
 
-  const weightLabels: Record<keyof AppearanceState["typography"]["weights"], string> = {
+  const bodyWeightLabels: Record<keyof AppearanceState["typography"]["bodyWeights"], string> = {
     body: "body weight",
     bodyBold: "body-bold weight",
+  };
+  for (const key of Object.keys(prev.typography.bodyWeights) as Array<
+    keyof AppearanceState["typography"]["bodyWeights"]
+  >) {
+    if (prev.typography.bodyWeights[key] !== next.typography.bodyWeights[key]) {
+      changes.push({
+        label: bodyWeightLabels[key],
+        from: String(prev.typography.bodyWeights[key]),
+        to: String(next.typography.bodyWeights[key]),
+      });
+    }
+  }
+
+  const headingWeightLabels: Record<keyof AppearanceState["typography"]["headingWeights"], string> = {
     h1: "h1 weight",
     h2: "h2 weight",
     h3: "h3 weight",
     h4: "h4 weight",
-    h5: "h5 weight",
-    h6: "h6 weight",
   };
-  for (const key of Object.keys(prev.typography.weights) as Array<
-    keyof AppearanceState["typography"]["weights"]
+  for (const key of Object.keys(prev.typography.headingWeights) as Array<
+    keyof AppearanceState["typography"]["headingWeights"]
   >) {
-    if (prev.typography.weights[key] !== next.typography.weights[key]) {
+    if (prev.typography.headingWeights[key] !== next.typography.headingWeights[key]) {
       changes.push({
-        label: weightLabels[key],
-        from: String(prev.typography.weights[key]),
-        to: String(next.typography.weights[key]),
+        label: headingWeightLabels[key],
+        from: String(prev.typography.headingWeights[key]),
+        to: String(next.typography.headingWeights[key]),
+      });
+    }
+  }
+
+  // Per-bucket size overrides — surface each bucket distinctly so the diff
+  // reads naturally ("base size: (default) → 1.125rem"). An override
+  // toggling between 0 (use baseline) and a real px value still shows up.
+  for (const key of Object.keys(prev.typography.bodySizes) as Array<
+    keyof AppearanceState["typography"]["bodySizes"]
+  >) {
+    if (prev.typography.bodySizes[key] !== next.typography.bodySizes[key]) {
+      changes.push({
+        label: `${key} size`,
+        from: formatSizeChange(prev.typography.bodySizes[key]),
+        to: formatSizeChange(next.typography.bodySizes[key]),
+      });
+    }
+  }
+  for (const key of Object.keys(prev.typography.headingSizes) as Array<
+    keyof AppearanceState["typography"]["headingSizes"]
+  >) {
+    if (prev.typography.headingSizes[key] !== next.typography.headingSizes[key]) {
+      changes.push({
+        label: `${key} size`,
+        from: formatSizeChange(prev.typography.headingSizes[key]),
+        to: formatSizeChange(next.typography.headingSizes[key]),
       });
     }
   }

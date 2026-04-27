@@ -17,9 +17,6 @@ node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
      /tmp/pr-<N>-screenshots
 ```
 
-Captures to a local temp directory — the images are then uploaded to
-a public gist and referenced from the PR body (this repo is private,
-so in-tree raw URLs don't render anonymously).
-
-See `docs/screenshots/README.md` for the full PR-screenshot convention
-including the gist upload workflow.
+Captures to a local temp directory. Uploading the images to a public
+gist and embedding them in a PR is covered by the `create-pr` skill
+at `claude/skills/create-pr/SKILL.md` at the monorepo root.

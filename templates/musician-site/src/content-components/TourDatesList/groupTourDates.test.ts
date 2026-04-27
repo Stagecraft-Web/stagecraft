@@ -8,7 +8,7 @@ import { groupTourDates, type TourDateRow } from "./groupTourDates";
  */
 function row(
   date: string,
-  status: "upcoming" | "sold_out" | "canceled" | "past",
+  status: "on_sale" | "sold_out" | "canceled",
   venue = `show-${date}-${status}`,
 ): TourDateRow {
   return { date, status, venue };
@@ -26,11 +26,11 @@ describe("groupTourDates", () => {
 
   it("puts all upcoming in primary when there are 2+, ignores past entirely", () => {
     const dates = [
-      row("2026-05-15", "upcoming", "blue-note"),
-      row("2026-06-01", "upcoming", "fillmore"),
+      row("2026-05-15", "on_sale", "blue-note"),
+      row("2026-06-01", "on_sale", "fillmore"),
       row("2026-07-20", "sold_out", "930"),
-      row("2025-12-10", "past", "old-show-1"),
-      row("2025-11-05", "past", "old-show-2"),
+      row("2025-12-10", "on_sale", "old-show-1"),
+      row("2025-11-05", "on_sale", "old-show-2"),
     ];
     const result = groupTourDates(dates, TODAY, 3);
     expect(result.primary.map((d) => d.venue)).toEqual([
@@ -44,8 +44,8 @@ describe("groupTourDates", () => {
 
   it("includes today's date in upcoming (>=, not >)", () => {
     const dates = [
-      row(TODAY, "upcoming", "today-show"),
-      row("2026-05-01", "upcoming", "later-show"),
+      row(TODAY, "on_sale", "today-show"),
+      row("2026-05-01", "on_sale", "later-show"),
     ];
     const result = groupTourDates(dates, TODAY, 3);
     expect(result.primary.map((d) => d.venue)).toEqual([
@@ -56,11 +56,11 @@ describe("groupTourDates", () => {
 
   it("renders 1 upcoming + padded past (newest first) when upcoming.length === 1", () => {
     const dates = [
-      row("2026-05-15", "upcoming", "next-show"),
-      row("2025-12-10", "past", "p1"),
-      row("2025-11-05", "past", "p2"),
-      row("2025-09-15", "past", "p3"),
-      row("2025-06-15", "past", "p4"),
+      row("2026-05-15", "on_sale", "next-show"),
+      row("2025-12-10", "on_sale", "p1"),
+      row("2025-11-05", "on_sale", "p2"),
+      row("2025-09-15", "on_sale", "p3"),
+      row("2025-06-15", "on_sale", "p4"),
     ];
     const result = groupTourDates(dates, TODAY, 3);
     expect(result.primary.map((d) => d.venue)).toEqual(["next-show"]);
@@ -70,10 +70,10 @@ describe("groupTourDates", () => {
 
   it("renders empty + padded past when upcoming.length === 0", () => {
     const dates = [
-      row("2025-12-10", "past", "p1"),
+      row("2025-12-10", "on_sale", "p1"),
       row("2025-11-05", "sold_out", "p2"),
-      row("2025-09-15", "past", "p3"),
-      row("2025-06-15", "past", "p4"),
+      row("2025-09-15", "on_sale", "p3"),
+      row("2025-06-15", "on_sale", "p4"),
     ];
     const result = groupTourDates(dates, TODAY, 2);
     expect(result.primary).toEqual([]);
@@ -83,9 +83,9 @@ describe("groupTourDates", () => {
 
   it("treats canceled shows as past even when their date is in the future", () => {
     const dates = [
-      row("2026-05-15", "upcoming", "keep"),
+      row("2026-05-15", "on_sale", "keep"),
       row("2026-07-20", "canceled", "canceled-future"),
-      row("2025-12-10", "past", "old"),
+      row("2025-12-10", "on_sale", "old"),
     ];
     const result = groupTourDates(dates, TODAY, 3);
     // Only one upcoming → primary has 1, paddedPast newest-first with
@@ -99,12 +99,12 @@ describe("groupTourDates", () => {
 
   it("sorts upcoming ascending and past descending", () => {
     const dates = [
-      row("2026-08-01", "upcoming", "u3"),
-      row("2026-05-15", "upcoming", "u1"),
-      row("2026-06-01", "upcoming", "u2"),
-      row("2025-06-15", "past", "p3"),
-      row("2025-12-10", "past", "p1"),
-      row("2025-09-15", "past", "p2"),
+      row("2026-08-01", "on_sale", "u3"),
+      row("2026-05-15", "on_sale", "u1"),
+      row("2026-06-01", "on_sale", "u2"),
+      row("2025-06-15", "on_sale", "p3"),
+      row("2025-12-10", "on_sale", "p1"),
+      row("2025-09-15", "on_sale", "p2"),
     ];
     const result = groupTourDates(dates, TODAY, 5);
     expect(result.primary.map((d) => d.venue)).toEqual(["u1", "u2", "u3"]);
@@ -114,8 +114,8 @@ describe("groupTourDates", () => {
 
   it("pastPadding of 0 suppresses the padded list entirely", () => {
     const dates = [
-      row("2026-05-15", "upcoming", "next"),
-      row("2025-12-10", "past", "p1"),
+      row("2026-05-15", "on_sale", "next"),
+      row("2025-12-10", "on_sale", "p1"),
     ];
     const result = groupTourDates(dates, TODAY, 0);
     expect(result.primary.map((d) => d.venue)).toEqual(["next"]);
@@ -125,10 +125,10 @@ describe("groupTourDates", () => {
 
   it("clamps negative and fractional pastPadding to floor >= 0", () => {
     const dates = [
-      row("2026-05-15", "upcoming", "next"),
-      row("2025-12-10", "past", "p1"),
-      row("2025-11-05", "past", "p2"),
-      row("2025-09-15", "past", "p3"),
+      row("2026-05-15", "on_sale", "next"),
+      row("2025-12-10", "on_sale", "p1"),
+      row("2025-11-05", "on_sale", "p2"),
+      row("2025-09-15", "on_sale", "p3"),
     ];
     expect(
       groupTourDates(dates, TODAY, -5).paddedPast,
@@ -140,9 +140,9 @@ describe("groupTourDates", () => {
 
   it("does not mutate the caller's input array", () => {
     const dates = [
-      row("2026-08-01", "upcoming", "u3"),
-      row("2026-05-15", "upcoming", "u1"),
-      row("2026-06-01", "upcoming", "u2"),
+      row("2026-08-01", "on_sale", "u3"),
+      row("2026-05-15", "on_sale", "u1"),
+      row("2026-06-01", "on_sale", "u2"),
     ];
     const snapshot = dates.map((d) => d.venue);
     groupTourDates(dates, TODAY, 3);

@@ -2,7 +2,7 @@
   "colorMode": "light",
   "colors": {
     "primary": "#1a1a2e",
-    "secondary": "#e94560",
+    "secondary": "#b91c4a",
     "accent": "#0f3460",
     "background": "#fafafa",
     "surface": "#ffffff",
@@ -10,7 +10,7 @@
     "text": "#1a1a2e",
     "textMuted": "#6b7280",
     "textLight": "#888888",
-    "border": "#e5e7eb",
+    "border": "#7c828b",
     "overlay": "rgba(0, 0, 0, 0.9)",
     "overlayLight": "rgba(255, 255, 255, 0.15)"
   },

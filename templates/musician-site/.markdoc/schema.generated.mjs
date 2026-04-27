@@ -99,8 +99,9 @@ export default {
     "tour-dates": {
       selfClosing: true,
       attributes: {
-        "pastPadding": { type: Number, default: 3 },
         "emptyMessage": { type: String, default: "No upcoming shows. Check back soon." },
+        "pageSize": { type: Number, default: 10 },
+        "categoryFilter": { type: String },
       },
     },
     "store-items": {

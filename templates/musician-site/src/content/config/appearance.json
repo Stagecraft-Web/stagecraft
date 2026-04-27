@@ -1,14 +1,14 @@
 {
   "colors": {
     "primary": "#1a1a2e",
-    "secondary": "#e94560",
+    "secondary": "#b91c4a",
     "accent": "#0f3460",
     "linkColor": "",
     "background": "#fafafa",
     "surface": "#ffffff",
     "text": "#1a1a2e",
     "textMuted": "#6b7280",
-    "border": "#e5e7eb"
+    "border": "#7c828b"
   },
   "typography": {
     "primary": {

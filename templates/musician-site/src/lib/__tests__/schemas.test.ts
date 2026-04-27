@@ -347,13 +347,13 @@ describe("themeSchema", () => {
 describe("appearanceSchema", () => {
   const validColors = {
     primary: "#1a1a2e",
-    secondary: "#e94560",
+    secondary: "#b91c4a",
     accent: "#0f3460",
     background: "#fafafa",
     surface: "#ffffff",
     text: "#1a1a2e",
     textMuted: "#6b7280",
-    border: "#e5e7eb",
+    border: "#7c828b",
   };
 
   const validBodyWeights = { body: 400, bodyBold: 700 };
@@ -521,10 +521,10 @@ describe("appearanceSchema", () => {
   it("preserves an explicit linkColor when set", () => {
     const withLink = {
       ...splitInput,
-      colors: { ...validColors, linkColor: "#ff00aa" },
+      colors: { ...validColors, linkColor: "#c00077" },
     };
     const result = appearanceSchema.parse(withLink);
-    expect(result.colors.linkColor).toBe("#ff00aa");
+    expect(result.colors.linkColor).toBe("#c00077");
   });
 
   // ---- per-bucket size overrides (integer pixels) ------------------------

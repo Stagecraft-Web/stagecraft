@@ -12,7 +12,7 @@ import * as Sentry from "@sentry/astro";
 
 // Keep this in sync with `sentry.client.config.ts`.
 const SENTRY_DSN =
-  "https://5b7d372bdf8537c59ab71b205c9135c7@o4511290432749568.ingest.us.sentry.io/4511290482163712";
+  "https://d0d07275287cfed946b7a2de38d3f04e@o4511290432749568.ingest.us.sentry.io/4511290484195328";
 
 Sentry.init({
   dsn: SENTRY_DSN,

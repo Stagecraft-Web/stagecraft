@@ -21,7 +21,6 @@ import {
   extractEmbeds,
   extractNavLinks,
   extractSocialLinks,
-  resolveUrl,
   isSameDomain,
 } from "../html-utils";
 

@@ -22,6 +22,8 @@ export default async function DashboardPage() {
         <div>
           <a href="/settings" style={{ marginRight: "var(--space-4)" }}>Settings</a>
           <span style={{ marginRight: "var(--space-4)" }}>{session.user.name ?? session.user.email}</span>
+          {/* next-auth signout endpoint — must use plain anchor, not next/link */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/api/auth/signout" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>Sign out</a>
         </div>
       </header>

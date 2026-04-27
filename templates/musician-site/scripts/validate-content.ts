@@ -19,8 +19,8 @@ import {
 import { components as contentComponents } from "../src/content-components/index.js";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-let errors: string[] = [];
-let warnings: string[] = [];
+const errors: string[] = [];
+const warnings: string[] = [];
 
 // ============================================================
 // Validation helpers

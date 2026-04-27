@@ -1,109 +1,32 @@
 ---
 /**
- * Generic labelled form control. The `type` prop covers all three control
- * shapes the form library renders: any standard `<input>` type
- * (`text`, `email`, `tel`, `url`, `password`, …), `"textarea"`, and
- * `"select"`. Internally the component switches on those three buckets so
- * callers don't have to thread `isTextarea` / `isSelect` flags.
+ * Astro wrapper around the shared React `FormGroup` primitive in
+ * `src/components/react/FormGroup.tsx`. Astro server-renders the component
+ * to plain HTML at build time (no React runtime ships to the client),
+ * so `.astro` callers keep their HTML-native call site:
+ *
+ *   <FormGroup label="Name" name="name" type="text" isRequired />
+ *
+ * while React islands (e.g. the Appearance sidebar) consume the same
+ * primitive directly. Single source of truth for the visual style; both
+ * surfaces stay in lock-step.
  */
-type FormGroupType =
-  | astroHTML.JSX.HTMLInputTypeAttribute
-  | "textarea"
-  | "select";
+import FormGroupReact, {
+  type FormGroupType,
+} from "./react/FormGroup";
 
 interface Props {
-  /** Input label text */
   label: string;
-  /** Input name and id attribute */
   name: string;
-  /** Control shape — any standard `<input>` type, or `"textarea"` / `"select"`. */
   type?: FormGroupType;
-  /** Number of rows for `type="textarea"`. */
   rows?: number;
-  /** Choices for `type="select"`. Each string is used for both the option's
-   *  value and its display label. */
   selectOptions?: string[];
-  /** Whether the field is required */
   isRequired?: boolean;
-  /** Autocomplete attribute. `string` is permitted so content-component
-   * authors can pass arbitrary tokens (e.g. `given-name`, `family-name`) —
-   * the built-in first-party forms still benefit from the narrowed union
-   * via direct prop usage. */
   autocomplete?: string;
-  /** Optional placeholder text. For `<select>` it appears as the empty-value
-   *  prompt option (only when the field isn't required). */
   placeholder?: string;
 }
 
-const {
-  label,
-  name,
-  type = "text",
-  rows = 5,
-  selectOptions = [],
-  isRequired = false,
-  autocomplete,
-  placeholder,
-} = Astro.props;
+const props = Astro.props;
 ---
 
-<div class="form-group">
-  <label for={name}>
-    {label}
-    {isRequired && <span class="form-group-required">*</span>}
-  </label>
-  {type === "select" ? (
-    <select id={name} name={name} required={isRequired} autocomplete={autocomplete}>
-      {!isRequired && <option value="">{placeholder ?? "Select an option"}</option>}
-      {selectOptions.map((opt) => (
-        <option value={opt}>{opt}</option>
-      ))}
-    </select>
-  ) : type === "textarea" ? (
-    <textarea id={name} name={name} rows={rows} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
-  ) : (
-    <input type={type} id={name} name={name} required={isRequired} autocomplete={autocomplete} placeholder={placeholder} />
-  )}
-</div>
-
-<style>
-  .form-group {
-    margin-bottom: 1.25rem;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 0.375rem;
-    font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-sm);
-  }
-
-  .form-group-required {
-    color: var(--color-secondary);
-  }
-
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    font-family: var(--font-body);
-    font-size: var(--font-size-base);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus,
-  .form-group select:focus {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 1px;
-    border-color: transparent;
-  }
-
-  .form-group textarea {
-    resize: vertical;
-  }
-</style>
+<FormGroupReact {...props} />

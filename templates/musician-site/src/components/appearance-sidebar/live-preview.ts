@@ -9,6 +9,7 @@
 // can unit-test them with a minimal DOM stub.
 // ============================================================
 
+import { computeFontSizes } from "../../lib/font-sizing";
 import {
   appearanceToFontRequests,
   buildFontStack,
@@ -18,14 +19,28 @@ import type { AppearanceState } from "./types";
 
 /** Writes every CSS variable the page consumes (mirrors BaseLayout's
  *  server-side inline <style>). Fonts that aren't loaded yet will fall back
- *  via the stack until injectPreviewFontsLink adds a new <link>. */
-export function applyCssVariables(root: HTMLElement, appearance: AppearanceState): void {
+ *  via the stack until injectPreviewFontsLink adds a new <link>.
+ *
+ *  `baseFontSizes` is the raw theme.json → typography.fontSize map. The
+ *  sidebar passes it in from SidebarConfig so the live preview can apply
+ *  the same transform BaseLayout does without re-reading theme.json. */
+export function applyCssVariables(
+  root: HTMLElement,
+  appearance: AppearanceState,
+  baseFontSizes: Record<string, string>,
+): void {
   const { colors, typography } = appearance;
   const bodyStack = buildFontStack(typography.primary.family, typography.primary.category);
   const headingStack =
     typography.mode === "split" && typography.heading
       ? buildFontStack(typography.heading.family, typography.heading.category)
       : bodyStack;
+
+  const fontSizes = computeFontSizes(
+    baseFontSizes,
+    typography.bodySizes,
+    typography.headingSizes,
+  );
 
   const vars: Record<string, string> = {
     "--color-primary": colors.primary,
@@ -39,15 +54,21 @@ export function applyCssVariables(root: HTMLElement, appearance: AppearanceState
     "--color-border": colors.border,
     "--font-body": bodyStack,
     "--font-heading": headingStack,
-    "--font-weight-body": String(typography.weights.body),
-    "--font-weight-body-bold": String(typography.weights.bodyBold),
-    "--font-weight-h1": String(typography.weights.h1),
-    "--font-weight-h2": String(typography.weights.h2),
-    "--font-weight-h3": String(typography.weights.h3),
-    "--font-weight-h4": String(typography.weights.h4),
-    "--font-weight-h5": String(typography.weights.h5),
-    "--font-weight-h6": String(typography.weights.h6),
+    "--font-weight-body": String(typography.bodyWeights.body),
+    "--font-weight-body-bold": String(typography.bodyWeights.bodyBold),
+    "--font-weight-h1": String(typography.headingWeights.h1),
+    "--font-weight-h2": String(typography.headingWeights.h2),
+    "--font-weight-h3": String(typography.headingWeights.h3),
+    "--font-weight-h4": String(typography.headingWeights.h4),
   };
+
+  // Font-size vars — mirrors BaseLayout's inline <style>. Bucket names in
+  // `fontSizes` match theme.json keys (xs / sm / base / lg / xl / 2xl / 3xl /
+  // 4xl); each maps to a `--font-size-<bucket>` CSS var consumed by
+  // global.css.
+  for (const [bucket, value] of Object.entries(fontSizes)) {
+    vars[`--font-size-${bucket}`] = value;
+  }
 
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
@@ -81,8 +102,14 @@ export function injectPreviewFontsLink(head: HTMLHeadElement, appearance: Appear
 }
 
 /** Combined shortcut used by the React hook — applies both CSS vars and the
- *  font link. Exposed separately so tests can drive each half independently. */
-export function applyPreview(doc: Document, appearance: AppearanceState): void {
-  applyCssVariables(doc.documentElement, appearance);
+ *  font link. Exposed separately so tests can drive each half independently.
+ *  `baseFontSizes` is the raw theme.json fontSize map threaded through from
+ *  SidebarConfig; see applyCssVariables for details. */
+export function applyPreview(
+  doc: Document,
+  appearance: AppearanceState,
+  baseFontSizes: Record<string, string>,
+): void {
+  applyCssVariables(doc.documentElement, appearance, baseFontSizes);
   injectPreviewFontsLink(doc.head, appearance);
 }

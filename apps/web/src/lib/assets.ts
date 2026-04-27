@@ -23,7 +23,7 @@ export const USAGE_SLOTS = [
 export type UsageSlot = Exclude<(typeof USAGE_SLOTS)[number]["value"], "">;
 
 /** Set of valid slot values for API validation (includes "" for unassigned) */
-export const VALID_USAGE_SLOTS = new Set(USAGE_SLOTS.map((s) => s.value));
+export const VALID_USAGE_SLOTS: ReadonlySet<string> = new Set(USAGE_SLOTS.map((s) => s.value));
 
 /** Shared Prisma select for AssetUpload responses */
 export const ASSET_SELECT = {

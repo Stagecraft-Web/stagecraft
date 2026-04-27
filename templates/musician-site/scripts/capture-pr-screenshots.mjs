@@ -9,8 +9,9 @@
  *
  * Output goes to a local directory — PR screenshots are then uploaded
  * to a public gist and referenced from the PR body (this repo is
- * private, so in-tree raw URLs 404 for anonymous viewers). See
- * `docs/screenshots/README.md` for the full upload workflow.
+ * private, so in-tree raw URLs 404 for anonymous viewers). See the
+ * `create-pr` skill at `claude/skills/create-pr/SKILL.md` (monorepo
+ * root) for the full upload workflow.
  *
  * Usage:
  *   node scripts/capture-pr-screenshots.mjs <dev-server-url> <output-dir>

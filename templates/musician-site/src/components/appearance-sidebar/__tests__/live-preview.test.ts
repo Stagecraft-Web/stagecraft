@@ -50,6 +50,19 @@ function makeStubDocument() {
   return { doc, style, headChildren };
 }
 
+// theme.json fontSize baseline, threaded through from BaseLayout. The sidebar
+// applies per-bucket overrides on top; empty/missing values fall through.
+const BASE_FONT_SIZES = {
+  xs: "0.75rem",
+  sm: "0.875rem",
+  base: "1rem",
+  lg: "1.25rem",
+  xl: "1.5rem",
+  "2xl": "2rem",
+  "3xl": "2.5rem",
+  "4xl": "3.5rem",
+};
+
 const baseAppearance: AppearanceState = {
   colors: {
     primary: "#111",
@@ -66,16 +79,10 @@ const baseAppearance: AppearanceState = {
     mode: "split",
     primary: { category: "sans-serif", family: "Inter" },
     heading: { category: "serif", family: "Merriweather" },
-    weights: {
-      body: 400,
-      bodyBold: 700,
-      h1: 700,
-      h2: 600,
-      h3: 600,
-      h4: 500,
-      h5: 500,
-      h6: 500,
-    },
+    bodySizes: { xs: 0, sm: 0, base: 0, lg: 0 },
+    bodyWeights: { body: 400, bodyBold: 700 },
+    headingSizes: { xl: 0, "2xl": 0, "3xl": 0, "4xl": 0 },
+    headingWeights: { h1: 700, h2: 600, h3: 600, h4: 500 },
   },
 };
 
@@ -86,7 +93,7 @@ describe("applyCssVariables", () => {
   });
 
   it("writes every color variable to :root", () => {
-    applyCssVariables(stub.doc.documentElement, baseAppearance);
+    applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--color-primary"]).toBe("#111");
     expect(stub.style["--color-secondary"]).toBe("#222");
     expect(stub.style["--color-bg"]).toBe("#fff");
@@ -95,33 +102,81 @@ describe("applyCssVariables", () => {
   });
 
   it("writes font stacks for body and heading when mode is split", () => {
-    applyCssVariables(stub.doc.documentElement, baseAppearance);
+    applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--font-body"]).toBe("Inter, sans-serif");
     expect(stub.style["--font-heading"]).toBe("Merriweather, serif");
   });
 
   it("uses body stack for heading when mode is single", () => {
-    applyCssVariables(stub.doc.documentElement, {
-      ...baseAppearance,
-      typography: { ...baseAppearance.typography, mode: "single", heading: null },
-    });
+    applyCssVariables(
+      stub.doc.documentElement,
+      {
+        ...baseAppearance,
+        typography: { ...baseAppearance.typography, mode: "single", heading: null },
+      },
+      BASE_FONT_SIZES,
+    );
     expect(stub.style["--font-body"]).toBe("Inter, sans-serif");
     expect(stub.style["--font-heading"]).toBe("Inter, sans-serif");
   });
 
-  it("writes weight variables as strings", () => {
-    applyCssVariables(stub.doc.documentElement, baseAppearance);
+  it("writes weight variables as strings (split body/heading blocks)", () => {
+    applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--font-weight-body"]).toBe("400");
     expect(stub.style["--font-weight-h2"]).toBe("600");
-    expect(stub.style["--font-weight-h6"]).toBe("500");
+    expect(stub.style["--font-weight-h4"]).toBe("500");
   });
 
-  it("writes --color-link (5a)", () => {
-    applyCssVariables(stub.doc.documentElement, {
-      ...baseAppearance,
-      colors: { ...baseAppearance.colors, linkColor: "#ff00aa" },
-    });
+  it("writes --color-link", () => {
+    applyCssVariables(
+      stub.doc.documentElement,
+      {
+        ...baseAppearance,
+        colors: { ...baseAppearance.colors, linkColor: "#ff00aa" },
+      },
+      BASE_FONT_SIZES,
+    );
     expect(stub.style["--color-link"]).toBe("#ff00aa");
+  });
+
+  it("writes font-size vars equal to baseline when no per-bucket overrides are set", () => {
+    applyCssVariables(stub.doc.documentElement, baseAppearance, BASE_FONT_SIZES);
+    expect(stub.style["--font-size-base"]).toBe("1rem");
+    expect(stub.style["--font-size-xs"]).toBe("0.75rem");
+    expect(stub.style["--font-size-4xl"]).toBe("3.5rem");
+  });
+
+  it("applies a body-bucket override (px → rem) and leaves other buckets untouched", () => {
+    applyCssVariables(
+      stub.doc.documentElement,
+      {
+        ...baseAppearance,
+        typography: {
+          ...baseAppearance.typography,
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: 18 },
+        },
+      },
+      BASE_FONT_SIZES,
+    );
+    expect(stub.style["--font-size-base"]).toBe("1.125rem");
+    expect(stub.style["--font-size-xs"]).toBe("0.75rem");
+    expect(stub.style["--font-size-4xl"]).toBe("3.5rem");
+  });
+
+  it("applies a heading-bucket override and leaves body buckets untouched", () => {
+    applyCssVariables(
+      stub.doc.documentElement,
+      {
+        ...baseAppearance,
+        typography: {
+          ...baseAppearance.typography,
+          headingSizes: { ...baseAppearance.typography.headingSizes, "4xl": 64 },
+        },
+      },
+      BASE_FONT_SIZES,
+    );
+    expect(stub.style["--font-size-base"]).toBe("1rem");
+    expect(stub.style["--font-size-4xl"]).toBe("4rem");
   });
 });
 
@@ -175,10 +230,27 @@ describe("injectPreviewFontsLink", () => {
 describe("applyPreview", () => {
   it("applies both CSS vars and the fonts link in one call", () => {
     const stub = makeStubDocument();
-    applyPreview(stub.doc, baseAppearance);
+    applyPreview(stub.doc, baseAppearance, BASE_FONT_SIZES);
     expect(stub.style["--color-primary"]).toBe("#111");
     expect(stub.headChildren.some((c) => c.id === "stagecraft-appearance-preview-font-link")).toBe(
       true,
     );
+  });
+
+  it("projects per-bucket overrides into --font-size-* vars", () => {
+    const stub = makeStubDocument();
+    applyPreview(
+      stub.doc,
+      {
+        ...baseAppearance,
+        typography: {
+          ...baseAppearance.typography,
+          bodySizes: { ...baseAppearance.typography.bodySizes, base: 17 },
+        },
+      },
+      BASE_FONT_SIZES,
+    );
+    // 17 / 16 = 1.0625 → rounded to 1.063rem.
+    expect(stub.style["--font-size-base"]).toBe("1.063rem");
   });
 });

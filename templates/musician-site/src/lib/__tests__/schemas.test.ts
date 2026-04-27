@@ -288,6 +288,70 @@ describe("headerAndNavSchema", () => {
     const result = headerAndNavSchema.parse({ ...valid, headerForegroundColor: "" });
     expect(result.headerForegroundColor).toBe("");
   });
+
+  // ---- Header style variations (§2.3) -------------------------------------
+  it("applies §2.3 defaults when new fields are missing (back-compat)", () => {
+    const result = headerAndNavSchema.parse(valid);
+    expect(result.wordmarkSizeAdjust).toBe(0);
+    expect(result.isHeaderTextUppercase).toBe(false);
+    expect(result.headerSubtitle).toBeUndefined();
+    expect(result.headerLayout).toBe("logo-left-nav-right");
+  });
+
+  it("round-trips explicit §2.3 header style values", () => {
+    const withStyles = {
+      ...valid,
+      wordmarkSizeAdjust: 2,
+      isHeaderTextUppercase: true,
+      headerSubtitle: "Singer / songwriter",
+      headerLayout: "logo-center-nav-split" as const,
+    };
+    const result = headerAndNavSchema.parse(withStyles);
+    expect(result.wordmarkSizeAdjust).toBe(2);
+    expect(result.isHeaderTextUppercase).toBe(true);
+    expect(result.headerSubtitle).toBe("Singer / songwriter");
+    expect(result.headerLayout).toBe("logo-center-nav-split");
+  });
+
+  it("coerces a string wordmarkSizeAdjust (Keystatic select emits strings)", () => {
+    // Keystatic's `fields.select` serializes its value as a string, so JSON
+    // round-trips may carry "-1" rather than -1. z.coerce.number() normalizes
+    // both to a number.
+    const result = headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: "-1" });
+    expect(result.wordmarkSizeAdjust).toBe(-1);
+  });
+
+  it("rejects wordmarkSizeAdjust outside the [-2, 2] range", () => {
+    expect(() =>
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 3 }),
+    ).toThrow();
+    expect(() =>
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: -3 }),
+    ).toThrow();
+  });
+
+  it("rejects non-integer wordmarkSizeAdjust values", () => {
+    expect(() =>
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 0.5 }),
+    ).toThrow();
+  });
+
+  it("rejects unknown headerLayout values", () => {
+    expect(() =>
+      headerAndNavSchema.parse({ ...valid, headerLayout: "logo-above-nav-around" }),
+    ).toThrow();
+  });
+
+  it("rejects non-boolean isHeaderTextUppercase", () => {
+    expect(() =>
+      headerAndNavSchema.parse({ ...valid, isHeaderTextUppercase: "yes" }),
+    ).toThrow();
+  });
+
+  it("accepts an empty headerSubtitle (common seed value)", () => {
+    const result = headerAndNavSchema.parse({ ...valid, headerSubtitle: "" });
+    expect(result.headerSubtitle).toBe("");
+  });
 });
 
 describe("themeSchema", () => {

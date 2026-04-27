@@ -8,6 +8,8 @@ import {
   FONT_SIZE_BUCKET_LABELS,
   FONT_SIZE_PX_MAX,
   FONT_SIZE_PX_MIN,
+  HEADER_LAYOUTS,
+  HEADER_LAYOUT_LABELS,
   HEADER_MODES,
   HEADER_MODE_LABELS,
   HEADING_FONT_SIZE_BUCKETS,
@@ -17,6 +19,8 @@ import {
   POST_STATUSES,
   RELEASE_TYPES,
   RELEASE_TYPE_LABELS,
+  SIZE_ADJUSTMENTS,
+  SIZE_ADJUSTMENT_LABELS,
   STORE_ITEM_FORMATS,
   STORE_ITEM_STATUSES,
   TOUR_DATE_STATUSES,
@@ -25,6 +29,7 @@ import {
   VIDEO_TYPE_LABELS,
   type FontCategory,
   type FontSizeBucket,
+  type HeaderLayout,
   type HeaderMode,
   type ImageUsageSlot,
 } from "./src/lib/schemas";
@@ -353,6 +358,20 @@ export default config({
               "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
           },
         ),
+        wordmarkSizeAdjust: fields.select({
+          label: "Wordmark size",
+          description:
+            "Scales the wordmark image up or down from the default height. Only applies when a wordmark is uploaded above. −2 ≈ 0.72×, +2 ≈ 1.35×.",
+          // Stringify: Keystatic select values must be strings.
+          options: SIZE_ADJUSTMENTS.map((v) => ({
+            label: SIZE_ADJUSTMENT_LABELS[String(v)],
+            value: String(v),
+          })) as [
+            { label: string; value: string },
+            ...{ label: string; value: string }[],
+          ],
+          defaultValue: "0",
+        }),
         // -------------------------------------------------------------
         // Header mode — bundles header style + scroll behavior into one
         // pick. "Solid, sticky" (default) is the standard nav that
@@ -382,6 +401,43 @@ export default config({
           description:
             "Optional. Only applied when header mode is 'Transparent, scrolls with page'. Use to color nav/title for contrast against a page-background image. Hex / rgb() / rgba().",
           defaultValue: "",
+        }),
+        // -------------------------------------------------------------
+        // Header style variations (§2.3)
+        //
+        // Three coarse style levers on top of the §2.2 structure knobs:
+        //   - Uppercase applies CSS text-transform to `.site-title` only
+        //     (wordmark images are unaffected — they're pre-rendered).
+        //   - Header subtitle renders a muted second line under the
+        //     artist name; hidden when a wordmark image is in use.
+        //   - Header layout changes how logo + nav are arranged
+        //     (default flex, centered-with-nav-below grid, centered-
+        //     split grid). Mobile hamburger works across all three.
+        // -------------------------------------------------------------
+        isHeaderTextUppercase: fields.checkbox({
+          label: "Uppercase header text",
+          description:
+            "Renders the artist name in uppercase with slight extra letter-spacing. Only affects the text variant; wordmark images are not transformed.",
+          defaultValue: false,
+        }),
+        headerSubtitle: fields.text({
+          label: "Header subtitle (optional)",
+          description:
+            "Small second line under the artist name — a tagline, location, or role. Hidden automatically when a wordmark image is set, since wordmarks usually carry their own hierarchy.",
+          defaultValue: "",
+        }),
+        headerLayout: fields.select({
+          label: "Header layout",
+          description:
+            "How logo and navigation are arranged. 'Logo left, nav right' is the default flex layout. The two centered variants are grid-based: 'nav below' stacks the nav under a centered logo; 'nav split' places the nav on both sides of a centered logo.",
+          options: HEADER_LAYOUTS.map((v) => ({
+            label: HEADER_LAYOUT_LABELS[v],
+            value: v,
+          })) as [
+            { label: string; value: HeaderLayout },
+            ...{ label: string; value: HeaderLayout }[],
+          ],
+          defaultValue: "logo-left-nav-right",
         }),
         items: fields.multiRelationship({
           label: "Navigation Items",

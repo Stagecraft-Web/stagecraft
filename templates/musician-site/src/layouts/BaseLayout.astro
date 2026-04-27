@@ -12,6 +12,7 @@ import {
   buildGoogleFontsUrl,
   buildFontStack,
 } from "../lib/google-fonts";
+import { computeFontSizes } from "../lib/font-sizing";
 import {
   pageBackgroundOverlaySchema,
   type PageBackgroundOverlay,
@@ -124,6 +125,16 @@ const headingStack =
 
 const { colors, typography } = appearance;
 
+// Layer the CMS-editable per-bucket overrides on top of theme.json's baseline
+// scale. Empty / missing bucket values pass through to the baseline, so a
+// site that never touches the size controls gets the same output as
+// theme.json alone.
+const fontSizes = computeFontSizes(
+  theme.typography.fontSize,
+  typography.bodySizes,
+  typography.headingSizes,
+);
+
 // Configuration the in-page sidebar needs on mount. Read from env at build
 // time and passed as plain props so the client bundle doesn't need to query
 // anything on startup.
@@ -151,6 +162,9 @@ const sidebarConfig: SidebarConfig = {
   storageMode,
   saveMode,
   appearancePath: "src/content/config/appearance.json",
+  // Pass the raw theme.json scale so the sidebar can apply the sizing knobs
+  // live (via computeFontSizes) without re-reading theme.json client-side.
+  baseFontSizes: theme.typography.fontSize,
 };
 ---
 
@@ -165,7 +179,8 @@ const sidebarConfig: SidebarConfig = {
     <link rel="apple-touch-icon" href={faviconHref} />
 
     {/* Google Fonts — preconnect then fetch. Only the exact weights
-        in use (see appearance.json → typography.weights) are requested. */}
+        in use (see appearance.json → typography.bodyWeights /
+        headingWeights) are requested. */}
     {fontsUrl && (
       <>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -175,7 +190,10 @@ const sidebarConfig: SidebarConfig = {
     )}
 
     {/* Appearance CSS variables — override the defaults in global.css.
-        Colors + font stacks come from appearance.json (editable in Keystatic). */}
+        Colors + font stacks come from appearance.json (editable in Keystatic).
+        Font-size vars are baseline × sizing knobs (see computeFontSizes).
+        global.css wraps its defaults in @layer defaults, so this unlayered
+        :root {} block always wins the cascade regardless of stylesheet order. */}
     <style
       is:inline
       set:html={`:root {
@@ -192,14 +210,21 @@ const sidebarConfig: SidebarConfig = {
         --font-body: ${bodyStack};
         --font-heading: ${headingStack};
 
-        --font-weight-body: ${typography.weights.body};
-        --font-weight-body-bold: ${typography.weights.bodyBold};
-        --font-weight-h1: ${typography.weights.h1};
-        --font-weight-h2: ${typography.weights.h2};
-        --font-weight-h3: ${typography.weights.h3};
-        --font-weight-h4: ${typography.weights.h4};
-        --font-weight-h5: ${typography.weights.h5};
-        --font-weight-h6: ${typography.weights.h6};
+        --font-weight-body: ${typography.bodyWeights.body};
+        --font-weight-body-bold: ${typography.bodyWeights.bodyBold};
+        --font-weight-h1: ${typography.headingWeights.h1};
+        --font-weight-h2: ${typography.headingWeights.h2};
+        --font-weight-h3: ${typography.headingWeights.h3};
+        --font-weight-h4: ${typography.headingWeights.h4};
+
+        --font-size-xs: ${fontSizes.xs};
+        --font-size-sm: ${fontSizes.sm};
+        --font-size-base: ${fontSizes.base};
+        --font-size-lg: ${fontSizes.lg};
+        --font-size-xl: ${fontSizes.xl};
+        --font-size-2xl: ${fontSizes["2xl"]};
+        --font-size-3xl: ${fontSizes["3xl"]};
+        --font-size-4xl: ${fontSizes["4xl"]};
 
         --page-bg-overlay-color: ${overlay.color};
         --page-bg-overlay-opacity: ${overlay.opacity};

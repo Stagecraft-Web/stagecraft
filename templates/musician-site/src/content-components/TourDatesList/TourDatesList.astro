@@ -22,14 +22,17 @@ import type { TourDate } from "../../lib/schemas";
 import { groupTourDates } from "./groupTourDates";
 
 interface Props {
-  pastPadding?: number;
   emptyMessage?: string;
 }
 
-const {
-  pastPadding = 3,
-  emptyMessage = "No upcoming shows. Check back soon.",
-} = Astro.props;
+const DEFAULT_EMPTY_MESSAGE = "No upcoming shows. Check back soon.";
+const PAST_PADDING = 3;
+
+const { emptyMessage: rawEmptyMessage } = Astro.props;
+const emptyMessage =
+  rawEmptyMessage && rawEmptyMessage.trim().length > 0
+    ? rawEmptyMessage
+    : DEFAULT_EMPTY_MESSAGE;
 
 const tourDateEntries = await getCollection("tourDates");
 const allDates: TourDate[] = tourDateEntries.map((e) => e.data);
@@ -40,7 +43,7 @@ const allDates: TourDate[] = tourDateEntries.map((e) => e.data);
 const today = new Date().toISOString().slice(0, 10);
 
 const { primary: primaryDates, paddedPast, isEmpty: isEmptyState } =
-  groupTourDates(allDates, today, pastPadding);
+  groupTourDates(allDates, today, PAST_PADDING);
 
 const hasPrimary = primaryDates.length > 0;
 const hasPadded = paddedPast.length > 0;

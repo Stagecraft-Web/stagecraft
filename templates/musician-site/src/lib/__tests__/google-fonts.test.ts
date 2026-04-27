@@ -80,16 +80,8 @@ describe("buildFontStack", () => {
 });
 
 describe("appearanceToFontRequests", () => {
-  const weights = {
-    body: 400,
-    bodyBold: 700,
-    h1: 700,
-    h2: 600,
-    h3: 600,
-    h4: 500,
-    h5: 500,
-    h6: 500,
-  };
+  const bodyWeights = { body: 400, bodyBold: 700 };
+  const headingWeights = { h1: 700, h2: 600, h3: 600, h4: 500 };
 
   it("returns a single request when mode is 'single' (heading is null)", () => {
     const requests = appearanceToFontRequests({
@@ -97,7 +89,8 @@ describe("appearanceToFontRequests", () => {
         mode: "single",
         primary: { family: "Inter" },
         heading: null,
-        weights,
+        bodyWeights,
+        headingWeights,
       },
     });
     expect(requests).toHaveLength(1);
@@ -111,14 +104,15 @@ describe("appearanceToFontRequests", () => {
         mode: "split",
         primary: { family: "Inter" },
         heading: { family: "Merriweather" },
-        weights,
+        bodyWeights,
+        headingWeights,
       },
     });
     expect(requests).toHaveLength(2);
     const inter = requests.find((r) => r.family === "Inter");
     const merri = requests.find((r) => r.family === "Merriweather");
     expect(inter?.weights).toEqual([400, 700]);
-    expect(merri?.weights).toEqual([700, 600, 600, 500, 500, 500]);
+    expect(merri?.weights).toEqual([700, 600, 600, 500]);
   });
 
   it("collapses to one request when split mode picks the same family", () => {
@@ -127,7 +121,8 @@ describe("appearanceToFontRequests", () => {
         mode: "split",
         primary: { family: "Inter" },
         heading: { family: "Inter" },
-        weights,
+        bodyWeights,
+        headingWeights,
       },
     });
     expect(requests).toHaveLength(1);

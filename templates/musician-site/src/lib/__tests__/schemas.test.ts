@@ -5,6 +5,7 @@ import {
   themeSchema,
   appearanceSchema,
   pageFrontmatterSchema,
+  pageBackgroundOverlaySchema,
   releaseSchema,
   photoSchema,
   tourDateSchema,
@@ -105,6 +106,86 @@ describe("siteConfigSchema", () => {
   it("accepts an explicit isFooterHidden=true", () => {
     const result = siteConfigSchema.parse({ ...valid, isFooterHidden: true });
     expect(result.isFooterHidden).toBe(true);
+  });
+
+  // ---- Page background (1.2) ---------------------------------------------
+  // Back-compat: existing site.json seeds don't set pageBackground, so the
+  // field must remain optional and the parsed result must leave it undefined.
+  it("parses without a pageBackground (back-compat for existing seeds)", () => {
+    const result = siteConfigSchema.parse(valid);
+    expect(result.pageBackground).toBeUndefined();
+    expect(result.pageBackgroundOverlay).toBeUndefined();
+  });
+
+  it("accepts a full pageBackground + overlay", () => {
+    const withBackground = {
+      ...valid,
+      pageBackground: {
+        src: "../../assets/images/bg.jpg",
+        alt: "Abstract texture",
+      },
+      pageBackgroundOverlay: { color: "#000000", opacity: 0.4 },
+    };
+    const result = siteConfigSchema.parse(withBackground);
+    expect(result.pageBackground).toEqual({
+      src: "../../assets/images/bg.jpg",
+      alt: "Abstract texture",
+    });
+    expect(result.pageBackgroundOverlay).toEqual({
+      color: "#000000",
+      opacity: 0.4,
+    });
+  });
+
+  it("rejects a pageBackground with an empty alt", () => {
+    expect(() =>
+      siteConfigSchema.parse({
+        ...valid,
+        pageBackground: { src: "../../assets/images/bg.jpg", alt: "" },
+      }),
+    ).toThrow();
+  });
+
+  it("applies overlay defaults when fields are absent", () => {
+    const withPartialOverlay = {
+      ...valid,
+      pageBackground: {
+        src: "../../assets/images/bg.jpg",
+        alt: "Abstract texture",
+      },
+      pageBackgroundOverlay: {},
+    };
+    const result = siteConfigSchema.parse(withPartialOverlay);
+    expect(result.pageBackgroundOverlay).toEqual({
+      color: "#000000",
+      opacity: 0.3,
+    });
+  });
+});
+
+describe("pageBackgroundOverlaySchema", () => {
+  it("applies defaults for color and opacity when fields are absent", () => {
+    const result = pageBackgroundOverlaySchema.parse({});
+    expect(result).toEqual({ color: "#000000", opacity: 0.3 });
+  });
+
+  it("accepts an explicit color + opacity", () => {
+    const result = pageBackgroundOverlaySchema.parse({ color: "#112233", opacity: 0.5 });
+    expect(result).toEqual({ color: "#112233", opacity: 0.5 });
+  });
+
+  it("accepts opacity at the 0 and 1 boundaries", () => {
+    expect(pageBackgroundOverlaySchema.parse({ opacity: 0 }).opacity).toBe(0);
+    expect(pageBackgroundOverlaySchema.parse({ opacity: 1 }).opacity).toBe(1);
+  });
+
+  it("rejects opacity outside 0–1", () => {
+    expect(() => pageBackgroundOverlaySchema.parse({ opacity: -0.1 })).toThrow();
+    expect(() => pageBackgroundOverlaySchema.parse({ opacity: 1.1 })).toThrow();
+  });
+
+  it("rejects an empty color string", () => {
+    expect(() => pageBackgroundOverlaySchema.parse({ color: "" })).toThrow();
   });
 });
 
@@ -561,6 +642,41 @@ describe("pageFrontmatterSchema", () => {
     expect(visible.isFooterHidden).toBe(false);
     const unset = pageFrontmatterSchema.parse({ title: "Home" });
     expect(unset.isFooterHidden).toBeUndefined();
+  });
+
+  // ---- Page background overrides (1.2) ------------------------------------
+  it("parses without any pageBackground override (inherits site-wide default)", () => {
+    const result = pageFrontmatterSchema.parse({ title: "About" });
+    expect(result.pageBackground).toBeUndefined();
+    expect(result.pageBackgroundOverlay).toBeUndefined();
+  });
+
+  it("accepts a per-page pageBackground + overlay override", () => {
+    const result = pageFrontmatterSchema.parse({
+      title: "About",
+      pageBackground: {
+        src: "../../assets/images/about-bg.jpg",
+        alt: "Studio shot",
+      },
+      pageBackgroundOverlay: { color: "#112233", opacity: 0.55 },
+    });
+    expect(result.pageBackground).toEqual({
+      src: "../../assets/images/about-bg.jpg",
+      alt: "Studio shot",
+    });
+    expect(result.pageBackgroundOverlay).toEqual({
+      color: "#112233",
+      opacity: 0.55,
+    });
+  });
+
+  it("rejects a per-page pageBackground with empty alt", () => {
+    expect(() =>
+      pageFrontmatterSchema.parse({
+        title: "About",
+        pageBackground: { src: "../../assets/images/about-bg.jpg", alt: "" },
+      }),
+    ).toThrow();
   });
 });
 

@@ -292,7 +292,7 @@ describe("headerAndNavSchema", () => {
   // ---- Header style variations (§2.3) -------------------------------------
   it("applies §2.3 defaults when new fields are missing (back-compat)", () => {
     const result = headerAndNavSchema.parse(valid);
-    expect(result.headerTextSizeAdjust).toBe(0);
+    expect(result.wordmarkSizeAdjust).toBe(0);
     expect(result.isHeaderTextUppercase).toBe(false);
     expect(result.headerSubtitle).toBeUndefined();
     expect(result.headerLayout).toBe("logo-left-nav-right");
@@ -301,38 +301,38 @@ describe("headerAndNavSchema", () => {
   it("round-trips explicit §2.3 header style values", () => {
     const withStyles = {
       ...valid,
-      headerTextSizeAdjust: 2,
+      wordmarkSizeAdjust: 2,
       isHeaderTextUppercase: true,
       headerSubtitle: "Singer / songwriter",
       headerLayout: "logo-center-nav-split" as const,
     };
     const result = headerAndNavSchema.parse(withStyles);
-    expect(result.headerTextSizeAdjust).toBe(2);
+    expect(result.wordmarkSizeAdjust).toBe(2);
     expect(result.isHeaderTextUppercase).toBe(true);
     expect(result.headerSubtitle).toBe("Singer / songwriter");
     expect(result.headerLayout).toBe("logo-center-nav-split");
   });
 
-  it("coerces a string headerTextSizeAdjust (Keystatic select emits strings)", () => {
+  it("coerces a string wordmarkSizeAdjust (Keystatic select emits strings)", () => {
     // Keystatic's `fields.select` serializes its value as a string, so JSON
     // round-trips may carry "-1" rather than -1. z.coerce.number() normalizes
     // both to a number.
-    const result = headerAndNavSchema.parse({ ...valid, headerTextSizeAdjust: "-1" });
-    expect(result.headerTextSizeAdjust).toBe(-1);
+    const result = headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: "-1" });
+    expect(result.wordmarkSizeAdjust).toBe(-1);
   });
 
-  it("rejects headerTextSizeAdjust outside the [-2, 2] range", () => {
+  it("rejects wordmarkSizeAdjust outside the [-2, 2] range", () => {
     expect(() =>
-      headerAndNavSchema.parse({ ...valid, headerTextSizeAdjust: 3 }),
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 3 }),
     ).toThrow();
     expect(() =>
-      headerAndNavSchema.parse({ ...valid, headerTextSizeAdjust: -3 }),
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: -3 }),
     ).toThrow();
   });
 
-  it("rejects non-integer headerTextSizeAdjust values", () => {
+  it("rejects non-integer wordmarkSizeAdjust values", () => {
     expect(() =>
-      headerAndNavSchema.parse({ ...valid, headerTextSizeAdjust: 0.5 }),
+      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 0.5 }),
     ).toThrow();
   });
 

@@ -107,12 +107,10 @@ export function isStickyHeader(mode: HeaderMode): boolean {
   return mode === "solid-sticky";
 }
 
-// Relative size adjustment — a coarse multiplier used across the template for
-// fields where the author wants "default, a bit smaller, a bit larger" without
-// having to pick an exact size token. Currently consumed by the header text/
-// wordmark sizing (§2.3). Future work on broader font-size customization
-// (§6.2) reuses the same domain — this declaration is the shared source; when
-// §6.2 lands, reconcile to avoid redeclaration.
+// Relative size adjustment — a coarse multiplier for fields where the author
+// wants "default, a bit smaller, a bit larger" without picking an exact size
+// token. Currently consumed by the wordmark image's max-height (§2.3); the
+// artist-name text scales via the `lg` font-size bucket in appearance.json.
 export const SIZE_ADJUSTMENTS = [-2, -1, 0, 1, 2] as const;
 export type SizeAdjustment = (typeof SIZE_ADJUSTMENTS)[number];
 
@@ -199,6 +197,12 @@ const optionalWordmark = z.preprocess((val) => {
 // relationship field) and owns both nav membership and order.
 export const headerAndNavSchema = z.object({
   wordmark: optionalWordmark,
+  // Relative multiplier applied to the wordmark image's `max-height`.
+  // Only meaningful when a wordmark image is set; ignored for the
+  // text-only variant (artist-name text is sized via the `lg` font-size
+  // bucket in appearance.json). Keystatic's `fields.select` emits the
+  // value as a string ("0", "-1", …), so we coerce before range-checking.
+  wordmarkSizeAdjust: z.coerce.number().int().min(-2).max(2).default(0),
   // Single header-behavior discriminator (style + position). Defaulted
   // so existing config files without the key keep parsing — the admin
   // UI surfaces it explicitly, but runtime consumers can treat it as
@@ -209,11 +213,6 @@ export const headerAndNavSchema = z.object({
   // (typically a hero image). Accepts hex / rgb() / rgba(). Empty
   // string = unset; the renderer falls back to the usual token colors.
   headerForegroundColor: z.string().optional(),
-  // Relative multiplier applied to `.site-title` font-size AND the wordmark
-  // `max-height`. Keystatic's `fields.select` emits the value as a string
-  // ("0", "-1", …), so we coerce before range-checking — JSON authors can
-  // write either a number or its string form.
-  headerTextSizeAdjust: z.coerce.number().int().min(-2).max(2).default(0),
   // When true, `.site-title` renders uppercase with a slight tracking bump.
   // Wordmark images aren't affected (they're pre-rendered).
   isHeaderTextUppercase: z.boolean().default(false),

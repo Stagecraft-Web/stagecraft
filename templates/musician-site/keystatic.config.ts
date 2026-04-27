@@ -358,6 +358,20 @@ export default config({
               "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
           },
         ),
+        wordmarkSizeAdjust: fields.select({
+          label: "Wordmark size",
+          description:
+            "Scales the wordmark image up or down from the default height. Only applies when a wordmark is uploaded above. −2 ≈ 0.72×, +2 ≈ 1.35×.",
+          // Stringify: Keystatic select values must be strings.
+          options: SIZE_ADJUSTMENTS.map((v) => ({
+            label: SIZE_ADJUSTMENT_LABELS[String(v)],
+            value: String(v),
+          })) as [
+            { label: string; value: string },
+            ...{ label: string; value: string }[],
+          ],
+          defaultValue: "0",
+        }),
         // -------------------------------------------------------------
         // Header mode — bundles header style + scroll behavior into one
         // pick. "Solid, sticky" (default) is the standard nav that
@@ -391,9 +405,7 @@ export default config({
         // -------------------------------------------------------------
         // Header style variations (§2.3)
         //
-        // Four coarse style levers on top of the §2.2 structure knobs:
-        //   - Text size adjust scales the artist-name font / wordmark
-        //     max-height up or down by a fixed multiplier.
+        // Three coarse style levers on top of the §2.2 structure knobs:
         //   - Uppercase applies CSS text-transform to `.site-title` only
         //     (wordmark images are unaffected — they're pre-rendered).
         //   - Header subtitle renders a muted second line under the
@@ -402,20 +414,6 @@ export default config({
         //     (default flex, centered-with-nav-below grid, centered-
         //     split grid). Mobile hamburger works across all three.
         // -------------------------------------------------------------
-        headerTextSizeAdjust: fields.select({
-          label: "Header text size",
-          description:
-            "Scales the artist name text AND the wordmark max-height up or down from the default. −2 ≈ 0.72×, +2 ≈ 1.35×.",
-          // Stringify: Keystatic select values must be strings.
-          options: SIZE_ADJUSTMENTS.map((v) => ({
-            label: SIZE_ADJUSTMENT_LABELS[String(v)],
-            value: String(v),
-          })) as [
-            { label: string; value: string },
-            ...{ label: string; value: string }[],
-          ],
-          defaultValue: "0",
-        }),
         isHeaderTextUppercase: fields.checkbox({
           label: "Uppercase header text",
           description:

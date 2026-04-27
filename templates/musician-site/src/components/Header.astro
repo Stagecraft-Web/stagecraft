@@ -41,11 +41,9 @@ const headerSubtitle = !hasWordmark ? (headerConfig.headerSubtitle?.trim() ?? ""
 const hasSubtitle = headerSubtitle.length > 0;
 
 // Size-adjust multipliers — hand-picked to feel like coarse "notches" rather
-// than a linear scale. Applied to `.site-title` font-size (via CSS calc()
-// against var(--font-size-lg)) AND to the wordmark's max-height (against
-// the baseline 2.25rem). Keys are stringified numbers because JSON-parsed
-// values retain their numeric type but the table lookup is cleaner as a
-// dict of strings; we coerce via String(...) at read time.
+// than a linear scale. Applied to the wordmark's max-height (against the
+// baseline 2.25rem). Keys stringified to match JSON-on-disk shape from the
+// Keystatic select.
 const SIZE_MULTIPLIERS: Record<string, number> = {
   "-2": 0.72,
   "-1": 0.85,
@@ -53,7 +51,7 @@ const SIZE_MULTIPLIERS: Record<string, number> = {
   "1": 1.15,
   "2": 1.35,
 };
-const sizeMultiplier = SIZE_MULTIPLIERS[String(headerConfig.headerTextSizeAdjust)] ?? 1;
+const wordmarkSizeMultiplier = SIZE_MULTIPLIERS[String(headerConfig.wordmarkSizeAdjust)] ?? 1;
 
 // For `logo-center-nav-split`, split the nav list in half by index so one
 // half renders left of the centered logo and the other renders right. We
@@ -67,11 +65,11 @@ const navLeft = isSplitLayout ? nav.slice(0, splitAt) : nav;
 const navRight = isSplitLayout ? nav.slice(splitAt) : [];
 
 // Build a single style string that carries both the §2.2 foreground color
-// (conditional) and the §2.3 size multiplier (always, since Zod defaults
+// (conditional) and the §2.3 wordmark multiplier (always, since Zod defaults
 // it to 0 → 1x). Empty-string foreground falls through the CSS fallback.
 const inlineStyles = [
   hasHeaderForeground ? `--header-fg: ${headerForegroundColor}` : null,
-  `--header-size-multiplier: ${sizeMultiplier}`,
+  `--header-wordmark-multiplier: ${wordmarkSizeMultiplier}`,
 ]
   .filter(Boolean)
   .join("; ");
@@ -232,10 +230,11 @@ const innerClasses = [
 
   .site-title {
     font-family: var(--font-heading);
-    /* §2.3: font-size scales with --header-size-multiplier (set on
-       .site-header). Fallback keeps the legacy size when the variable is
-       missing (which it won't be, but belt-and-braces). */
-    font-size: calc(var(--font-size-lg) * var(--header-size-multiplier, 1));
+    /* Sized by the `lg` font-size bucket (appearance.json). To make the
+       artist name larger or smaller, edit that bucket — the wordmark
+       has its own size knob (--header-wordmark-multiplier) so the two
+       can be tuned independently. */
+    font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
   }
 
@@ -260,10 +259,11 @@ const innerClasses = [
     letter-spacing: normal;
   }
 
-  /* Wordmark renders at a max-height that scales with the header-size
-     multiplier. Width is auto so the aspect ratio is preserved. */
+  /* Wordmark renders at a max-height scaled by --header-wordmark-multiplier
+     (driven by `wordmarkSizeAdjust` in header.json). Width is auto so the
+     aspect ratio is preserved. */
   .site-wordmark {
-    max-height: calc(2.25rem * var(--header-size-multiplier, 1));
+    max-height: calc(2.25rem * var(--header-wordmark-multiplier, 1));
     width: auto;
     display: block;
   }

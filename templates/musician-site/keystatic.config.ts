@@ -153,6 +153,42 @@ const sizesObject = <T extends FontSizeBucket>(
     },
   );
 
+// Optional image authored as a Keystatic conditional with a None / Image
+// select. Pick "None" (the default) and nothing renders; pick "Image" and the
+// inner object's required fields appear, so the editor blocks save until both
+// src and alt are filled. Pass an inner `fields.object` whose `src`/`alt` set
+// `validation: { isRequired: true }`.
+//
+// Why this exists: Keystatic can't natively express "alt is required only
+// when src is present" — and a flat `fields.object` lets authors upload an
+// image without alt, which breaks the site at content-validation time. The
+// conditional shifts that requirement enforcement into the editor itself.
+//
+// On disk the field serialises as `{ discriminant, value }`; the matching
+// Zod helper `optionalImageFromConditional` (src/lib/schemas.ts and
+// src/content.config.ts) collapses it back to `T | undefined` so renderers
+// don't need to know about the wrapper.
+const optionalImage = <ImageObject extends Parameters<typeof fields.conditional>[1][string]>(
+  label: string,
+  description: string,
+  imageObject: ImageObject,
+) =>
+  fields.conditional(
+    fields.select({
+      label,
+      description,
+      options: [
+        { label: "None", value: "none" },
+        { label: "Image", value: "image" },
+      ],
+      defaultValue: "none",
+    }),
+    {
+      none: fields.empty(),
+      image: imageObject,
+    },
+  );
+
 // Build a curated "Usage Slot" select that exposes only the subset of
 // IMAGE_USAGE_SLOTS relevant to a given collection (e.g. photos rarely need
 // "release-cover"). Preserves the canonical order from IMAGE_USAGE_SLOTS and
@@ -241,24 +277,23 @@ export default config({
         // `src/assets/images/` with `../../assets/images/` matches the
         // wordmark's convention — site.json lives in `src/content/config/`,
         // so the publicPath walks back two levels.
-        pageBackground: fields.object(
-          {
+        pageBackground: optionalImage(
+          "Page Background",
+          "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Pick 'Image' to set a background; pick 'None' for no site-wide background.",
+          fields.object({
             src: fields.image({
               label: "Background Image",
               directory: "src/assets/images",
               publicPath: "../../assets/images/",
+              validation: { isRequired: true },
             }),
             alt: fields.text({
               label: "Alt Text",
               description:
                 "Short description of the background image. Required for accessibility even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+              validation: { isRequired: true },
             }),
-          },
-          {
-            label: "Page Background",
-            description:
-              "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Leave the image blank for no site-wide background.",
-          },
+          }),
         ),
         pageBackgroundOverlay: fields.object(
           {
@@ -339,24 +374,23 @@ export default config({
         // than content belonging to a single release/photo/etc. publicPath
         // walks back two levels from header.json's location
         // (src/content/config/) to reach src/assets/images/.
-        wordmark: fields.object(
-          {
+        wordmark: optionalImage(
+          "Wordmark",
+          "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Pick 'None' to use the artist-name text.",
+          fields.object({
             src: fields.image({
               label: "Wordmark Image",
               directory: "src/assets/images",
               publicPath: "../../assets/images/",
+              validation: { isRequired: true },
             }),
             alt: fields.text({
               label: "Alt Text",
               description:
                 "Describes the wordmark for screen readers. Usually just the artist name.",
+              validation: { isRequired: true },
             }),
-          },
-          {
-            label: "Wordmark",
-            description:
-              "Optional brand wordmark image shown in the header instead of the artist name text. PNG / SVG / JPG; transparency supported. Leave Image blank to use the artist-name text.",
-          },
+          }),
         ),
         wordmarkSizeAdjust: fields.select({
           label: "Wordmark size",
@@ -601,24 +635,23 @@ export default config({
         // pages live in `src/content/pages/*`, so publicPath walks back two
         // levels to reach src/assets/images/ — same as the wordmark from
         // src/content/config/.
-        pageBackground: fields.object(
-          {
+        pageBackground: optionalImage(
+          "Page Background (override)",
+          "Pick 'None' to inherit the site-wide default. Pick 'Image' to override with this page's own background photo.",
+          fields.object({
             src: fields.image({
               label: "Background Image",
               directory: "src/assets/images",
               publicPath: "../../assets/images/",
+              validation: { isRequired: true },
             }),
             alt: fields.text({
               label: "Alt Text",
               description:
                 "Short description of the background image. Required even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+              validation: { isRequired: true },
             }),
-          },
-          {
-            label: "Page Background (override)",
-            description:
-              "Leave unset to inherit the site-wide default. When set, this page shows its own background photo behind the content.",
-          },
+          }),
         ),
         pageBackgroundOverlay: fields.object(
           {
@@ -849,18 +882,23 @@ export default config({
           })) as [{ label: string; value: (typeof POST_CATEGORIES)[number] }, ...{ label: string; value: (typeof POST_CATEGORIES)[number] }[]],
           defaultValue: "news",
         }),
-        featuredImage: fields.object(
-          {
+        featuredImage: optionalImage(
+          "Featured image (optional)",
+          "Pick 'Image' to set a featured image for this post; pick 'None' to skip.",
+          fields.object({
             src: fields.image({
               label: "Image",
               directory: "src/assets/images/posts",
               publicPath: "../../../assets/images/posts/",
+              validation: { isRequired: true },
             }),
-            alt: fields.text({ label: "Alt text" }),
+            alt: fields.text({
+              label: "Alt text",
+              validation: { isRequired: true },
+            }),
             caption: fields.text({ label: "Caption" }),
             credit: fields.text({ label: "Credit" }),
-          },
-          { label: "Featured image (optional)" },
+          }),
         ),
         excerpt: fields.text({
           label: "Excerpt",
@@ -945,14 +983,20 @@ export default config({
           ],
           defaultValue: "USD",
         }),
-        image: fields.object(
-          {
+        image: optionalImage(
+          "Cover image",
+          "Pick 'Image' to attach a cover image; pick 'None' to skip.",
+          fields.object({
             src: fields.image({
               label: "Cover image",
               directory: "src/assets/images/store",
               publicPath: "../../../assets/images/store/",
+              validation: { isRequired: true },
             }),
-            alt: fields.text({ label: "Alt text" }),
+            alt: fields.text({
+              label: "Alt text",
+              validation: { isRequired: true },
+            }),
             caption: fields.text({ label: "Caption" }),
             credit: fields.text({ label: "Credit" }),
             usageSlot: usageSlotField(
@@ -960,8 +1004,7 @@ export default config({
               "release-cover",
               "Usage slot",
             ),
-          },
-          { label: "Cover image" },
+          }),
         ),
         description: fields.text({
           label: "Description",

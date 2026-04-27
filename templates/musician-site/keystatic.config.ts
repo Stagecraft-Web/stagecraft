@@ -618,9 +618,19 @@ export default config({
       label: "Tour Dates",
       slugField: "venue",
       path: "src/content/collections/tourDates/*",
+      // Show date + venue + city in the collection list so authors can
+      // scan upcoming/past shows without opening each entry.
+      columns: ["date", "city"],
       schema: {
         date: fields.date({ label: "Date", validation: { isRequired: true } }),
-        venue: fields.slug({ name: { label: "Venue", validation: { isRequired: true } } }),
+        venue: fields.slug({
+          name: {
+            label: "Venue",
+            description:
+              "The venue name. Doubles as the filename (slugified). If the same venue plays twice, Keystatic appends -1, -2.",
+            validation: { isRequired: true },
+          },
+        }),
         city: fields.text({ label: "City", validation: { isRequired: true } }),
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({
@@ -632,7 +642,34 @@ export default config({
             { label: string; value: (typeof TOUR_DATE_STATUSES)[number] },
             ...{ label: string; value: (typeof TOUR_DATE_STATUSES)[number] }[],
           ],
-          defaultValue: "upcoming",
+          defaultValue: "on_sale",
+        }),
+        category: fields.relationship({
+          label: "Category",
+          collection: "tourCategories",
+          description:
+            "Optional series or show type. Pick an existing category or add a new one in the Tour Categories collection.",
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Tour categories — lightweight tag collection backing
+    // `tourDates.category` and the `tour-dates` block's category filter.
+    // -----------------------------------------------------------------
+
+    tourCategories: collection({
+      label: "Tour Categories",
+      slugField: "name",
+      path: "src/content/collections/tourCategories/*",
+      schema: {
+        name: fields.slug({
+          name: {
+            label: "Name",
+            description:
+              "Display name for the category (e.g. 'Winter Tour'). The slug links tour dates to this category.",
+            validation: { isRequired: true },
+          },
         }),
       },
     }),

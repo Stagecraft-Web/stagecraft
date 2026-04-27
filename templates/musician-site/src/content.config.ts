@@ -100,6 +100,17 @@ const tourDates = defineCollection({
     city: z.string().min(1),
     ticketUrl: z.string().optional(),
     status: z.enum(TOUR_DATE_STATUSES),
+    // Slug of an entry in the `tourCategories` collection. Surfaces as a
+    // label under the venue and scopes the `{% tour-dates %}` block when its
+    // `categoryFilter` attribute is set.
+    category: z.string().optional(),
+  }),
+});
+
+const tourCategories = defineCollection({
+  loader: glob({ pattern: "*.yaml", base: "./src/content/collections/tourCategories" }),
+  schema: z.object({
+    name: z.string().min(1),
   }),
 });
 
@@ -158,6 +169,7 @@ export const collections = {
   photos,
   videos,
   tourDates,
+  tourCategories,
   posts,
   storeItems,
 };

@@ -100,6 +100,8 @@ export default {
       selfClosing: true,
       attributes: {
         "emptyMessage": { type: String, default: "No upcoming shows. Check back soon." },
+        "pageSize": { type: Number, default: 10 },
+        "categoryFilter": { type: String },
       },
     },
     "store-items": {

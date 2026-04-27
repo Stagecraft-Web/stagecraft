@@ -229,7 +229,6 @@ describe("content-component schema consistency", () => {
             // Not a failure — e.g. fields.select requires defaultValue while
             // markdoc's attribute can omit it. Surface as a warning so the
             // author can decide whether to align them.
-            // eslint-disable-next-line no-console
             console.warn(
               `[schema-consistency] ${entry.tagName}.${key}: one-sided default (keystatic=${JSON.stringify(
                 kDefault,

@@ -147,7 +147,7 @@ export function extractNavLinks(html: string, baseUrl: string): ExtractedLink[] 
   return links.slice(0, 12);
 }
 
-export function extractSocialLinks(html: string, baseUrl: string): ExtractedLink[] {
+export function extractSocialLinks(html: string, _baseUrl: string): ExtractedLink[] {
   const patterns = [
     { host: "instagram.com", label: "Instagram" },
     { host: "facebook.com", label: "Facebook" },

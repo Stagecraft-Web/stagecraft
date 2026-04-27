@@ -1,4 +1,5 @@
 import { prisma } from "@stagecraft/db";
+import type { Prisma } from "@stagecraft/db";
 import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import type { JobHandler, JobResult } from "./types";
 
@@ -108,7 +109,7 @@ export function createWorker(options: WorkerOptions) {
           where: { id: job.id },
           data: {
             status: "completed",
-            resultPayload: result.data ?? undefined,
+            resultPayload: (result.data ?? undefined) as Prisma.InputJsonValue | undefined,
             errorMessage: null,
             failureCategory: null,
             completedAt: new Date(),
@@ -134,7 +135,7 @@ export function createWorker(options: WorkerOptions) {
           where: { id: job.id },
           data: {
             status: "failed",
-            resultPayload: result.data ?? undefined,
+            resultPayload: (result.data ?? undefined) as Prisma.InputJsonValue | undefined,
             errorMessage: result.message ?? null,
             failureCategory: result.failureCategory ?? null,
             completedAt: new Date(),

@@ -1,4 +1,5 @@
 import { prisma } from "@stagecraft/db";
+import type { Prisma } from "@stagecraft/db";
 import type { JobType } from "@stagecraft/shared";
 
 interface EnqueueOptions {
@@ -15,7 +16,7 @@ export async function enqueue(options: EnqueueOptions) {
       userId: options.userId,
       type: options.type,
       status: "queued",
-      requestPayload: options.payload ?? undefined,
+      requestPayload: (options.payload ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
 

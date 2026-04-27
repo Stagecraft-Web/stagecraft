@@ -371,10 +371,16 @@ date: "2026-09-15"
 venue: The Venue Name
 city: City, State
 ticketUrl: https://tickets.example.com
-status: upcoming
+status: on_sale
+category: winter-tour
 ```
 
-Valid status values: `upcoming`, `sold_out`, `canceled`, `past`.
+Valid status values: `on_sale`, `sold_out`, `canceled`. Past dates are detected
+automatically by comparing `date` to today — no `past` status is needed.
+
+`category` is the slug of an entry in `src/content/collections/tourCategories/`.
+Add a category by creating a `<slug>.yaml` file with a `name` field, then
+reference its slug from any tour date.
 
 ### Add a release — `src/content/collections/releases/`
 

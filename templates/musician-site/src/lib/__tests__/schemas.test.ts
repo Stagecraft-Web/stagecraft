@@ -541,10 +541,11 @@ describe("photoSchema", () => {
 
 describe("tourDateSchema", () => {
   const valid = {
+    slug: "2024-06-15-the-venue",
     date: "2024-06-15",
     venue: "The Venue",
     city: "New York, NY",
-    status: "upcoming" as const,
+    status: "on_sale" as const,
   };
 
   it("accepts a valid tour date", () => {
@@ -555,9 +556,22 @@ describe("tourDateSchema", () => {
     expect(() => tourDateSchema.parse({ ...valid, status: "postponed" })).toThrow();
   });
 
+  it("rejects the legacy 'upcoming' status (collapsed into on_sale)", () => {
+    expect(() => tourDateSchema.parse({ ...valid, status: "upcoming" })).toThrow();
+  });
+
+  it("rejects the legacy 'past' status (now derived from date)", () => {
+    expect(() => tourDateSchema.parse({ ...valid, status: "past" })).toThrow();
+  });
+
   it("accepts optional ticketUrl", () => {
     const withUrl = { ...valid, ticketUrl: "https://tickets.example.com" };
     expect(tourDateSchema.parse(withUrl).ticketUrl).toBe("https://tickets.example.com");
+  });
+
+  it("accepts optional category slug", () => {
+    const withCategory = { ...valid, category: "winter-tour" };
+    expect(tourDateSchema.parse(withCategory).category).toBe("winter-tour");
   });
 });
 

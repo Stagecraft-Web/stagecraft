@@ -409,36 +409,42 @@ export const videoSchema = z.object({
   description: z.string().optional(),
 });
 
-// Show status for a tour date. Matches the four states the TourDatesList
-// block filters / badges on. `sold_out` uses an underscore (rather than the
-// kebab style elsewhere) because it's an older field and authored content
-// may depend on it.
+// Show status for a tour date. Past/future is derived from `date` vs. today,
+// so the status enum only carries information the date can't: whether tickets
+// are on sale, sold out, or the show was canceled.
 export const TOUR_DATE_STATUSES = [
-  "upcoming",
+  "on_sale",
   "sold_out",
   "canceled",
-  "past",
 ] as const;
 export type TourDateStatus = (typeof TOUR_DATE_STATUSES)[number];
 
 export const TOUR_DATE_STATUS_LABELS: Record<TourDateStatus, string> = {
-  upcoming: "Upcoming",
-  sold_out: "Sold Out",
+  on_sale: "On sale",
+  sold_out: "Sold out",
   canceled: "Canceled",
-  past: "Past",
 };
 
 export const tourDateSchema = z.object({
+  // Unique identifier for this entry. Doubles as the YAML filename via
+  // Keystatic's `slugField: "slug"`. Convention: YYYY-MM-DD-venue (e.g.
+  // "2026-05-15-blue-note") so listings sort chronologically.
+  slug: z.string().min(1),
   date: z.string().min(1),
   venue: z.string().min(1),
   city: z.string().min(1),
   ticketUrl: z.string().optional(),
   status: z.enum(TOUR_DATE_STATUSES),
-  // Free-text category / show series (e.g. "Winter Tour", "Charlie Brown
-  // Christmas"). Not an enum — categories are artist-specific. Used by the
+  // Slug of an entry in the `tourCategories` collection. Used by the
   // `{% tour-dates categoryFilter="..." %}` attribute to scope a block to a
   // single series, and surfaced as a small label under the venue.
   category: z.string().optional(),
+});
+
+// Tour-categories tag collection. One YAML file per category — the filename
+// (slug) is what `tourDates.category` references.
+export const tourCategorySchema = z.object({
+  name: z.string().min(1),
 });
 
 // ============================================================

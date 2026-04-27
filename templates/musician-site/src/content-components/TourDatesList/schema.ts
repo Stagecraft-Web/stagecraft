@@ -44,10 +44,11 @@ export const keystatic: KeystaticContentComponent = block({
       defaultValue: DEFAULT_PAGE_SIZE,
       validation: { min: 1 },
     }),
-    categoryFilter: fields.text({
+    categoryFilter: fields.relationship({
       label: "Category filter",
+      collection: "tourCategories",
       description:
-        "Optional — only include tour dates with this exact category (e.g. 'Winter Tour'). Leave blank to show all.",
+        "Optional — only include tour dates linked to this category. Leave blank to show all.",
     }),
   },
   ContentView: TourDatesListPreview,

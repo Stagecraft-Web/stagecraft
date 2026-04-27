@@ -477,7 +477,7 @@ Rules:
    seed example in the same commit.** Otherwise `npm run validate:content`
    fails for anyone who pulls the change.
 4. **Status-like enums must always be set explicitly.** Don't rely on
-   defaults; write the value out (e.g. `status: upcoming` on a tour date)
+   defaults; write the value out (e.g. `status: on_sale` on a tour date)
    so readers of the seed see the shape.
 
 `npm run validate:content` enforces this loosely — it runs on every build

@@ -10,8 +10,8 @@
 //   - upcoming.length === 0 → render `emptyMessage` + the same padded
 //     past shows below.
 //
-// "Upcoming" = date >= today AND status !== "canceled".
-// "Past"     = date < today OR status === "canceled".
+// Upcoming = date >= today AND status !== "canceled".
+// Past     = date <  today OR  status === "canceled".
 // Past shows sort descending (newest first); upcoming ascending (next first).
 //
 // ISO date strings ("YYYY-MM-DD") sort lexicographically == chronologically,
@@ -51,6 +51,14 @@ const emptyMessage =
 
 const tourDateEntries = await getCollection("tourDates");
 const allDates: TourDate[] = tourDateEntries.map((e) => e.data);
+
+// Resolve category slugs → display names. Categories live in their own
+// collection; entries store the slug, but we want to render the friendly
+// name (and fall back to the slug if a referenced category was deleted).
+const tourCategoryEntries = await getCollection("tourCategories");
+const categoryNameBySlug = new Map(
+  tourCategoryEntries.map((e) => [e.id, e.data.name]),
+);
 
 // Cutoff: today's date in the build host's local timezone, as an ISO
 // "YYYY-MM-DD" string. Compared lexicographically against each entry's
@@ -106,12 +114,11 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
         const dateParts = formatDate(tourDate.date);
         const isSoldOut = tourDate.status === "sold_out";
         const isCanceled = tourDate.status === "canceled";
-        const isPast = tourDate.status === "past";
-        const hasTicketLink = !!tourDate.ticketUrl && tourDate.status === "upcoming";
+        const hasTicketLink = !!tourDate.ticketUrl && tourDate.status === "on_sale";
         const isOverflow = index >= clampedPageSize;
         return (
           <li
-            class:list={["tour-date", { "is-canceled": isCanceled, "is-past": isPast }]}
+            class:list={["tour-date", { "is-canceled": isCanceled }]}
             hidden={isOverflow}
           >
             <div class="tour-date-when">
@@ -123,7 +130,9 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
               <div class="tour-date-venue">{tourDate.venue}</div>
               <div class="tour-date-city">{tourDate.city}</div>
               {tourDate.category && (
-                <div class="tour-date-category">{tourDate.category}</div>
+                <div class="tour-date-category">
+                  {categoryNameBySlug.get(tourDate.category) ?? tourDate.category}
+                </div>
               )}
             </div>
             <div class="tour-date-action">
@@ -137,7 +146,6 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
               )}
               {isSoldOut && <span class="tour-date-badge is-sold-out">Sold Out</span>}
               {isCanceled && <span class="tour-date-badge is-canceled-badge">Canceled</span>}
-              {isPast && <span class="tour-date-badge is-past-badge">Past</span>}
             </div>
           </li>
         );
@@ -175,14 +183,10 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
         const dateParts = formatDate(tourDate.date);
         const isSoldOut = tourDate.status === "sold_out";
         const isCanceled = tourDate.status === "canceled";
-        // Any past-bucket row renders as "is-past" visually; the explicit
-        // `status === "past"` badge only fires when the author set it, but
-        // the container gets the dimmed-past styling regardless.
-        const isPast = true;
         const isOverflow = index >= clampedPageSize;
         return (
           <li
-            class:list={["tour-date", { "is-canceled": isCanceled, "is-past": isPast }]}
+            class:list={["tour-date", "is-past", { "is-canceled": isCanceled }]}
             hidden={isOverflow}
           >
             <div class="tour-date-when">
@@ -194,7 +198,9 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
               <div class="tour-date-venue">{tourDate.venue}</div>
               <div class="tour-date-city">{tourDate.city}</div>
               {tourDate.category && (
-                <div class="tour-date-category">{tourDate.category}</div>
+                <div class="tour-date-category">
+                  {categoryNameBySlug.get(tourDate.category) ?? tourDate.category}
+                </div>
               )}
             </div>
             <div class="tour-date-action">

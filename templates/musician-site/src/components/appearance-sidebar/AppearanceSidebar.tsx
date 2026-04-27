@@ -454,36 +454,26 @@ function ColorFields({ draft, onChange, contrastFailures }: ColorFieldsProps) {
             ("key" in f.pair.fg && f.pair.fg.key === key) ||
             ("key" in f.pair.bg && f.pair.bg.key === key),
         );
+        const setColor = (next: string) =>
+          onChange((prev) => ({ ...prev, colors: { ...prev.colors, [key]: next } }));
         return (
           <div className={styles.field} key={key}>
-            <label className={styles.label}>{label}</label>
+            {/* Two FormGroups sharing one underlying value: the picker
+                exposes the OS color UI as a swatch, the text field
+                preserves the full CSS value (hex, rgb(), rgba()) so
+                people can paste anything. */}
             <div className={styles.colorRow}>
-              {/* <input type="color"> gives us the OS color picker; the text
-                  input next to it preserves the full CSS value (hex, rgb(),
-                  rgba()) and lets people paste anything. */}
-              <input
+              <FormGroup
+                label={`${label} picker`}
                 type="color"
-                className={styles.colorSwatch}
                 value={toHex(draft.colors[key])}
-                onChange={(e) =>
-                  onChange((prev) => ({
-                    ...prev,
-                    colors: { ...prev.colors, [key]: e.target.value },
-                  }))
-                }
-                aria-label={`${label} (color picker)`}
+                onChange={setColor}
               />
-              <input
+              <FormGroup
+                label={label}
                 type="text"
-                className={styles.colorInput}
                 value={draft.colors[key]}
-                onChange={(e) =>
-                  onChange((prev) => ({
-                    ...prev,
-                    colors: { ...prev.colors, [key]: e.target.value },
-                  }))
-                }
-                aria-label={`${label} (text)`}
+                onChange={setColor}
                 spellCheck={false}
               />
             </div>

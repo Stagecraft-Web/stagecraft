@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkContrast } from "./color-contrast.js";
 
 // ============================================================
 // Image Metadata
@@ -60,6 +61,17 @@ export const wordmarkSchema = z.object({
   src: z.string().min(1),
   alt: z.string().min(1),
 });
+
+// Overlay painted over a page-background image for text legibility. Split
+// into a color + opacity rather than a single rgba() string so the Keystatic
+// admin can expose each knob independently (and the opacity can have a
+// range-clamped numeric input). Defaults to a lightly-darkened overlay
+// (black @ 30%) — equivalent to the spec's rgba(0,0,0,0.3).
+export const pageBackgroundOverlaySchema = z.object({
+  color: z.string().min(1).default("#000000"),
+  opacity: z.number().min(0).max(1).default(0.3),
+});
+export type PageBackgroundOverlay = z.infer<typeof pageBackgroundOverlaySchema>;
 
 // Header mode — a single discriminator that bundles the two valid
 // header configurations into one author-facing choice. Splitting style
@@ -138,6 +150,14 @@ export const siteConfigSchema = z.object({
   // in BaseLayout points here instead of the default `/favicons/favicon.svg`
   // shipped in `public/`.
   favicon: z.string().min(1).optional(),
+  // Site-wide default background image painted behind all page content. Each
+  // page may override this via page frontmatter (pageBackground). Absent =
+  // no background (plain --color-bg). Required shape: src + alt.
+  pageBackground: imageMetadataSchema.optional(),
+  // Tint painted over `pageBackground` for text legibility. When the
+  // background is unset the overlay is ignored. Defaults kick in when the
+  // field is present but `color`/`opacity` are missing.
+  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
@@ -486,7 +506,26 @@ export const appearanceSchema = z
       headingSizes: input.typography.headingSizes,
       headingWeights: input.typography.headingWeights,
     },
-  }));
+  }))
+  // Enforce WCAG AA contrast on every fg/bg pair a site actually renders.
+  // See src/lib/color-contrast.ts for the pair list + thresholds. We run
+  // this post-transform because `linkColor` only has its final value after
+  // the fallback to `accent` has been applied.
+  //
+  // No override escape hatch: fixing the colors is the point.
+  .superRefine((value, ctx) => {
+    const results = checkContrast(value.colors);
+    const failures = results.filter((r) => !r.passes);
+    if (failures.length === 0) return;
+    for (const fail of failures) {
+      const ratioStr = Number.isFinite(fail.ratio) ? fail.ratio.toFixed(2) : "could not compute";
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["colors"],
+        message: `Contrast too low for "${fail.pair.label}": ${ratioStr}:1 (needs ${fail.required}:1 for WCAG ${fail.pair.level}). Adjust these colors in appearance.json.`,
+      });
+    }
+  });
 
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type FontSelection = Appearance["typography"]["primary"];
@@ -530,6 +569,13 @@ export const pageFrontmatterSchema = z.object({
   // Per-page override for the site-level footer toggle. When set, this value
   // wins for this page only; leave unset to inherit the site-level default.
   isFooterHidden: z.boolean().optional(),
+  // Per-page background override. When set, replaces the site-wide
+  // pageBackground for this page only; when absent, the page inherits the
+  // site-level default. Splash pages ignore this entirely (they render their
+  // own full-bleed imagery via FullscreenSection).
+  pageBackground: imageMetadataSchema.optional(),
+  // Per-page overlay override. Same inheritance rules as pageBackground.
+  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
 });
 
 // ============================================================
@@ -584,31 +630,40 @@ export const videoSchema = z.object({
   description: z.string().optional(),
 });
 
-// Show status for a tour date. Matches the four states the TourDatesList
-// block filters / badges on. `sold_out` uses an underscore (rather than the
-// kebab style elsewhere) because it's an older field and authored content
-// may depend on it.
+// Show status for a tour date. Past/future is derived from `date` vs. today,
+// so the status enum only carries information the date can't: whether tickets
+// are on sale, sold out, or the show was canceled.
 export const TOUR_DATE_STATUSES = [
-  "upcoming",
+  "on_sale",
   "sold_out",
   "canceled",
-  "past",
 ] as const;
 export type TourDateStatus = (typeof TOUR_DATE_STATUSES)[number];
 
 export const TOUR_DATE_STATUS_LABELS: Record<TourDateStatus, string> = {
-  upcoming: "Upcoming",
-  sold_out: "Sold Out",
+  on_sale: "On sale",
+  sold_out: "Sold out",
   canceled: "Canceled",
-  past: "Past",
 };
 
 export const tourDateSchema = z.object({
   date: z.string().min(1),
+  // Venue doubles as the Keystatic slug source — the filename is the
+  // slugified venue. Same venue played twice → Keystatic auto-suffixes -1.
   venue: z.string().min(1),
   city: z.string().min(1),
   ticketUrl: z.string().optional(),
   status: z.enum(TOUR_DATE_STATUSES),
+  // Slug of an entry in the `tourCategories` collection. Used by the
+  // `{% tour-dates categoryFilter="..." %}` attribute to scope a block to a
+  // single series, and surfaced as a small label under the venue.
+  category: z.string().optional(),
+});
+
+// Tour-categories tag collection. One YAML file per category — the filename
+// (slug) is what `tourDates.category` references.
+export const tourCategorySchema = z.object({
+  name: z.string().min(1),
 });
 
 // ============================================================

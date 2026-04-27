@@ -234,6 +234,53 @@ export default config({
           directory: "src/assets/favicons",
           publicPath: "../../assets/favicons/",
         }),
+        // Site-wide default page-background image. Rendered as a fixed-position
+        // layer behind all page content (below the overlay). Individual pages
+        // can override this via their own `pageBackground` frontmatter.
+        //
+        // `src/assets/images/` with `../../assets/images/` matches the
+        // wordmark's convention — site.json lives in `src/content/config/`,
+        // so the publicPath walks back two levels.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required for accessibility even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background",
+            description:
+              "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Leave the image blank for no site-wide background.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description:
+                "Hex ('#000000') or rgb()/rgba() value painted over the background image. Darken the image to boost text contrast, or use a brand color for a tinted wash.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay",
+            description:
+              "Tint painted over the site-wide background image for text legibility. Ignored when no background image is set.",
+          },
+        ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
         socialLinks: fields.object(
@@ -428,7 +475,7 @@ export default config({
         colors: fields.object(
           {
             primary: fields.text({ label: "Primary (headings, logo)", defaultValue: "#1a1a2e" }),
-            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#e94560" }),
+            secondary: fields.text({ label: "Secondary (CTAs, accents)", defaultValue: "#b91c4a" }),
             accent: fields.text({ label: "Accent", defaultValue: "#0f3460" }),
             // Optional — leave blank to reuse Accent. Authors who want links to
             // read differently from the main accent/CTA color (e.g. a subdued
@@ -443,7 +490,7 @@ export default config({
             surface: fields.text({ label: "Surface (cards, panels)", defaultValue: "#ffffff" }),
             text: fields.text({ label: "Body text", defaultValue: "#1a1a2e" }),
             textMuted: fields.text({ label: "Muted text", defaultValue: "#6b7280" }),
-            border: fields.text({ label: "Borders & dividers", defaultValue: "#e5e7eb" }),
+            border: fields.text({ label: "Borders & dividers", defaultValue: "#7c828b" }),
           },
           {
             label: "Colors",
@@ -548,6 +595,53 @@ export default config({
           description: "Overrides the site-level setting for this page only.",
           defaultValue: false,
         }),
+        // Per-page background override. Leave unset to inherit the site-wide
+        // default from Site Settings → Page Background. Splash pages ignore
+        // this entirely — they render their own full-bleed imagery via
+        // FullscreenSection.
+        //
+        // pages live in `src/content/pages/*`, so publicPath walks back two
+        // levels to reach src/assets/images/ — same as the wordmark from
+        // src/content/config/.
+        pageBackground: fields.object(
+          {
+            src: fields.image({
+              label: "Background Image",
+              directory: "src/assets/images",
+              publicPath: "../../assets/images/",
+            }),
+            alt: fields.text({
+              label: "Alt Text",
+              description:
+                "Short description of the background image. Required even though the layer is marked aria-hidden — validators expect alt on any image reference.",
+            }),
+          },
+          {
+            label: "Page Background (override)",
+            description:
+              "Leave unset to inherit the site-wide default. When set, this page shows its own background photo behind the content.",
+          },
+        ),
+        pageBackgroundOverlay: fields.object(
+          {
+            color: fields.text({
+              label: "Overlay color",
+              description: "Hex ('#000000') or rgb()/rgba() value. Leave blank inputs to inherit defaults.",
+              defaultValue: "#000000",
+            }),
+            opacity: fields.number({
+              label: "Overlay opacity",
+              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
+              validation: { min: 0, max: 1 },
+              defaultValue: 0.3,
+            }),
+          },
+          {
+            label: "Page Background Overlay (override)",
+            description:
+              "Leave unset to inherit the site-wide overlay. Only applies when a background image is resolved for this page.",
+          },
+        ),
         content: fields.markdoc({
           label: "Body Content",
           components: pageContentComponents,
@@ -676,9 +770,19 @@ export default config({
       label: "Tour Dates",
       slugField: "venue",
       path: "src/content/collections/tourDates/*",
+      // Show date + venue + city in the collection list so authors can
+      // scan upcoming/past shows without opening each entry.
+      columns: ["date", "city"],
       schema: {
         date: fields.date({ label: "Date", validation: { isRequired: true } }),
-        venue: fields.slug({ name: { label: "Venue", validation: { isRequired: true } } }),
+        venue: fields.slug({
+          name: {
+            label: "Venue",
+            description:
+              "The venue name. Doubles as the filename (slugified). If the same venue plays twice, Keystatic appends -1, -2.",
+            validation: { isRequired: true },
+          },
+        }),
         city: fields.text({ label: "City", validation: { isRequired: true } }),
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({
@@ -690,7 +794,34 @@ export default config({
             { label: string; value: (typeof TOUR_DATE_STATUSES)[number] },
             ...{ label: string; value: (typeof TOUR_DATE_STATUSES)[number] }[],
           ],
-          defaultValue: "upcoming",
+          defaultValue: "on_sale",
+        }),
+        category: fields.relationship({
+          label: "Category",
+          collection: "tourCategories",
+          description:
+            "Optional series or show type. Pick an existing category or add a new one in the Tour Categories collection.",
+        }),
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Tour categories — lightweight tag collection backing
+    // `tourDates.category` and the `tour-dates` block's category filter.
+    // -----------------------------------------------------------------
+
+    tourCategories: collection({
+      label: "Tour Categories",
+      slugField: "name",
+      path: "src/content/collections/tourCategories/*",
+      schema: {
+        name: fields.slug({
+          name: {
+            label: "Name",
+            description:
+              "Display name for the category (e.g. 'Winter Tour'). The slug links tour dates to this category.",
+            validation: { isRequired: true },
+          },
         }),
       },
     }),

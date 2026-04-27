@@ -6,7 +6,7 @@ import type { AppearanceState } from "../types";
 const splitState: AppearanceState = {
   colors: {
     primary: "#1a1a2e",
-    secondary: "#e94560",
+    secondary: "#b91c4a",
     accent: "#0f3460",
     // In the post-transform runtime state, linkColor is never null — it's
     // either the user's override or the fallback to accent. Round-trip tests
@@ -16,7 +16,7 @@ const splitState: AppearanceState = {
     surface: "#ffffff",
     text: "#1a1a2e",
     textMuted: "#6b7280",
-    border: "#e5e7eb",
+    border: "#7c828b",
   },
   typography: {
     mode: "split",

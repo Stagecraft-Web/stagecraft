@@ -12,6 +12,7 @@ import {
   photoSchema,
   videoSchema,
   tourDateSchema,
+  tourCategorySchema,
   postFrontmatterSchema,
   storeItemSchema,
 } from "../src/lib/schemas.js";
@@ -224,6 +225,7 @@ validateCollection("releases", releaseSchema);
 validateCollection("photos", photoSchema);
 validateCollection("videos", videoSchema);
 validateCollection("tourDates", tourDateSchema);
+validateCollection("tourCategories", tourCategorySchema);
 validateCollection("storeItems", storeItemSchema);
 
 // ============================================================

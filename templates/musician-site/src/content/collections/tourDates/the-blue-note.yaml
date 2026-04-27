@@ -2,4 +2,5 @@ date: "2026-05-15"
 venue: The Blue Note
 city: New York, NY
 ticketUrl: https://example.com/tickets/blue-note
-status: upcoming
+status: on_sale
+category: winter-tour

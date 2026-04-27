@@ -47,6 +47,8 @@ export interface ButtonProps {
   isDisabled?: boolean;
   /** Optional `id` for the rendered element. */
   id?: string;
+  /** Native `title` tooltip. Useful for explaining why a button is disabled. */
+  title?: string;
   /** Visible text. Markdoc tags pass this via the `label` prop because
    *  they have no children; React/Astro callers can use children instead. */
   label?: string;
@@ -75,6 +77,7 @@ export default function Button({
   onClick,
   isDisabled,
   id,
+  title,
   label,
   children,
 }: ButtonProps): ReactNode {
@@ -101,6 +104,7 @@ export default function Button({
         href={href}
         id={id}
         className={classes}
+        title={title}
         aria-label={ariaLabel}
         aria-controls={ariaControls}
         aria-expanded={ariaExpanded}
@@ -118,6 +122,7 @@ export default function Button({
       type={type}
       id={id}
       className={classes}
+      title={title}
       aria-label={ariaLabel}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}

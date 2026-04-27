@@ -26,6 +26,7 @@
     "@astrojs/netlify": "^7.0.3",
     "@astrojs/react": "^4.2.0",
     "@keystatic/core": "^0.5.50",
+    "@sentry/astro": "^10.50.0",
     "astro": "^6.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

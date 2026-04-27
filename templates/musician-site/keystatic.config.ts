@@ -572,6 +572,7 @@ export default config({
       // scan upcoming/past shows without opening each entry.
       columns: ["date", "city"],
       schema: {
+        date: fields.date({ label: "Date", validation: { isRequired: true } }),
         venue: fields.slug({
           name: {
             label: "Venue",
@@ -580,7 +581,6 @@ export default config({
             validation: { isRequired: true },
           },
         }),
-        date: fields.date({ label: "Date", validation: { isRequired: true } }),
         city: fields.text({ label: "City", validation: { isRequired: true } }),
         ticketUrl: fields.url({ label: "Ticket URL" }),
         status: fields.select({

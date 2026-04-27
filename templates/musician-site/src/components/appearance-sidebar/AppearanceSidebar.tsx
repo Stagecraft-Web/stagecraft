@@ -4,11 +4,7 @@ import Button from "../react/Button";
 import FormGroup from "../react/FormGroup";
 import { pxToRem } from "../../lib/font-sizing";
 import { GOOGLE_FONTS, FONT_WEIGHTS, type GoogleFontCategory } from "../../lib/google-fonts";
-import type {
-  BodyFontSizeBucket,
-  FontCategory,
-  HeadingFontSizeBucket,
-} from "../../lib/schemas";
+import type { FontCategory, FontSizeBucket } from "../../lib/schemas";
 import {
   BODY_FONT_SIZE_BUCKETS,
   FONT_CATEGORIES,
@@ -636,7 +632,7 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
 // so the stepper can't dwell on tiny / unrenderable sizes. The schema still
 // accepts `0` as the "use baseline" sentinel.
 interface SizeStepperRowProps {
-  bucket: BodyFontSizeBucket | HeadingFontSizeBucket;
+  bucket: FontSizeBucket;
   /** Current per-bucket override in pixels. `0` = use baseline. */
   value: number;
   /** rem string from theme.json — used as the starting point when `value === 0`. */

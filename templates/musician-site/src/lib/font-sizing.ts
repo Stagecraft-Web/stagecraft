@@ -15,20 +15,11 @@
 
 import { PX_PER_REM } from "./schemas";
 
-// Canonical 8-step scale mirrors theme.json → typography.fontSize. Also
-// mirrored in `src/styles/global.css` (which maps `h1..h6` onto size vars).
-// Any new bucket added here must also show up in both places.
-export const FONT_SIZE_KEYS = [
-  "xs",
-  "sm",
-  "base",
-  "lg",
-  "xl",
-  "2xl",
-  "3xl",
-  "4xl",
-] as const;
-export type FontSizeKey = (typeof FONT_SIZE_KEYS)[number];
+// The canonical bucket list (`FONT_SIZE_BUCKETS` in schemas.ts) is the
+// single source of truth for the eight buckets — `theme.json`,
+// `appearance.json`, the Keystatic admin, and the React sidebar all
+// derive from it. This module operates on opaque string-keyed maps so it
+// doesn't need its own copy of the union.
 
 /**
  * Format an integer-pixel override as a rem string (e.g. 18 → "1.125rem").

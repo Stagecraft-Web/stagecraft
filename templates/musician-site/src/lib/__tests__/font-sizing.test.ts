@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { FONT_SIZE_KEYS, computeFontSizes, pxToRem } from "../font-sizing";
+import { computeFontSizes, pxToRem } from "../font-sizing";
+import { FONT_SIZE_BUCKETS } from "../schemas";
 
 // Mirrors the default scale in src/content/config/theme.json. Keeping it here
 // keeps this test file hermetic (no fs reads) and makes the expected ratios
@@ -92,9 +93,11 @@ describe("computeFontSizes", () => {
     expect(out.weird).toBe("calc(1rem + 2px)");
   });
 
-  it("covers all canonical FONT_SIZE_KEYS", () => {
-    // Sanity check: the baseline scale has every canonical key represented.
-    for (const key of FONT_SIZE_KEYS) {
+  it("covers all canonical FONT_SIZE_BUCKETS", () => {
+    // Sanity check: the baseline scale has every canonical bucket
+    // represented (FONT_SIZE_BUCKETS lives in schemas.ts and is shared
+    // with theme.json, appearance.json, and both editors).
+    for (const key of FONT_SIZE_BUCKETS) {
       expect(BASE).toHaveProperty(key);
     }
   });

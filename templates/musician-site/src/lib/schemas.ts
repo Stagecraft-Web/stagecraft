@@ -281,14 +281,17 @@ export const FONT_SIZE_BUCKETS = [
 export type FontSizeBucket = (typeof FONT_SIZE_BUCKETS)[number];
 
 // Buckets driven primarily by heading-level CSS (xl → h4, 2xl → h3, 3xl → h2,
-// 4xl → h1). Used by the Keystatic + sidebar grouping that splits the size
-// editor into a Body group and a Headings group. Both arrays are listed
-// largest-first so the admin UI reads top-down from "h1 / large body" down
-// to "captions" — the order an author scans when tuning the type scale.
+// 4xl → h1) vs body-tier (lg / base / sm / xs). Used by the Keystatic +
+// sidebar grouping that splits the size editor into a Body group and a
+// Headings group. Both arrays are listed largest-first so the admin UI
+// reads top-down from "h1 / large body" down to "captions" — the order an
+// author scans when tuning the type scale.
+//
+// Members are themselves `FontSizeBucket`s; we don't export narrower
+// per-group types because every consumer either iterates the array (no
+// narrower type needed) or accepts any bucket.
 export const HEADING_FONT_SIZE_BUCKETS = ["4xl", "3xl", "2xl", "xl"] as const;
-export type HeadingFontSizeBucket = (typeof HEADING_FONT_SIZE_BUCKETS)[number];
 export const BODY_FONT_SIZE_BUCKETS = ["lg", "base", "sm", "xs"] as const;
-export type BodyFontSizeBucket = (typeof BODY_FONT_SIZE_BUCKETS)[number];
 
 // Friendly labels — used by both the Keystatic admin and the in-page sidebar.
 // Pairs the bucket key with a hint about which heading level (if any) it

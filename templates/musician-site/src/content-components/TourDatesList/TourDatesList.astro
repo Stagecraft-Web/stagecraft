@@ -153,13 +153,7 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
     </ul>
     {primaryHasOverflow && (
       <div class="tour-dates-reveal">
-        <button
-          type="button"
-          class="tour-dates-show-more"
-          data-tour-dates-show-more
-        >
-          Show more
-        </button>
+        <Button variant="outline" type="button" label="Show more" />
         <p
           class="screenreader-only"
           role="status"
@@ -213,13 +207,7 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
     </ul>
     {paddedHasOverflow && (
       <div class="tour-dates-reveal">
-        <button
-          type="button"
-          class="tour-dates-show-more"
-          data-tour-dates-show-more
-        >
-          Show more
-        </button>
+        <Button variant="outline" type="button" label="Show more" />
         <p
           class="screenreader-only"
           role="status"
@@ -239,7 +227,10 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
     // No fetching, no routing — just flipping the `hidden` attribute on the
     // next `pageSize` hidden siblings.
     document.querySelectorAll("[data-tour-dates-section]").forEach((section) => {
-      const button = section.querySelector("[data-tour-dates-show-more]");
+      // The only <button> in a section is the "Show more" reveal button —
+      // ticket links render as <a> via the shared Button component, so
+      // this query won't pick anything else up.
+      const button = section.querySelector("button");
       if (!(button instanceof HTMLButtonElement)) return;
       const announce = section.querySelector("[data-tour-dates-announce]");
       const pageSizeAttr = section.getAttribute("data-page-size");
@@ -395,29 +386,6 @@ const clampedPageSize = Math.max(1, Math.floor(pageSize));
     margin-top: 1rem;
     display: flex;
     justify-content: center;
-  }
-
-  .tour-dates-show-more {
-    font: inherit;
-    color: var(--color-text);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    padding: 0.5rem 1.25rem;
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    letter-spacing: 0.02em;
-    transition: border-color 0.15s, color 0.15s;
-  }
-
-  .tour-dates-show-more:hover {
-    border-color: var(--color-text);
-  }
-
-  .tour-dates-show-more:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
   }
 
   @media (max-width: 600px) {

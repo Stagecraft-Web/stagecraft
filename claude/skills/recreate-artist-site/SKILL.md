@@ -31,9 +31,24 @@ If multiple candidates exist and the caller is the pipeline, prefer the one the 
 Before starting, verify you can read the stagecraft template:
 
 - `templates/musician-site/` exists in the current repo (OR the invocation explicitly names a template path in another repo — cross-repo reads via Bash `cp -R` work even when the target-dir is elsewhere)
-- `templates/musician-site/src/content-components/` — enumerate the available content components (current set includes: `Section`, `FullscreenSection`, `Columns`, `Column`, `Button`, `Image`, `Card`, `ReleaseList`, `PhotoGallery`, `Quote`, `CenteredBlock`, `ContactForm`). Rely on this enumeration, not memory — the set evolves.
+- `templates/musician-site/src/content-components/index.ts` — the authoritative registry of embeddable components. Read it to enumerate the current set; do NOT rely on memory or the example list elsewhere in this skill.
+- `templates/musician-site/keystatic.config.ts` — **the canonical authoring surface.** Read it. Singletons, collections, page-body components, and per-component fields (with their `description` strings, defaults, and select options) are all defined here. This is the contract a real editor sees.
+- `templates/musician-site/src/content-components/<Name>/schema.ts` — per-component schemas. Each exports `markdoc` (the Markdoc tag) and `keystatic` (the Keystatic field config). The Keystatic config is what authors actually use; the Markdoc tag is a superset that may include attributes Keystatic doesn't expose.
+- `templates/musician-site/src/content-components/_shared/types.ts` — UI/attribute enums (heading levels, button variants, columns layouts, etc.). When a component has a select field, its options come from here.
 - `templates/musician-site/src/content/` — existing example pages and singletons (site config, nav, theme) that show the expected shapes
-- `templates/musician-site/src/lib/schemas.*` — zod schemas for singletons; consult these when writing config files
+- `templates/musician-site/src/lib/schemas.*` — zod schemas for singletons and data-shape enums; consult these when writing config files
+
+### Keystatic is the canonical authoring surface
+
+**Rule:** if a value is not reachable through a Keystatic field, it is out of scope for the recreation. Do not hand-author Markdoc attributes that Keystatic doesn't expose to authors, even if `markdoc.config.ts` accepts them — the framework's contract with editors is the Keystatic UI.
+
+If the source site needs something that Keystatic doesn't expose:
+
+1. Approximate using the closest authoring-reachable combination.
+2. Append an `[opportunity]` entry to `_working-notes.md` describing the missing field/component, with the source-site evidence (page + screenshot ref) and a one-line proposal.
+3. Move on. Do not invent new fields or components in this skill.
+
+This rule is what makes the framework opportunities surfaced by recreations actionable: each one corresponds to a real authoring gap, not a Markdoc-internal quirk.
 
 ## Sandbox / write-access check (first 30 seconds)
 
@@ -68,6 +83,29 @@ The sandbox is deterministic: if the sanity write fails, every subsequent write 
    Format each entry as a one-liner or short paragraph. Don't over-invest in prose — just capture the signal.
 4. Produce a short written plan for yourself (not as a deliverable — just to organize the work): for each crawled page, which stagecraft page will it map to, and which content components will compose the body.
 
+### 1b. Build the component capability matrix
+
+Before planning content, survey the authoring surface. Skipping this step is the single biggest cause of mid-build "I wanted attribute X that doesn't exist" friction.
+
+1. Open `keystatic.config.ts` and find where page bodies are composed (the `document` field on the pages collection — its `componentBlocks` map names every embeddable component and inlines each component's Keystatic schema).
+2. For each component that's plausibly relevant to this artist's pages, scan its `keystatic` block in `src/content-components/<Name>/schema.ts` and record:
+   - **Component name** (the Markdoc tag from its `tagName` export, e.g. `content-image`, `release-list`)
+   - **Fields** exposed to authors with their types (`text`, `select`, `image`, `relationship`, `array`, etc.)
+   - **Select options** for any select fields (these come from `src/content-components/_shared/types.ts` or, for data-shape enums, `src/lib/schemas.ts` — never paste literal values, derive them from the const arrays)
+   - **`description` strings** — these tell you the *intent* of the field, which often disambiguates how to use it
+   - **Defaults**, where set
+3. Pin the matrix to `_working-notes.md` under a `## Component capabilities` heading. Keep it terse — one line per component, fields in parens. Example:
+   ```
+   - section: bg (token | none), padding (sm | md | lg), id?
+   - fullscreen-section: image, title?, subtitle?, button?, textAlign (center | end)
+   - columns: layout (1-1 | 1-2 | 2-1 | 1-1-1 | 1-2-1 | …)
+   - content-image: image, alt, caption?, link?
+   - quote: text, attribution?
+   ```
+4. Refer back to this matrix in steps 3 and 6 instead of re-deriving capabilities ad hoc.
+
+If a field you'd want is missing — e.g. you wanted `section.bg` to allow per-section overrides and the Keystatic select only offers `none` — that's an `[opportunity]` entry now, not later. Log it before moving on; you'll otherwise rediscover it three pages into the build and lose the cleanest version of the proposal.
+
 ### 2. Extract design tokens
 
 The crawl saves a `styles.json` per page with computed typography and color info — **prefer that over eyeballing screenshots**. Screenshots remain the tiebreaker for ambiguous cases (e.g. when a site has multiple fonts and you need to decide which is "the" heading font).
@@ -91,24 +129,24 @@ The crawl saves a `styles.json` per page with computed typography and color info
 
 ### 3. Plan content mapping
 
-For each crawled page, decide which stagecraft page it becomes and how its body is composed. Common patterns:
+For each crawled page, decide which stagecraft page it becomes and how its body is composed. **Compose only with components and field values from the capability matrix you built in step 1b.** Treat the table below as a starting cheat sheet — the matrix is authoritative, and component names / select options change.
 
-| Crawled pattern | Stagecraft mapping |
+| Crawled pattern | Likely stagecraft mapping |
 |---|---|
-| Full-viewport hero with title over image | `fullscreen-section` with `image` + `button` inside |
-| Bio with side-by-side portrait + text | `section` → `columns` (`layout="1-2"` or `2-1`) containing `image` and paragraphs |
-| Grid of releases / album art | `section` → `release-list` |
+| Full-viewport hero with title over image | `fullscreen-section` (check matrix for available fields — image, title, subtitle, button, textAlign options) |
+| Bio with side-by-side portrait + text | `section` → `columns` (use a `layout` value the Keystatic select actually offers) containing `content-image` and paragraphs |
+| Grid of releases / album art | `section` → `release-list` (relationship-driven from the releases collection) |
 | Photo gallery / image grid | `section` → `photo-gallery` |
-| Press quotes / testimonials | `section` → one `quote` tag per quote (`text` + optional `attribution`; no separate collection) |
-| Tour dates / event list | `section` → (tour-dates collection, rendered via a page or component) |
-| Call-to-action buttons | `button` (variant `primary` or `outline`) |
+| Press quotes / testimonials | `section` → one `quote` per quote (text + optional attribution; no separate collection) |
+| Tour dates / event list | `section` → `tour-dates-list` (driven by the tour-dates collection) |
+| Call-to-action buttons | `button` — use a `variant` value the Keystatic select offers (e.g. `primary`, `outline`) |
 | Contact info / form | `section` → `contact-form` |
 | Plain prose paragraphs | `section` → paragraph text |
-| Video hero / reel | `fullscreen-section` with note — may need stub image + link out |
+| Video hero / reel | `fullscreen-section` with note — may need stub image + link out (no looping-video bg today) |
 
-Pages that don't fit our component system: approximate with the closest available combination and call out in the summary. Do not invent new components in this skill — propose them at the end if truly needed.
+For each crawled page, when picking a value for a select field, **copy from the matrix row, not from this table**. If the source design needs an option that isn't in the select (e.g. `textAlign="start"` when the matrix only has `center | end`), do not author it anyway — that's an `[opportunity]` entry with a concrete proposal.
 
-**Log to `_working-notes.md`:** for each page that required approximation, append a `[gap]` entry describing the crawled pattern + the approximation you used. These drive the framework improvement proposals in the final report.
+Pages that don't fit cleanly: approximate with the closest authoring-reachable combination and append a `[gap]` entry to `_working-notes.md` describing the crawled pattern + the approximation. These drive the framework improvement proposals in the final report.
 
 ### 4. Create the target
 
@@ -135,7 +173,7 @@ For each page in the plan:
 
 1. Create `src/content/pages/<slug>.mdoc`
 2. Frontmatter: `title`, `slug`, any other required fields per the page schema
-3. Body: compose using the content-components you planned. Use the markdoc tag syntax — consult `markdoc.config.ts` for the exact tag names and attributes, or look at existing example pages.
+3. Body: compose using the content-components from the capability matrix (step 1b). Use Markdoc tag syntax. **Only use attributes and values that the Keystatic config exposes** — the Markdoc schema may accept more, but anything beyond Keystatic is by definition unauthorable, and the recreation should be authorable end-to-end. If you find yourself reaching for a Markdoc-only attribute, stop and log an `[opportunity]` instead.
 4. For prose: pull actual text from `<slug>/<page-slug>/text.md` (the crawl's per-page plaintext outline). For anything ambiguous (contextual attribution, embedded metadata), consult `<slug>/<page-slug>/page.html` — the rendered HTML is the source of truth. Only re-fetch with WebFetch if both are missing.
 
 **Never reference images that don't exist yet.** Step 7 downloads them — write the page to reference paths like `src/assets/images/artistname/hero.jpg`, then make sure step 7 places files at those exact paths.

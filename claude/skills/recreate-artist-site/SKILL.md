@@ -123,7 +123,8 @@ The crawl saves a `styles.json` per page with computed typography and color info
    - Garamond → `EB Garamond`, `Cormorant Garamond`
    Note the substitution in `_working-notes.md` as `[friction]`.
 3. **Colors** — express as hex. The theme file uses named tokens — consult `src/lib/schemas.*` for the exact shape. If the site uses more granular tokens than our theme supports (e.g. separate link color, hover color, multiple accent colors), log as `[opportunity]`.
-4. **Spacing / density** — screenshots still win here. Eyeball whether the site is tight or airy. If `cssVars` exposes a spacing scale (`--space-1`, `--space-2`, ...), note it for reference even if our theme doesn't expose spacing tokens yet.
+4. **Site background image** — many artist sites paint a single fixed photo behind every page (often a portrait, performance shot, or atmospheric texture). Look for it explicitly: `<body>` or `<html>` `background-image` in `styles.json`'s `cssVars`, a `position: fixed; inset: 0` image element behind content, or simply a hero photo that bleeds behind the nav on every page in the screenshots. If the source has one, plan to set `siteBackground` in `site.json` (step 5) and download the image (step 7). The framework paints a fixed black @ 85% overlay on top — pages over a busy photo still need readable text, and that's how that's achieved.
+5. **Spacing / density** — screenshots still win here. Eyeball whether the site is tight or airy. If `cssVars` exposes a spacing scale (`--space-1`, `--space-2`, ...), note it for reference even if our theme doesn't expose spacing tokens yet.
 
 **Log to `_working-notes.md`:** if you wanted a theme token that didn't exist (e.g. no spacing scale, no accent-2 color, no separate link color, no heading-specific weight override), append an `[opportunity]` entry.
 
@@ -174,7 +175,7 @@ Pages that don't fit cleanly: approximate with the closest authoring-reachable c
 Write these first — they anchor the rest. Use the zod schemas in `src/lib/schemas.*` as the source of truth for each shape.
 
 - **Theme** — the color palette and typography choices from step 2. Include placeholders for fonts-to-load if the theme system handles font loading.
-- **Site** — artist name, tagline, default SEO metadata, social/external service links (from `manifest.externalServices`).
+- **Site** — artist name, tagline, default SEO metadata, social/external service links (from `manifest.externalServices`). If step 2 identified a site-wide background image, populate `siteBackground` here (the path you'll save the asset to in step 7).
 - **Navigation** — the ordered list of primary nav items matching the pages you're about to write.
 
 ### 6. Write pages

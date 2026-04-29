@@ -74,33 +74,6 @@ const pages = defineCollection({
     // siteConfigSchema.isFooterHidden). When set, wins for this page only;
     // leave unset to inherit the site-level default.
     isFooterHidden: z.boolean().optional(),
-    // Optional per-page background override. When set, overrides the
-    // site-wide `pageBackground` from `site.json` for this page only;
-    // when absent, the page inherits the site-level default.
-    //
-    // Splash pages ignore this entirely — they render their own full-bleed
-    // imagery via FullscreenSection, so BaseLayout skips the page-background
-    // plumbing when `isSplashPage` is true.
-    //
-    // `src` is stored as a plain relative path string (not Astro's `image()`
-    // helper) so the path travels through the same `resolveImage()` codepath
-    // that the site-wide default uses — one background resolution strategy,
-    // not two. `resolveImage()` handles the optimisation at render time.
-    pageBackground: optionalImageFromConditional(
-      z.object({
-        src: z.string().min(1),
-        alt: z.string().min(1),
-      }),
-    ).optional(),
-    // Optional per-page overlay override (tint painted over the background
-    // image for text legibility). Same inheritance rules as pageBackground.
-    // `color`/`opacity` default to black @ 0.3 when omitted.
-    pageBackgroundOverlay: z
-      .object({
-        color: z.string().min(1).default("#000000"),
-        opacity: z.number().min(0).max(1).default(0.3),
-      })
-      .optional(),
   }),
 });
 

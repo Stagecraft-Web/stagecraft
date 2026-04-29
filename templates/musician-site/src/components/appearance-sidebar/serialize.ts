@@ -28,13 +28,13 @@ function formatSizeChange(px: number): string {
 export function serializeAppearanceForKeystatic(state: AppearanceState): string {
   const heading = state.typography.mode === "split" && state.typography.heading
     ? {
-        discriminant: "split" as const,
+        discriminant: false as const,
         value: {
           discriminant: state.typography.heading.category,
           value: state.typography.heading.family,
         },
       }
-    : { discriminant: "single" as const, value: null };
+    : { discriminant: true as const, value: null };
 
   // linkColor is optional on the schema; we compare against accent to decide
   // whether the user set one distinctly. If they match, omit the field so
@@ -88,6 +88,7 @@ export function serializeAppearanceForKeystatic(state: AppearanceState): string 
         h4: String(state.typography.headingWeights.h4),
       },
     },
+    siteTitleSize: String(state.siteTitleSize),
   };
 
   return JSON.stringify(payload, null, 2) + "\n";
@@ -164,6 +165,14 @@ function collectChanges(prev: AppearanceState, next: AppearanceState): Change[] 
         to: String(next.typography.bodyWeights[key]),
       });
     }
+  }
+
+  if (prev.siteTitleSize !== next.siteTitleSize) {
+    changes.push({
+      label: "site title size",
+      from: String(prev.siteTitleSize),
+      to: String(next.siteTitleSize),
+    });
   }
 
   const headingWeightLabels: Record<keyof AppearanceState["typography"]["headingWeights"], string> = {

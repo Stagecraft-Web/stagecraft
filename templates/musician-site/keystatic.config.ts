@@ -270,16 +270,13 @@ export default config({
           directory: "src/assets/favicons",
           publicPath: "../../assets/favicons/",
         }),
-        // Site-wide default page-background image. Rendered as a fixed-position
-        // layer behind all page content (below the overlay). Individual pages
-        // can override this via their own `pageBackground` frontmatter.
-        //
-        // `src/assets/images/` with `../../assets/images/` matches the
-        // wordmark's convention — site.json lives in `src/content/config/`,
-        // so the publicPath walks back two levels.
-        pageBackground: optionalImage(
-          "Page Background",
-          "Optional site-wide background photo shown behind every page's content. Individual pages can override this from their own settings. Pick 'Image' to set a background; pick 'None' for no site-wide background.",
+        // Site-wide background image. Rendered as a fixed-position layer
+        // behind all page content (below a fixed 85%-black overlay). The
+        // overlay opacity isn't authorable — pick a background that already
+        // suits white text, or skip the background entirely.
+        siteBackground: optionalImage(
+          "Site Background Image",
+          "Optional photo shown behind every page's content, with a fixed dark overlay on top for legibility. Pick 'Image' to set a background; pick 'None' for no background.",
           fields.object({
             src: fields.image({
               label: "Background Image",
@@ -287,34 +284,7 @@ export default config({
               publicPath: "../../assets/images/",
               validation: { isRequired: true },
             }),
-            alt: fields.text({
-              label: "Alt Text",
-              description:
-                "Short description of the background image. Required for accessibility even though the layer is marked aria-hidden — validators expect alt on any image reference.",
-              validation: { isRequired: true },
-            }),
           }),
-        ),
-        pageBackgroundOverlay: fields.object(
-          {
-            color: fields.text({
-              label: "Overlay color",
-              description:
-                "Hex ('#000000') or rgb()/rgba() value painted over the background image. Darken the image to boost text contrast, or use a brand color for a tinted wash.",
-              defaultValue: "#000000",
-            }),
-            opacity: fields.number({
-              label: "Overlay opacity",
-              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
-              validation: { min: 0, max: 1 },
-              defaultValue: 0.3,
-            }),
-          },
-          {
-            label: "Page Background Overlay",
-            description:
-              "Tint painted over the site-wide background image for text legibility. Ignored when no background image is set.",
-          },
         ),
         siteTitle: fields.text({ label: "Site Title", validation: { isRequired: true } }),
         siteDescription: fields.text({ label: "Site Description", multiline: true }),
@@ -392,20 +362,6 @@ export default config({
             }),
           }),
         ),
-        wordmarkSizeAdjust: fields.select({
-          label: "Wordmark size",
-          description:
-            "Scales the wordmark image up or down from the default height. Only applies when a wordmark is uploaded above. −2 ≈ 0.72×, +2 ≈ 1.35×.",
-          // Stringify: Keystatic select values must be strings.
-          options: SIZE_ADJUSTMENTS.map((v) => ({
-            label: SIZE_ADJUSTMENT_LABELS[String(v)],
-            value: String(v),
-          })) as [
-            { label: string; value: string },
-            ...{ label: string; value: string }[],
-          ],
-          defaultValue: "0",
-        }),
         // -------------------------------------------------------------
         // Header mode — bundles header style + scroll behavior into one
         // pick. "Solid, sticky" (default) is the standard nav that
@@ -553,21 +509,17 @@ export default config({
                   "Only the weights you pick here are downloaded — unused weights aren't requested. Some fonts don't ship every weight; check fonts.google.com if a weight looks wrong.",
               },
             ),
-            // `mode` is the discriminant: "single" hides the heading picker
-            // entirely; "split" reveals it (Keystatic conditional UX).
+            // Checkbox-driven conditional: when checked, headings use the
+            // body font (no picker shown); when unchecked, the heading font
+            // picker reveals.
             heading: fields.conditional(
-              fields.select({
-                label: "Heading font",
-                description: "Use the same font as the body, or pick a different font for headings.",
-                options: [
-                  { label: "Same as body", value: "single" },
-                  { label: "Different font for headings", value: "split" },
-                ],
-                defaultValue: "single",
+              fields.checkbox({
+                label: "Headings use the same font as the body text",
+                defaultValue: true,
               }),
               {
-                single: fields.empty(),
-                split: fontPicker("Heading font", {
+                true: fields.empty(),
+                false: fontPicker("Heading font", {
                   category: "serif",
                   family: "Merriweather",
                 }),
@@ -595,6 +547,19 @@ export default config({
               "Body group then headings — each owns a font family, per-bucket sizes, and weights. Leave any size blank to inherit the theme.json default.",
           },
         ),
+        siteTitleSize: fields.select({
+          label: "Site title size",
+          description:
+            "Scales the artist name in the header — applied to both the wordmark image (when uploaded) and the plain-text title. −2 ≈ 0.72×, +2 ≈ 1.35×.",
+          options: SIZE_ADJUSTMENTS.map((v) => ({
+            label: SIZE_ADJUSTMENT_LABELS[String(v)],
+            value: String(v),
+          })) as [
+            { label: string; value: string },
+            ...{ label: string; value: string }[],
+          ],
+          defaultValue: "0",
+        }),
       },
     }),
   },
@@ -628,52 +593,6 @@ export default config({
           description: "Overrides the site-level setting for this page only.",
           defaultValue: false,
         }),
-        // Per-page background override. Leave unset to inherit the site-wide
-        // default from Site Settings → Page Background. Splash pages ignore
-        // this entirely — they render their own full-bleed imagery via
-        // FullscreenSection.
-        //
-        // pages live in `src/content/pages/*`, so publicPath walks back two
-        // levels to reach src/assets/images/ — same as the wordmark from
-        // src/content/config/.
-        pageBackground: optionalImage(
-          "Page Background (override)",
-          "Pick 'None' to inherit the site-wide default. Pick 'Image' to override with this page's own background photo.",
-          fields.object({
-            src: fields.image({
-              label: "Background Image",
-              directory: "src/assets/images",
-              publicPath: "../../assets/images/",
-              validation: { isRequired: true },
-            }),
-            alt: fields.text({
-              label: "Alt Text",
-              description:
-                "Short description of the background image. Required even though the layer is marked aria-hidden — validators expect alt on any image reference.",
-              validation: { isRequired: true },
-            }),
-          }),
-        ),
-        pageBackgroundOverlay: fields.object(
-          {
-            color: fields.text({
-              label: "Overlay color",
-              description: "Hex ('#000000') or rgb()/rgba() value. Leave blank inputs to inherit defaults.",
-              defaultValue: "#000000",
-            }),
-            opacity: fields.number({
-              label: "Overlay opacity",
-              description: "0 = transparent, 1 = fully opaque. Typical range 0.2 – 0.5.",
-              validation: { min: 0, max: 1 },
-              defaultValue: 0.3,
-            }),
-          },
-          {
-            label: "Page Background Overlay (override)",
-            description:
-              "Leave unset to inherit the site-wide overlay. Only applies when a background image is resolved for this page.",
-          },
-        ),
         content: fields.markdoc({
           label: "Body Content",
           components: pageContentComponents,

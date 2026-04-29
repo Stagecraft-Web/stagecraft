@@ -5,7 +5,6 @@ import {
   themeSchema,
   appearanceSchema,
   pageFrontmatterSchema,
-  pageBackgroundOverlaySchema,
   releaseSchema,
   photoSchema,
   tourDateSchema,
@@ -108,104 +107,29 @@ describe("siteConfigSchema", () => {
     expect(result.isFooterHidden).toBe(true);
   });
 
-  // ---- Page background (1.2) ---------------------------------------------
-  // Back-compat: existing site.json seeds don't set pageBackground, so the
-  // field must remain optional and the parsed result must leave it undefined.
-  it("parses without a pageBackground (back-compat for existing seeds)", () => {
+  // ---- Site background ---------------------------------------------------
+  it("parses without a siteBackground (back-compat for existing seeds)", () => {
     const result = siteConfigSchema.parse(valid);
-    expect(result.pageBackground).toBeUndefined();
-    expect(result.pageBackgroundOverlay).toBeUndefined();
+    expect(result.siteBackground).toBeUndefined();
   });
 
-  it("collapses a 'none'-discriminant pageBackground to undefined", () => {
-    // Keystatic's `fields.conditional` always serialises a value — the "none"
-    // branch writes `{ discriminant: "none", value: null }` rather than
-    // omitting the key. The schema treats that as "no background set."
+  it("collapses a 'none'-discriminant siteBackground to undefined", () => {
     const result = siteConfigSchema.parse({
       ...valid,
-      pageBackground: { discriminant: "none", value: null },
+      siteBackground: { discriminant: "none", value: null },
     });
-    expect(result.pageBackground).toBeUndefined();
+    expect(result.siteBackground).toBeUndefined();
   });
 
-  it("accepts a full pageBackground + overlay", () => {
-    const withBackground = {
+  it("accepts a siteBackground with just a src", () => {
+    const result = siteConfigSchema.parse({
       ...valid,
-      pageBackground: {
+      siteBackground: {
         discriminant: "image",
-        value: {
-          src: "../../assets/images/bg.jpg",
-          alt: "Abstract texture",
-        },
+        value: { src: "../../assets/images/bg.jpg" },
       },
-      pageBackgroundOverlay: { color: "#000000", opacity: 0.4 },
-    };
-    const result = siteConfigSchema.parse(withBackground);
-    expect(result.pageBackground).toEqual({
-      src: "../../assets/images/bg.jpg",
-      alt: "Abstract texture",
     });
-    expect(result.pageBackgroundOverlay).toEqual({
-      color: "#000000",
-      opacity: 0.4,
-    });
-  });
-
-  it("rejects a pageBackground with an empty alt", () => {
-    expect(() =>
-      siteConfigSchema.parse({
-        ...valid,
-        pageBackground: {
-          discriminant: "image",
-          value: { src: "../../assets/images/bg.jpg", alt: "" },
-        },
-      }),
-    ).toThrow();
-  });
-
-  it("applies overlay defaults when fields are absent", () => {
-    const withPartialOverlay = {
-      ...valid,
-      pageBackground: {
-        discriminant: "image",
-        value: {
-          src: "../../assets/images/bg.jpg",
-          alt: "Abstract texture",
-        },
-      },
-      pageBackgroundOverlay: {},
-    };
-    const result = siteConfigSchema.parse(withPartialOverlay);
-    expect(result.pageBackgroundOverlay).toEqual({
-      color: "#000000",
-      opacity: 0.3,
-    });
-  });
-});
-
-describe("pageBackgroundOverlaySchema", () => {
-  it("applies defaults for color and opacity when fields are absent", () => {
-    const result = pageBackgroundOverlaySchema.parse({});
-    expect(result).toEqual({ color: "#000000", opacity: 0.3 });
-  });
-
-  it("accepts an explicit color + opacity", () => {
-    const result = pageBackgroundOverlaySchema.parse({ color: "#112233", opacity: 0.5 });
-    expect(result).toEqual({ color: "#112233", opacity: 0.5 });
-  });
-
-  it("accepts opacity at the 0 and 1 boundaries", () => {
-    expect(pageBackgroundOverlaySchema.parse({ opacity: 0 }).opacity).toBe(0);
-    expect(pageBackgroundOverlaySchema.parse({ opacity: 1 }).opacity).toBe(1);
-  });
-
-  it("rejects opacity outside 0–1", () => {
-    expect(() => pageBackgroundOverlaySchema.parse({ opacity: -0.1 })).toThrow();
-    expect(() => pageBackgroundOverlaySchema.parse({ opacity: 1.1 })).toThrow();
-  });
-
-  it("rejects an empty color string", () => {
-    expect(() => pageBackgroundOverlaySchema.parse({ color: "" })).toThrow();
+    expect(result.siteBackground).toEqual({ src: "../../assets/images/bg.jpg" });
   });
 });
 
@@ -324,7 +248,6 @@ describe("headerAndNavSchema", () => {
   // ---- Header style variations (§2.3) -------------------------------------
   it("applies §2.3 defaults when new fields are missing (back-compat)", () => {
     const result = headerAndNavSchema.parse(valid);
-    expect(result.wordmarkSizeAdjust).toBe(0);
     expect(result.isHeaderTextUppercase).toBe(false);
     expect(result.headerSubtitle).toBeUndefined();
     expect(result.headerLayout).toBe("logo-left-nav-right");
@@ -333,39 +256,14 @@ describe("headerAndNavSchema", () => {
   it("round-trips explicit §2.3 header style values", () => {
     const withStyles = {
       ...valid,
-      wordmarkSizeAdjust: 2,
       isHeaderTextUppercase: true,
       headerSubtitle: "Singer / songwriter",
       headerLayout: "logo-center-nav-split" as const,
     };
     const result = headerAndNavSchema.parse(withStyles);
-    expect(result.wordmarkSizeAdjust).toBe(2);
     expect(result.isHeaderTextUppercase).toBe(true);
     expect(result.headerSubtitle).toBe("Singer / songwriter");
     expect(result.headerLayout).toBe("logo-center-nav-split");
-  });
-
-  it("coerces a string wordmarkSizeAdjust (Keystatic select emits strings)", () => {
-    // Keystatic's `fields.select` serializes its value as a string, so JSON
-    // round-trips may carry "-1" rather than -1. z.coerce.number() normalizes
-    // both to a number.
-    const result = headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: "-1" });
-    expect(result.wordmarkSizeAdjust).toBe(-1);
-  });
-
-  it("rejects wordmarkSizeAdjust outside the [-2, 2] range", () => {
-    expect(() =>
-      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 3 }),
-    ).toThrow();
-    expect(() =>
-      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: -3 }),
-    ).toThrow();
-  });
-
-  it("rejects non-integer wordmarkSizeAdjust values", () => {
-    expect(() =>
-      headerAndNavSchema.parse({ ...valid, wordmarkSizeAdjust: 0.5 }),
-    ).toThrow();
   });
 
   it("rejects unknown headerLayout values", () => {
@@ -461,7 +359,7 @@ describe("appearanceSchema", () => {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
       bodyWeights: validBodyWeights,
       heading: {
-        discriminant: "split" as const,
+        discriminant: false as const,
         value: { discriminant: "serif" as const, value: "Merriweather" },
       },
       headingWeights: validHeadingWeights,
@@ -473,7 +371,7 @@ describe("appearanceSchema", () => {
     typography: {
       primary: { discriminant: "sans-serif" as const, value: "Inter" },
       bodyWeights: validBodyWeights,
-      heading: { discriminant: "single" as const, value: null },
+      heading: { discriminant: true as const, value: null },
       headingWeights: validHeadingWeights,
     },
   };
@@ -740,54 +638,6 @@ describe("pageFrontmatterSchema", () => {
     expect(unset.isFooterHidden).toBeUndefined();
   });
 
-  // ---- Page background overrides (1.2) ------------------------------------
-  it("parses without any pageBackground override (inherits site-wide default)", () => {
-    const result = pageFrontmatterSchema.parse({ title: "About" });
-    expect(result.pageBackground).toBeUndefined();
-    expect(result.pageBackgroundOverlay).toBeUndefined();
-  });
-
-  it("collapses a 'none'-discriminant pageBackground to undefined", () => {
-    const result = pageFrontmatterSchema.parse({
-      title: "About",
-      pageBackground: { discriminant: "none", value: null },
-    });
-    expect(result.pageBackground).toBeUndefined();
-  });
-
-  it("accepts a per-page pageBackground + overlay override", () => {
-    const result = pageFrontmatterSchema.parse({
-      title: "About",
-      pageBackground: {
-        discriminant: "image",
-        value: {
-          src: "../../assets/images/about-bg.jpg",
-          alt: "Studio shot",
-        },
-      },
-      pageBackgroundOverlay: { color: "#112233", opacity: 0.55 },
-    });
-    expect(result.pageBackground).toEqual({
-      src: "../../assets/images/about-bg.jpg",
-      alt: "Studio shot",
-    });
-    expect(result.pageBackgroundOverlay).toEqual({
-      color: "#112233",
-      opacity: 0.55,
-    });
-  });
-
-  it("rejects a per-page pageBackground with empty alt", () => {
-    expect(() =>
-      pageFrontmatterSchema.parse({
-        title: "About",
-        pageBackground: {
-          discriminant: "image",
-          value: { src: "../../assets/images/about-bg.jpg", alt: "" },
-        },
-      }),
-    ).toThrow();
-  });
 });
 
 describe("releaseSchema", () => {

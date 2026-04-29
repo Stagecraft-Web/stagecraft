@@ -42,6 +42,16 @@ export function applyCssVariables(
     typography.headingSizes,
   );
 
+  const SITE_TITLE_MULTIPLIERS: Record<string, number> = {
+    "-2": 0.72,
+    "-1": 0.85,
+    "0": 1,
+    "1": 1.15,
+    "2": 1.35,
+  };
+  const siteTitleMultiplier =
+    SITE_TITLE_MULTIPLIERS[String(appearance.siteTitleSize)] ?? 1;
+
   const vars: Record<string, string> = {
     "--color-primary": colors.primary,
     "--color-secondary": colors.secondary,
@@ -60,6 +70,7 @@ export function applyCssVariables(
     "--font-weight-h2": String(typography.headingWeights.h2),
     "--font-weight-h3": String(typography.headingWeights.h3),
     "--font-weight-h4": String(typography.headingWeights.h4),
+    "--site-title-multiplier": String(siteTitleMultiplier),
   };
 
   // Font-size vars — mirrors BaseLayout's inline <style>. Bucket names in

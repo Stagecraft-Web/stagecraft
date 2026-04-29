@@ -131,6 +131,16 @@ The crawl saves a `styles.json` per page with computed typography and color info
 
 For each crawled page, decide which stagecraft page it becomes and how its body is composed. **Compose only with components and field values from the capability matrix you built in step 1b.** Treat the table below as a starting cheat sheet — the matrix is authoritative, and component names / select options change.
 
+#### Three patterns that have repeatedly slipped through
+
+These are real misses from prior recreations. Watch for them as you plan:
+
+1. **Repeating dated events MUST become tour-dates entries.** Any page with three or more dated event listings — concert series, residencies, recurring shows, "upcoming dates" — is a `tourDates` collection page, not inline prose under headings. Use the `tour-dates-list` content component on the page body. When the source groups events into named series (e.g. "Charlie Brown Christmas Shows"), create a `tourCategories/<slug>.yaml` for the series and set each entry's `category` field to that slug. Do not recreate this as Markdown headings + paragraphs.
+
+2. **Every link in source HTML must survive into the recreation.** Press pages and link rolls are the worst offenders — easy to copy article titles as bare text, losing the URLs that made the page useful. When extracting prose, pull the rendered HTML alongside the plaintext (`page.html` is in the crawl) and walk every `<a href>` on the page; each becomes either a Markdown link `[text](href)`, a `{% button %}`, or an `[opportunity]` note if the structure can't be expressed authorably.
+
+3. **Navigation completeness is mandatory.** Walk the source site's primary nav from `manifest.json` (or the home page's HTML) and account for every nav item. Each must produce one of: a stagecraft page, a Keystatic nav entry pointing at one, or a `[gap]` note explaining why it can't be carried over. Do not derive nav membership from "pages we created" — that silently drops items that didn't make the cut.
+
 | Crawled pattern | Likely stagecraft mapping |
 |---|---|
 | Full-viewport hero with title over image | `fullscreen-section` (check matrix for available fields — image, title, subtitle, button, textAlign options) |
@@ -217,15 +227,21 @@ In the target directory:
 
 1. `npm install` (if the target is a fresh copy)
 2. `npx astro check` — must pass with 0 errors
-3. `npm run validate:content` — catches singleton/page/collection schema mismatches
+3. `npm run validate:content` — catches singleton/page/collection schema mismatches AND missing image files referenced from `.mdoc` content
 4. `npm test` — sanity check
 5. `npm run build` — confirm it actually builds
 6. `npm run dev` — note the URL for the user to open
 
 If any step fails, fix and re-run. Common issues:
-- Referenced image missing → download it or swap to an existing one
+- Referenced image missing → `validate:content` reports the path; either download the asset or fix the reference
 - Markdoc attribute type mismatch → check the tag's `matches` constraint
 - Required singleton field empty → fill with a sensible default, note in summary
+
+Then a manual cross-check before declaring done — these aren't covered by the validator:
+
+- **Nav completeness** — open `src/content/config/header.json`, then look at the source crawl's home-page nav. Every source nav item must map to either a stagecraft page in `header.json`'s `items` or a `[gap]` note in `_working-notes.md`. If you see a source link that's not represented, fix it now.
+- **Link preservation** — for every page that contained `<a href>` elements in the source, grep the recreation for the link text and confirm the URL came along (Markdown link, `{% button %}`, etc.). Press / reviews / link-roll pages are the highest-risk.
+- **Tour-dates structure** — if the source had a shows / tour / events page with multiple dated entries, confirm they're in `src/content/collections/tourDates/*.yaml` rendered via `{% tour-dates-list %}`, not inline prose.
 
 ### 10. Summary to user
 

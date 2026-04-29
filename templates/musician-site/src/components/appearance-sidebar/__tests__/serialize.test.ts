@@ -27,6 +27,7 @@ const splitState: AppearanceState = {
     headingSizes: { xl: 0, "2xl": 0, "3xl": 0, "4xl": 0 },
     headingWeights: { h1: 700, h2: 700, h3: 700, h4: 700 },
   },
+  siteTitleSize: 0,
 };
 
 const singleState: AppearanceState = {
@@ -44,7 +45,7 @@ describe("serializeAppearanceForKeystatic", () => {
     const parsed = JSON.parse(json);
     expect(parsed.typography.primary).toEqual({ discriminant: "sans-serif", value: "Inter" });
     expect(parsed.typography.heading).toEqual({
-      discriminant: "split",
+      discriminant: false,
       value: { discriminant: "serif", value: "Merriweather" },
     });
   });
@@ -52,7 +53,7 @@ describe("serializeAppearanceForKeystatic", () => {
   it("writes the single-mode Keystatic format correctly", () => {
     const json = serializeAppearanceForKeystatic(singleState);
     const parsed = JSON.parse(json);
-    expect(parsed.typography.heading).toEqual({ discriminant: "single", value: null });
+    expect(parsed.typography.heading).toEqual({ discriminant: true, value: null });
   });
 
   it("serialises body and heading weights as strings (matching Keystatic's select output)", () => {

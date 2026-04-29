@@ -281,6 +281,34 @@ if (fs.existsSync(postsDir)) {
 // attribute names, and attribute type mismatches — exactly the classes of
 // error that otherwise surface only at `astro build` time.
 
+// Walk a Markdoc AST and collect every (tagName, attribute, value, line)
+// triple where the attribute name matches `imageAttrNames`. We then check
+// each of those paths exists on disk relative to the .mdoc file's
+// directory. The Markdoc validator only checks tag/attribute *shape* — it
+// happily passes a tag with a `src` pointing at a non-existent file.
+const IMAGE_ATTR_NAMES = new Set(["src", "image"]);
+
+interface ImageRef {
+  attr: string;
+  value: string;
+  line?: number;
+}
+
+function collectImageRefs(node: any, refs: ImageRef[]): void {
+  if (!node || typeof node !== "object") return;
+  if (node.type === "tag" && node.attributes) {
+    for (const [attr, value] of Object.entries(node.attributes)) {
+      if (!IMAGE_ATTR_NAMES.has(attr)) continue;
+      if (typeof value !== "string") continue;
+      // Only check relative paths that target the assets folder; ignore
+      // absolute URLs and bare /public refs.
+      if (!value.startsWith("../") && !value.startsWith("./") && !value.startsWith("src/")) continue;
+      refs.push({ attr, value, line: node.location?.start?.line });
+    }
+  }
+  for (const child of node.children ?? []) collectImageRefs(child, refs);
+}
+
 function validateMdocFiles(dir: string) {
   if (!fs.existsSync(dir)) return;
 
@@ -304,6 +332,19 @@ function validateMdocFiles(dir: string) {
         const line = err.location?.start?.line;
         const loc = line !== undefined ? `:${line + 1}` : "";
         errors.push(`${rel}${loc}: ${err.error.message}`);
+      }
+
+      const imageRefs: ImageRef[] = [];
+      collectImageRefs(ast, imageRefs);
+      const fileDir = path.dirname(filePath);
+      for (const ref of imageRefs) {
+        const resolved = path.resolve(fileDir, ref.value);
+        if (!fs.existsSync(resolved)) {
+          const loc = ref.line !== undefined ? `:${ref.line + 1}` : "";
+          errors.push(
+            `${rel}${loc}: ${ref.attr}="${ref.value}" — file not found at ${path.relative(ROOT, resolved)}`,
+          );
+        }
       }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);

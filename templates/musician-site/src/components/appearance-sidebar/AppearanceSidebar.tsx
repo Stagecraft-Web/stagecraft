@@ -335,6 +335,31 @@ export function AppearanceSidebar({ initialState, config }: Props): ReactElement
               baseFontSizes={config.baseFontSizes}
             />
           </section>
+
+          <section className={styles.section} aria-labelledby="stagecraft-header">
+            <h3 id="stagecraft-header" className={styles.sectionTitle}>
+              Header
+            </h3>
+            <FormGroup
+              label="Site title size"
+              type="select"
+              selectOptions={[
+                { label: "Much smaller (−2)", value: "-2" },
+                { label: "Smaller (−1)", value: "-1" },
+                { label: "Default (0)", value: "0" },
+                { label: "Larger (+1)", value: "1" },
+                { label: "Much larger (+2)", value: "2" },
+              ]}
+              isRequired
+              value={String(draft.siteTitleSize)}
+              onChange={(next) =>
+                updateDraft((prev) => ({
+                  ...prev,
+                  siteTitleSize: Number(next) as -2 | -1 | 0 | 1 | 2,
+                }))
+              }
+            />
+          </section>
         </div>
 
         <footer className={styles.footer}>
@@ -579,29 +604,30 @@ function HeadingFields({ draft, onChange, baseFontSizes }: SizingFieldProps) {
   const { typography } = draft;
   return (
     <>
-      <FormGroup
-        label="Heading font"
-        type="select"
-        selectOptions={[
-          { label: "Same font as body", value: "single" },
-          { label: "Different font for headings", value: "split" },
-        ]}
-        value={typography.mode}
-        onChange={(next) =>
-          onChange((prev) => {
-            const mode = next as "single" | "split";
-            if (mode === "single") {
-              return { ...prev, typography: { ...prev.typography, mode, heading: null } };
-            }
-            // Switching to split: seed heading with a reasonable default if
-            // one isn't already present.
-            const heading =
-              prev.typography.heading ??
-              ({ category: "serif" as FontCategory, family: "Merriweather" });
-            return { ...prev, typography: { ...prev.typography, mode, heading } };
-          })
-        }
-      />
+      <label className={styles.checkboxRow}>
+        <input
+          type="checkbox"
+          checked={typography.mode === "single"}
+          onChange={(e) =>
+            onChange((prev) => {
+              if (e.target.checked) {
+                return {
+                  ...prev,
+                  typography: { ...prev.typography, mode: "single", heading: null },
+                };
+              }
+              const heading =
+                prev.typography.heading ??
+                ({ category: "serif" as FontCategory, family: "Merriweather" });
+              return {
+                ...prev,
+                typography: { ...prev.typography, mode: "split", heading },
+              };
+            })
+          }
+        />
+        Headings use the same font as the body text
+      </label>
 
       {typography.mode === "split" && typography.heading && (
         <FontPickerField

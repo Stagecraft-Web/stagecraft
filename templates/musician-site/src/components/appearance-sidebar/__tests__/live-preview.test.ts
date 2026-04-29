@@ -84,6 +84,7 @@ const baseAppearance: AppearanceState = {
     headingSizes: { xl: 0, "2xl": 0, "3xl": 0, "4xl": 0 },
     headingWeights: { h1: 700, h2: 600, h3: 600, h4: 500 },
   },
+  siteTitleSize: 0,
 };
 
 describe("applyCssVariables", () => {

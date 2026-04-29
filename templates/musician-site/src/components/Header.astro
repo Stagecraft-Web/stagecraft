@@ -1,12 +1,13 @@
 ---
 import { Image } from "astro:assets";
-import { buildNav, getHomeHref, getHeaderAndNavConfig, getSiteConfig } from "../lib/content";
+import { buildNav, getHomeHref, getHeaderAndNavConfig, getSiteConfig, getAppearance } from "../lib/content";
 import { resolveImage } from "../lib/resolve-image";
 import { isStickyHeader, isTransparentHeader } from "../lib/schemas";
 
 const nav = await buildNav();
 const site = getSiteConfig();
 const headerConfig = getHeaderAndNavConfig();
+const appearance = getAppearance();
 const currentPath = Astro.url.pathname;
 
 // Resolve the wordmark image path (e.g. "../../assets/images/wordmark.svg")
@@ -41,9 +42,9 @@ const headerSubtitle = !hasWordmark ? (headerConfig.headerSubtitle?.trim() ?? ""
 const hasSubtitle = headerSubtitle.length > 0;
 
 // Size-adjust multipliers — hand-picked to feel like coarse "notches" rather
-// than a linear scale. Applied to the wordmark's max-height (against the
-// baseline 2.25rem). Keys stringified to match JSON-on-disk shape from the
-// Keystatic select.
+// than a linear scale. Applied to both the wordmark image's max-height
+// (against the baseline 2.25rem) and the plain-text site title's font-size
+// (against --font-size-lg) so the two header variants scale together.
 const SIZE_MULTIPLIERS: Record<string, number> = {
   "-2": 0.72,
   "-1": 0.85,
@@ -51,7 +52,7 @@ const SIZE_MULTIPLIERS: Record<string, number> = {
   "1": 1.15,
   "2": 1.35,
 };
-const wordmarkSizeMultiplier = SIZE_MULTIPLIERS[String(headerConfig.wordmarkSizeAdjust)] ?? 1;
+const siteTitleSizeMultiplier = SIZE_MULTIPLIERS[String(appearance.siteTitleSize)] ?? 1;
 
 // For `logo-center-nav-split`, split the nav list in half by index so one
 // half renders left of the centered logo and the other renders right. We
@@ -64,12 +65,12 @@ const splitAt = isSplitLayout ? Math.ceil(nav.length / 2) : nav.length;
 const navLeft = isSplitLayout ? nav.slice(0, splitAt) : nav;
 const navRight = isSplitLayout ? nav.slice(splitAt) : [];
 
-// Build a single style string that carries both the §2.2 foreground color
-// (conditional) and the §2.3 wordmark multiplier (always, since Zod defaults
+// Build a single style string that carries the §2.2 foreground color
+// (conditional) and the site-title multiplier (always, since Zod defaults
 // it to 0 → 1x). Empty-string foreground falls through the CSS fallback.
 const inlineStyles = [
   hasHeaderForeground ? `--header-fg: ${headerForegroundColor}` : null,
-  `--header-wordmark-multiplier: ${wordmarkSizeMultiplier}`,
+  `--site-title-multiplier: ${siteTitleSizeMultiplier}`,
 ]
   .filter(Boolean)
   .join("; ");
@@ -230,11 +231,10 @@ const innerClasses = [
 
   .site-title {
     font-family: var(--font-heading);
-    /* Sized by the `lg` font-size bucket (appearance.json). To make the
-       artist name larger or smaller, edit that bucket — the wordmark
-       has its own size knob (--header-wordmark-multiplier) so the two
-       can be tuned independently. */
-    font-size: var(--font-size-lg);
+    /* Sized by the `lg` font-size bucket scaled by the site-title multiplier
+       (appearance.siteTitleSize). The same multiplier scales the wordmark
+       image's max-height below — one knob for both header variants. */
+    font-size: calc(var(--font-size-lg) * var(--site-title-multiplier, 1));
     font-weight: var(--font-weight-bold);
   }
 
@@ -259,11 +259,11 @@ const innerClasses = [
     letter-spacing: normal;
   }
 
-  /* Wordmark renders at a max-height scaled by --header-wordmark-multiplier
-     (driven by `wordmarkSizeAdjust` in header.json). Width is auto so the
-     aspect ratio is preserved. */
+  /* Wordmark renders at a max-height scaled by --site-title-multiplier
+     (driven by appearance.siteTitleSize). Width is auto so the aspect
+     ratio is preserved. */
   .site-wordmark {
-    max-height: calc(2.25rem * var(--header-wordmark-multiplier, 1));
+    max-height: calc(2.25rem * var(--site-title-multiplier, 1));
     width: auto;
     display: block;
   }

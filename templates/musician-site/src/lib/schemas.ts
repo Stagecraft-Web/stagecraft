@@ -83,16 +83,19 @@ export const wordmarkSchema = z.object({
   alt: z.string().min(1),
 });
 
-// Overlay painted over a page-background image for text legibility. Split
-// into a color + opacity rather than a single rgba() string so the Keystatic
-// admin can expose each knob independently (and the opacity can have a
-// range-clamped numeric input). Defaults to a lightly-darkened overlay
-// (black @ 30%) — equivalent to the spec's rgba(0,0,0,0.3).
-export const pageBackgroundOverlaySchema = z.object({
-  color: z.string().min(1).default("#000000"),
-  opacity: z.number().min(0).max(1).default(0.3),
+// Site background image — decorative photo painted behind page content.
+// Authored as just a `src` path; the renderer uses `alt=""` because the
+// image is purely decorative (its wrapper is aria-hidden). The dark overlay
+// painted on top is fixed at black @ 85% (PAGE_BG_OVERLAY_OPACITY).
+export const siteBackgroundSchema = z.object({
+  src: z.string().min(1),
 });
-export type PageBackgroundOverlay = z.infer<typeof pageBackgroundOverlaySchema>;
+export type SiteBackground = z.infer<typeof siteBackgroundSchema>;
+
+// Site background overlay — fixed at 85% black. Authoring it would let pages
+// override readability for text, which the design doesn't want — pick a
+// background that already plays well with white text or skip it.
+export const PAGE_BG_OVERLAY_OPACITY = 0.85;
 
 // Header mode — a single discriminator that bundles the two valid
 // header configurations into one author-facing choice. Splitting style
@@ -169,14 +172,10 @@ export const siteConfigSchema = z.object({
   // in BaseLayout points here instead of the default `/favicons/favicon.svg`
   // shipped in `public/`.
   favicon: z.string().min(1).optional(),
-  // Site-wide default background image painted behind all page content. Each
-  // page may override this via page frontmatter (pageBackground). Absent =
-  // no background (plain --color-bg). Required shape: src + alt.
-  pageBackground: optionalImageFromConditional(imageMetadataSchema).optional(),
-  // Tint painted over `pageBackground` for text legibility. When the
-  // background is unset the overlay is ignored. Defaults kick in when the
-  // field is present but `color`/`opacity` are missing.
-  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
+  // Site-wide background image painted behind all page content. Absent =
+  // no background (plain --color-bg). The renderer paints a fixed black @
+  // 85% overlay on top for text legibility — not configurable.
+  siteBackground: optionalImageFromConditional(siteBackgroundSchema).optional(),
   siteTitle: z.string().min(1),
   siteDescription: z.string(),
   socialLinks: z.record(z.string()),
@@ -209,12 +208,6 @@ const optionalWordmark = optionalImageFromConditional(wordmarkSchema).optional()
 // relationship field) and owns both nav membership and order.
 export const headerAndNavSchema = z.object({
   wordmark: optionalWordmark,
-  // Relative multiplier applied to the wordmark image's `max-height`.
-  // Only meaningful when a wordmark image is set; ignored for the
-  // text-only variant (artist-name text is sized via the `lg` font-size
-  // bucket in appearance.json). Keystatic's `fields.select` emits the
-  // value as a string ("0", "-1", …), so we coerce before range-checking.
-  wordmarkSizeAdjust: z.coerce.number().int().min(-2).max(2).default(0),
   // Single header-behavior discriminator (style + position). Defaulted
   // so existing config files without the key keep parsing — the admin
   // UI surfaces it explicitly, but runtime consumers can treat it as
@@ -326,19 +319,19 @@ const fontWeightSchema = z.coerce
   .max(900)
   .refine((w) => w % 100 === 0, { message: "Weight must be a multiple of 100 (100–900)" });
 
-// Heading font is stored as a Keystatic conditional keyed on mode:
-//   - "single" → no heading-specific font; body font is used for everything
-//   - "split"  → value is the heading FontSelection
+// Heading font is stored as a Keystatic conditional keyed on a checkbox:
+//   - true  → headings use the body font (no separate heading FontSelection)
+//   - false → value is the heading FontSelection
 // We validate that discriminated union and transform it into a flat
 // { mode, heading } pair so downstream code doesn't need to unwrap Keystatic
 // internals.
 const headingSelectionSchema = z
   .discriminatedUnion("discriminant", [
-    z.object({ discriminant: z.literal("single"), value: z.null() }),
-    z.object({ discriminant: z.literal("split"), value: fontSelectionSchema }),
+    z.object({ discriminant: z.literal(true), value: z.null() }),
+    z.object({ discriminant: z.literal(false), value: fontSelectionSchema }),
   ])
   .transform((input) =>
-    input.discriminant === "single"
+    input.discriminant === true
       ? { mode: "single" as const, heading: null }
       : { mode: "split" as const, heading: input.value },
   );
@@ -492,6 +485,11 @@ export const appearanceSchema = z
       headingSizes: headingSizesSchema,
       headingWeights: headingWeightsSchema.default({}),
     }),
+    // Relative multiplier scaling the site title in the header — applied to
+    // both the plain-text artist-name and the wordmark image when one is
+    // uploaded. Keystatic emits the select value as a string ("0", "-1", …),
+    // coerced here before range-checking. -2 ≈ 0.72×, +2 ≈ 1.35×.
+    siteTitleSize: z.coerce.number().int().min(-2).max(2).default(0),
   })
   .transform((input) => ({
     colors: {
@@ -503,6 +501,7 @@ export const appearanceSchema = z
           ? input.colors.linkColor
           : input.colors.accent,
     },
+    siteTitleSize: input.siteTitleSize,
     typography: {
       primary: input.typography.primary,
       mode: input.typography.heading.mode,
@@ -580,13 +579,6 @@ export const pageFrontmatterSchema = z.object({
   // Per-page override for the site-level footer toggle. When set, this value
   // wins for this page only; leave unset to inherit the site-level default.
   isFooterHidden: z.boolean().optional(),
-  // Per-page background override. When set, replaces the site-wide
-  // pageBackground for this page only; when absent, the page inherits the
-  // site-level default. Splash pages ignore this entirely (they render their
-  // own full-bleed imagery via FullscreenSection).
-  pageBackground: optionalImageFromConditional(imageMetadataSchema).optional(),
-  // Per-page overlay override. Same inheritance rules as pageBackground.
-  pageBackgroundOverlay: pageBackgroundOverlaySchema.optional(),
 });
 
 // ============================================================

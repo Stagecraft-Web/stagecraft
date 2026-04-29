@@ -614,6 +614,7 @@ export default config({
       slugField: "title",
       path: "src/content/pages/*",
       format: { contentField: "content" },
+      entryLayout: 'content',
       schema: {
         title: fields.slug({ name: { label: "Page Title", validation: { isRequired: true } } }),
         isSplashPage: fields.checkbox({
@@ -871,6 +872,7 @@ export default config({
       slugField: "title",
       path: "src/content/collections/posts/*",
       format: { contentField: "content" },
+      entryLayout: 'content',
       schema: {
         title: fields.slug({ name: { label: "Title", validation: { isRequired: true } } }),
         publishedDate: fields.date({ label: "Published Date", validation: { isRequired: true } }),

@@ -1,7 +1,7 @@
 # ADR-007: Musician Site Template — File-Based Visual Editor
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The current `templates/musician-site/` is Astro + Keystatic + Markdoc. Content lives on disk under `src/content/`, validated by Zod schemas in `src/lib/schemas.ts` (per the schema-first conventions in `templates/musician-site/CLAUDE.md`). Keystatic's admin is form-driven; editing page layout means editing `.mdoc` files with custom Markdoc tags.
@@ -13,7 +13,7 @@ Astro's `.astro` components are server-only — they don't run in browsers — w
 ## Decision
 Rebuild the musician-site template on **Next.js + Puck**, with content stored as JSON / Markdown in the artist's repo, edited via Puck mounted at `/admin`, and published via a Stagecraft-owned **GitHub App** that commits on the artist's behalf.
 
-The new template will live at `templates/musician-site-next/` during migration; the existing Astro template stays in place until parity is reached.
+The existing Astro template is renamed to `templates/musician-site-legacy/`; the new template takes its place at `templates/musician-site/`. Cross-repo references to the existing path (CI workflows, platform code, skills, ADRs) update to `templates/musician-site-legacy/` in the same change set so the legacy template stays operational.
 
 ### 1. Runtime framework: Next.js (App Router)
 - One deployable unit serves the public site, the `/admin` editor, and the `/api/*` functions for publish + image upload.
@@ -28,7 +28,7 @@ The new template will live at `templates/musician-site-next/` during migration; 
 - Rich text within a block: **Tiptap**, wired as a Puck custom field component.
 
 ### 3. Schema split: Puck-native blocks, Zod for collections
-- **Page-level block schemas live in Puck's `Config`** (`templates/musician-site-next/src/puck/config.ts`). That config is the source of truth for blocks: their fields, defaults, allowed values, and render. No `zodToPuckField` adapter; no derivation from `src/lib/schemas.ts` for block fields. Idiomatic Puck wins over cross-system DRY.
+- **Page-level block schemas live in Puck's `Config`** (`templates/musician-site/src/puck/config.ts`). That config is the source of truth for blocks: their fields, defaults, allowed values, and render. No `zodToPuckField` adapter; no derivation from `src/lib/schemas.ts` for block fields. Idiomatic Puck wins over cross-system DRY.
 - **Structured content collections** (releases, tour dates, posts, store items) keep using Zod schemas in `src/lib/schemas.ts` with `as const` enums (per the existing CLAUDE.md rule). These collections feed dynamic blocks (e.g. a `TourDates` block that lists upcoming shows) but the block's *config* — what props the artist sets in the editor — is pure Puck.
 - Where a Puck block needs to reference a collection enum (e.g. a "filter by status" prop), the block config can import the const array and map it to Puck `select` options inline. That's a one-line lookup, not an adapter.
 
@@ -81,7 +81,7 @@ The new template will live at `templates/musician-site-next/` during migration; 
 
 ## Consequences
 
-- **Two templates coexist during migration.** `templates/musician-site/` (Astro) stays operational until `templates/musician-site-next/` reaches feature parity. Skills that reference Keystatic config (e.g. `recreate-artist-site`) keep working against the old template.
+- **Two templates coexist during migration.** The Astro template moves to `templates/musician-site-legacy/` and stays operational; the new template builds up at `templates/musician-site/` until it reaches parity. Skills that reference Keystatic config (e.g. `recreate-artist-site`) update their paths to `templates/musician-site-legacy/` in the rename change set.
 - **Platform app unchanged.** ADR-001 (Next.js for `apps/web`) stands. ADR-006 (NextAuth + GitHub OAuth for the platform) stands. Site-level auth is independent (magic link, single email).
 - **New shared concerns surface in `packages/shared`.** Image-metadata types and GitHub-commit helpers belong there if they're used by both the template and platform tooling. Puck `Config` itself stays inside the template — it's template-specific, not cross-package.
 - **Block schemas diverge from the SSOT rule in `templates/musician-site/CLAUDE.md` §1.** That rule continues to apply to Zod-validated collection content. Puck block configs are exempt: they're written idiomatically per Puck's docs, even when that means duplicating an enum literal at a block-config site. The trade is intentional — fighting Puck's idioms costs more than the duplication it would prevent.

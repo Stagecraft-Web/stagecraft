@@ -83,6 +83,10 @@ Middleware (`src/middleware.ts`) gates `/admin/*` and `/api/save`. `/admin/login
 
 **Server-side session access:** `getSession()` from `@/lib/auth` reads the cookie and verifies it. Use it in Server Components and route handlers.
 
+**Local setup:** copy `.env.example` to `.env.local` and fill in `MAGIC_LINK_SIGNING_SECRET` + `ADMIN_EMAIL`. With `RESEND_API_KEY` unset, magic links log to the dev server console. In dev only, the request handler also emits a `console.warn` when `ADMIN_EMAIL` is missing or the submitted email doesn't match — production stays silent to prevent enumeration.
+
+**Logging out:** the editor header shows the signed-in email and a Sign out button that POSTs to `/api/auth/logout`. The endpoint is POST-only by design — a GET logout would be a CSRF foot-gun (any external `<img src>` could log everyone out).
+
 ## What's intentionally not here yet
 
 - GitHub App publish flow (per ADR-008; current `/api/save` writes to local disk)

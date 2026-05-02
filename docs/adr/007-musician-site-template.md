@@ -56,6 +56,8 @@ The new template will live at `templates/musician-site-next/` during migration; 
 - Image metadata (`width`, `height`, `blurhash`, `alt`) lives inline in the content JSON; `imageMetadataSchema` extends to include it.
 - A single `<Image>` React component reads the metadata and renders a `<picture>` with `srcset` / `sizes` and the placeholder.
 - No external image CDN; `public/` is the CDN.
+- **Dedup by content hash.** `<image-id>` is the first 16 chars of the SHA-256 of the original bytes. Before processing, the function checks GitHub for an existing `original.<ext>` at the target path (one `GET /contents` call); if present, `sharp` is skipped, no commit is made, and the existing metadata is returned. Re-uploading the same file is a no-op. Byte-level dedup only — re-encodes of the same photo are reprocessed, which is acceptable.
+- **Variant-scheme migrations are out of band.** Adding or changing widths/formats is a one-shot maintenance script that walks `public/images/`, reads each `original.<ext>`, and writes the new variants. Not part of the live publish path.
 
 ### 7. Drafts: `localStorage` (v1)
 - Single-editor, single-device assumption — drafts persist in `localStorage` until publish.

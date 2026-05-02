@@ -16,13 +16,14 @@ type Props = {
 export function Editor({ initialData, pageSlug, email }: Props) {
   const onPublish = useCallback(
     async (data: PageData) => {
-      const res = await fetch("/api/save", {
+      const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug: pageSlug, data }),
+        body: JSON.stringify({ pageSlug, data }),
       });
       if (!res.ok) {
-        throw new Error(`Save failed: ${res.status}`);
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(`Publish failed: ${body?.error ?? res.status}`);
       }
     },
     [pageSlug],

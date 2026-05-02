@@ -9,4 +9,12 @@ export default [
   {
     ignores: [".next/**", "node_modules/**"],
   },
+  {
+    rules: {
+      // Our <Image> wrapper derives alt from the ImageMetadata it receives;
+      // it doesn't take a separate alt prop. Don't apply Next's alt-text
+      // rule to custom components named "Image" in this codebase.
+      "jsx-a11y/alt-text": ["warn", { img: ["img"] }],
+    },
+  },
 ];

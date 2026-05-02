@@ -1,11 +1,11 @@
 ---
 name: recreate-artist-site
-description: Use when the user wants to recreate a previously-crawled artist website using the stagecraft musician-site template. Consumes a crawl output directory (produced by the crawl-artist-site skill) and produces a filled-in musician-site instance — theme tokens, pages, collections, assets — at a target directory. Trigger phrases include "recreate this site", "build the site from the crawl", "use the crawl of X to make a stagecraft site", or any task that references an existing crawl directory (under `.claude/runs/<run-id>/crawls/<slug>/` or the legacy `.claude/site-crawls/<slug>/`) and asks for a site rebuild.
+description: Use when the user wants to recreate a previously-crawled artist website using the stagecraft musician-site-legacy template. Consumes a crawl output directory (produced by the crawl-artist-site skill) and produces a filled-in musician-site-legacy instance — theme tokens, pages, collections, assets — at a target directory. Trigger phrases include "recreate this site", "build the site from the crawl", "use the crawl of X to make a stagecraft site", or any task that references an existing crawl directory (under `.claude/runs/<run-id>/crawls/<slug>/` or the legacy `.claude/site-crawls/<slug>/`) and asks for a site rebuild.
 ---
 
 # Recreate Artist Site
 
-Turn a site-crawl output into a working musician-site instance using the stagecraft template. This is the follow-up to `crawl-artist-site` — run that first if no crawl exists yet. If a crawl already exists, this skill consumes it directly without re-crawling.
+Turn a site-crawl output into a working musician-site-legacy instance using the stagecraft template. This is the follow-up to `crawl-artist-site` — run that first if no crawl exists yet. If a crawl already exists, this skill consumes it directly without re-crawling.
 
 ## Inputs
 
@@ -30,13 +30,13 @@ If multiple candidates exist and the caller is the pipeline, prefer the one the 
 
 Before starting, verify you can read the stagecraft template:
 
-- `templates/musician-site/` exists in the current repo (OR the invocation explicitly names a template path in another repo — cross-repo reads via Bash `cp -R` work even when the target-dir is elsewhere)
-- `templates/musician-site/src/content-components/index.ts` — the authoritative registry of embeddable components. Read it to enumerate the current set; do NOT rely on memory or the example list elsewhere in this skill.
-- `templates/musician-site/keystatic.config.ts` — **the canonical authoring surface.** Read it. Singletons, collections, page-body components, and per-component fields (with their `description` strings, defaults, and select options) are all defined here. This is the contract a real editor sees.
-- `templates/musician-site/src/content-components/<Name>/schema.ts` — per-component schemas. Each exports `markdoc` (the Markdoc tag) and `keystatic` (the Keystatic field config). The Keystatic config is what authors actually use; the Markdoc tag is a superset that may include attributes Keystatic doesn't expose.
-- `templates/musician-site/src/content-components/_shared/types.ts` — UI/attribute enums (heading levels, button variants, columns layouts, etc.). When a component has a select field, its options come from here.
-- `templates/musician-site/src/content/` — existing example pages and singletons (site config, nav, theme) that show the expected shapes
-- `templates/musician-site/src/lib/schemas.*` — zod schemas for singletons and data-shape enums; consult these when writing config files
+- `templates/musician-site-legacy/` exists in the current repo (OR the invocation explicitly names a template path in another repo — cross-repo reads via Bash `cp -R` work even when the target-dir is elsewhere)
+- `templates/musician-site-legacy/src/content-components/index.ts` — the authoritative registry of embeddable components. Read it to enumerate the current set; do NOT rely on memory or the example list elsewhere in this skill.
+- `templates/musician-site-legacy/keystatic.config.ts` — **the canonical authoring surface.** Read it. Singletons, collections, page-body components, and per-component fields (with their `description` strings, defaults, and select options) are all defined here. This is the contract a real editor sees.
+- `templates/musician-site-legacy/src/content-components/<Name>/schema.ts` — per-component schemas. Each exports `markdoc` (the Markdoc tag) and `keystatic` (the Keystatic field config). The Keystatic config is what authors actually use; the Markdoc tag is a superset that may include attributes Keystatic doesn't expose.
+- `templates/musician-site-legacy/src/content-components/_shared/types.ts` — UI/attribute enums (heading levels, button variants, columns layouts, etc.). When a component has a select field, its options come from here.
+- `templates/musician-site-legacy/src/content/` — existing example pages and singletons (site config, nav, theme) that show the expected shapes
+- `templates/musician-site-legacy/src/lib/schemas.*` — zod schemas for singletons and data-shape enums; consult these when writing config files
 
 ### Keystatic is the canonical authoring surface
 
@@ -150,7 +150,7 @@ Pages that don't fit cleanly: approximate with the closest authoring-reachable c
 
 ### 4. Create the target
 
-1. If target is a fresh path (not an existing site), **copy** `templates/musician-site/` to the target directory preserving structure. Use `cp -R`.
+1. If target is a fresh path (not an existing site), **copy** `templates/musician-site-legacy/` to the target directory preserving structure. Use `cp -R`.
 2. Replace the default content in:
    - `src/content/site/` (or wherever the site singleton lives — consult the keystatic config)
    - `src/content/navigation/` or similar

@@ -19,7 +19,8 @@ Use a **monorepo with npm workspaces and Turborepo** for build orchestration.
     queue/            # Job abstraction layer
     shared/           # Shared types and utilities
   templates/
-    musician-site/    # Canonical Astro + React + TS template (M2)
+    musician-site-legacy/  # Legacy Astro template (superseded by ADR-007)
+    musician-site/         # Current Next.js + Puck template (per ADR-007)
   docs/
     specs/            # Product and technical specs
     adr/              # Architecture decision records

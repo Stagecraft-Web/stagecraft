@@ -14,9 +14,11 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.0",
     "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^22.0.1",
     "@stagecraft/db": "*",
     "@stagecraft/queue": "*",
     "@stagecraft/shared": "*",
+    "jose": "^6.2.3",
     "next": "^15.2.0",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",

@@ -55,6 +55,8 @@ interface Site {
   blueprintType: string;
   githubRepoOwner?: string;
   githubRepoName?: string;
+  githubInstallationId?: number | null;
+  githubAppSuspended?: boolean;
   netlifySiteId?: string;
   netlifyAdminUrl?: string;
   productionUrl?: string;
@@ -70,6 +72,7 @@ export default function SiteDetailPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -162,6 +165,23 @@ export default function SiteDetailPage() {
     }
   }
 
+  async function handleConnectGithubApp() {
+    setIsConnecting(true);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/install-url`);
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data.error || "Could not start install flow");
+    } catch {
+      setError("Could not start install flow");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
   async function handleDelete() {
     if (deleteConfirmName !== site!.name) return;
     setIsDeleting(true);
@@ -221,6 +241,40 @@ export default function SiteDetailPage() {
         {isArchived && "This site is archived. The GitHub repo is read-only."}
       </div>
 
+      {/* GitHub App publishing — connect / suspended states */}
+      {!isArchived && !site.githubInstallationId && (
+        <div style={{
+          padding: "1rem",
+          background: "var(--color-info-bg)",
+          border: `1px solid var(--color-info-border)`,
+          borderRadius: "var(--radius-sm)",
+          marginBottom: "1rem",
+        }}>
+          <strong>Connect your GitHub App for publishing</strong>
+          <p style={{ margin: "0.5rem 0 0.75rem", fontSize: "var(--font-size-sm)", color: "var(--color-text-faint)" }}>
+            Install the Stagecraft GitHub App on this site&rsquo;s repo so the editor can publish edits as commits. You&rsquo;ll see your broker secret once after install &mdash; copy it to your site&rsquo;s deployment env vars.
+          </p>
+          <Button onClick={handleConnectGithubApp} isDisabled={isConnecting} size="sm">
+            {isConnecting ? "Starting install…" : "Connect GitHub App"}
+          </Button>
+        </div>
+      )}
+
+      {site.githubInstallationId && site.githubAppSuspended && (
+        <div style={{
+          padding: "1rem",
+          background: "var(--color-warning-bg)",
+          border: `1px solid var(--color-warning-border)`,
+          borderRadius: "var(--radius-sm)",
+          marginBottom: "1rem",
+        }}>
+          <strong>GitHub App is suspended</strong>
+          <p style={{ margin: "0.5rem 0 0", fontSize: "var(--font-size-sm)", color: "var(--color-text-faint)" }}>
+            Publishing is paused until the App is unsuspended on GitHub.
+          </p>
+        </div>
+      )}
+
       {needsRepoLink && netlifyLinkRepoUrl && (
         <div style={{
           padding: "1rem",
@@ -255,6 +309,16 @@ export default function SiteDetailPage() {
                 </td>
               </tr>
             )}
+            <tr>
+              <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>GitHub App</td>
+              <td style={{ padding: "0.5rem" }}>
+                {site.githubInstallationId
+                  ? site.githubAppSuspended
+                    ? <span style={{ color: "var(--color-warning)" }}>installed (suspended)</span>
+                    : <span style={{ color: "var(--color-success)" }}>installed</span>
+                  : <span style={{ color: "var(--color-text-muted)" }}>not connected</span>}
+              </td>
+            </tr>
             {site.netlifyAdminUrl && (
               <tr>
                 <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Netlify</td>

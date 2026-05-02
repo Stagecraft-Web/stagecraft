@@ -29,7 +29,12 @@ export async function GET(
     return NextResponse.json({ error: "Site not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ site });
+  // Never leak the broker secret hash to the client. Even though it's
+  // a hash, there's no client-side use for it and exposure widens the
+  // attack surface for any future weaknesses.
+  const { brokerSecretHash, ...safeSite } = site;
+  void brokerSecretHash;
+  return NextResponse.json({ site: safeSite });
 }
 
 export async function PATCH(

@@ -92,9 +92,12 @@ model Site {
   slug                String   @unique
   status              String   @default("creating") // creating | active | error | archived
   blueprintType       String   // solo-artist | band | composer-educator | epk-focused | tour-focused
-  githubRepoOwner     String?
-  githubRepoName      String?
-  githubDefaultBranch String   @default("main")
+  githubRepoOwner       String?
+  githubRepoName        String?
+  githubDefaultBranch   String   @default("main")
+  githubInstallationId  Int?
+  githubAppSuspended    Boolean  @default(false)
+  brokerSecretHash      String?  @db.Text
   netlifySiteId       String?
   netlifyAdminUrl     String?
   productionUrl       String?

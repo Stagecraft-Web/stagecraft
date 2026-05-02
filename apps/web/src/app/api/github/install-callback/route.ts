@@ -28,15 +28,39 @@ function escape(s: string): string {
 }
 
 function page(title: string, content: string): string {
+  // Token definitions mirror apps/web/src/app/globals.css. Inlined here
+  // because this route returns raw HTML (not a Next.js page), so the
+  // layout's globals.css import doesn't apply. Consumer rules below use
+  // var(--*) only — no raw hex / px. Per CLAUDE.md §7.
   return `<html><head><title>${escape(title)}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
-body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; color: #111; }
-h1 { font-size: 1.5rem; }
-code { background: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 4px; font-size: 0.95em; }
-pre { background: #f3f4f6; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.9em; }
-.error { color: #b91c1c; }
-.ok { color: #047857; }
-.warn { color: #92400e; }
-a.button { display: inline-block; padding: 0.5rem 1rem; background: #111; color: #fff; text-decoration: none; border-radius: 6px; margin-top: 1rem; }
+:root {
+  --color-text: #111827;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f3f4f6;
+  --color-success: #15803d;
+  --color-warning: #92400e;
+  --color-error: #cc0000;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-2xl: 1.5rem;
+  --line-height-base: 1.6;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --space-12: 3rem;
+  --max-width-narrow: 40rem;
+  --radius-sm: 0.25rem;
+  --radius: 0.375rem;
+}
+body { font: var(--font-size-base)/var(--line-height-base) var(--font-body); max-width: var(--max-width-narrow); margin: var(--space-12) auto; padding: 0 var(--space-4); color: var(--color-text); }
+h1 { font-size: var(--font-size-2xl); }
+code { background: var(--color-surface-raised); padding: var(--space-1) var(--space-1); border-radius: var(--radius-sm); font-size: var(--font-size-sm); }
+pre { background: var(--color-surface-raised); padding: var(--space-4); border-radius: var(--radius); overflow-x: auto; font-size: var(--font-size-sm); }
+.error { color: var(--color-error); }
+.ok { color: var(--color-success); }
+.warn { color: var(--color-warning); }
+a.button { display: inline-block; padding: var(--space-2) var(--space-4); background: var(--color-text); color: var(--color-surface); text-decoration: none; border-radius: var(--radius); margin-top: var(--space-4); }
 </style></head><body>${content}</body></html>`;
 }
 

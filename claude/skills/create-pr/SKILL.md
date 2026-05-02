@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Use when opening or revising a pull request in the stagecraft monorepo. Enforces the screenshots convention — PRs that change rendered UI (public site or Keystatic admin) must embed screenshots from a public gist, since this repo is private and in-tree / raw.githubusercontent URLs don't render anonymously. Trigger phrases include "create a PR", "open a pull request", "update my PR description", or any task where a branch is ready for review.
+description: Use when opening or revising a pull request in the stagecraft monorepo. Enforces the screenshots convention — PRs that change rendered UI (public site or Keystatic admin) must embed screenshots from a public gist, since this repo is private and in-tree / raw.githubusercontent URLs don't render anonymously. Cloud Claude Code sessions commit captures to .pr-screenshots/ and a CI workflow relays them to a gist; local sessions can also run the gist push manually. Trigger phrases include "create a PR", "open a pull request", "update my PR description", or any task where a branch is ready for review.
 ---
 
 # Create PR
@@ -51,7 +51,11 @@ views, append the item slug: `admin-releases-item-first-album.png`.
 
 ## Workflow
 
-### 1. Capture
+There are two paths. Cloud Claude Code sessions (sandboxed VMs without
+`gh` CLI access) use the **automated relay**. Local sessions with a
+working `gh` auth can use either, but the relay is shorter.
+
+### Capture
 
 For the musician-site-legacy template, use the helper script — it covers
 site home, each nav page, and the Keystatic admin views:
@@ -63,14 +67,51 @@ npm run dev
 
 # Terminal 2: capture
 node scripts/capture-pr-screenshots.mjs http://localhost:4321 \
-     /tmp/pr-<N>-screenshots
+     <output-dir>
 ```
 
-See the script header for flags (`--only`, `--jpeg-quality`,
-`--site-format`). For other projects, capture manually at 1440×900
+`<output-dir>` is `.pr-screenshots/` at the repo root for the relay path,
+or `/tmp/pr-<N>-screenshots/` for the manual path. See the script
+header for flags (`--only`, `--jpeg-quality`, `--site-format`). For
+other projects (apps/web, musician-site), capture manually at 1440×900
 using the same naming convention.
 
-### 2. Upload to a public gist
+### Path A: Automated relay (cloud sessions, default)
+
+1. Capture screenshots into `.pr-screenshots/` at the repo root.
+2. Commit those files to the PR branch (use `mcp__github__push_files`
+   in cloud sessions).
+3. In the PR body, reference each screenshot by basename-without-ext via
+   a placeholder comment:
+
+   ```markdown
+   ## Screenshots
+
+   ### Site
+   <!-- screenshot:site-home -->
+
+   ### Admin
+   <!-- screenshot:admin-releases -->
+   ```
+
+   Placeholders are optional. Any uploaded file without a matching
+   placeholder gets appended under a `## Screenshots` section
+   automatically.
+4. Push the PR. The `.github/workflows/pr-screenshots.yml` workflow will:
+   - Push the images to a per-PR public gist (created on first run,
+     reused after).
+   - Replace each placeholder with rendered image markdown, or append
+     unmatched files under a `## Screenshots` section.
+   - Commit a `[skip ci]` cleanup that removes `.pr-screenshots/` from
+     the branch so binary blobs don't pile up.
+
+   The workflow only runs on PRs from this repo (not forks) and needs a
+   `GIST_TOKEN` secret — a PAT with the `gist` scope. One-time repo
+   admin setup.
+
+### Path B: Manual gist upload (fallback)
+
+For local sessions when you'd rather skip the CI round-trip:
 
 ```bash
 # Seed the gist (needs at least one file to create it)
@@ -92,7 +133,7 @@ git remote set-url origin \
 git push
 ```
 
-### 3. Embed in the PR body
+Then embed in the PR body:
 
 ```markdown
 ## Screenshots

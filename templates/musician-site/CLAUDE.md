@@ -49,6 +49,18 @@ ADR-007 §3 — collections keep the Zod SSOT discipline). Puck blocks
 that consume those collections (e.g. a `TourDates` block listing
 upcoming shows) read them at render time.
 
+## Design tokens
+
+Follows the monorepo-wide rule in the root `CLAUDE.md` §7. All visual
+values (colors, fonts, spacing, sizes, radii, shadows) come from CSS
+custom properties — no hardcoded hex, sizes, or weights in CSS, in
+inline `style={...}` props, or in HTML returned from route handlers.
+
+Token definitions ship with the template's CSS as the styling layer
+lands. Use the shared prefix conventions (`--color-*`, `--font-size-*`,
+`--font-weight-*`, `--space-*`, `--radius-*`, `--shadow-*`) so the
+naming stays consistent with `apps/web/` and the legacy template.
+
 ## Validation
 
 ```bash

@@ -247,31 +247,8 @@ authoring surfaces curate).
 
 ### Design tokens
 
-All visual values (colors, fonts, spacing) use CSS custom properties.
-Never hardcode hex colors, font sizes, or font weights in component
-styles.
-
-| Category      | Prefix              | Example                                          |
-| ------------- | ------------------- | ------------------------------------------------ |
-| Colors        | `--color-*`         | `var(--color-primary)`                           |
-| Font sizes    | `--font-size-*`     | `var(--font-size-base)`                          |
-| Font weights  | `--font-weight-*`   | `var(--font-weight-medium)`                      |
-| Font families | `--font-*`          | `var(--font-heading)`, `var(--font-body)`        |
-| Layout        | `--max-content`, `--max-text`, `--radius` |                            |
-| Breakpoints   | `--breakpoint-*`    | Reference only — see below                       |
-
-CSS custom properties cannot appear in `@media` queries. Use literal
-pixel values with a comment:
-
-```css
-/* --breakpoint-md (768px) */
-@media (max-width: 768px) { ... }
-```
-
-Token values flow: `src/content/config/appearance.json` (CMS-editable)
-→ injected via `BaseLayout.astro` → consumed by `src/styles/global.css`.
-Non-CMS tokens (font-size scale, spacing, breakpoints) live in
-`src/content/config/theme.json`.
+See §7. The rule applies here too; the per-location token source for
+this template is documented there.
 
 ### Boolean props
 
@@ -299,6 +276,62 @@ CSS modules (`.module.css`). No CSS-in-JS.
 - Don't introduce new dependencies without justification.
 - Maintain accessibility (semantic HTML, alt text, keyboard
   navigation, color contrast).
+
+---
+
+## 7. Design tokens
+
+Applies to: `apps/web/`, `templates/musician-site/`,
+`templates/musician-site-legacy/`. The three have separate token sets
+(intentionally — different brand surfaces) but share the same naming
+convention so reviewers can verify adherence the same way everywhere.
+
+All visual values (colors, fonts, spacing, sizes, radii, shadows) use
+CSS custom properties. Never hardcode hex colors, font sizes, font
+weights, or spacing values — in CSS modules, in `globals.css`, in
+inline `style={...}` props, or in inline HTML strings returned from
+route handlers. If you need a literal value (e.g. inside an
+`@media` query), use a token-equivalent comment.
+
+| Category      | Prefix                                  | Example                                       |
+| ------------- | --------------------------------------- | --------------------------------------------- |
+| Colors        | `--color-*`                             | `var(--color-text)`, `var(--color-success)`   |
+| Font sizes    | `--font-size-*`                         | `var(--font-size-base)`                       |
+| Font weights  | `--font-weight-*`                       | `var(--font-weight-semibold)`                 |
+| Font families | `--font-*`                              | `var(--font-body)`, `var(--font-mono)`        |
+| Spacing       | `--space-*`                             | `var(--space-4)`                              |
+| Layout        | `--max-*`, `--radius-*`                 | `var(--max-width-narrow)`, `var(--radius-sm)` |
+| Shadows       | `--shadow-*`                            | `var(--shadow-sm)`                            |
+| Breakpoints   | `--breakpoint-*` (legacy template only) | reference-only — see below                    |
+
+CSS custom properties cannot appear in `@media` queries. Use literal
+pixel values with a comment:
+
+```css
+/* --breakpoint-md (768px) */
+@media (max-width: 768px) { ... }
+```
+
+### Per-location token source
+
+- **`apps/web/`** — `src/app/globals.css` defines the platform's token
+  set. CSS modules (`*.module.css`) and any inline `style={...}` props
+  consume `var(--*)` references — no raw hex, sizes, or weights.
+- **`templates/musician-site/`** — Theme tokens ship with the
+  template's CSS as the styling layer lands. The rule applies the
+  moment any styles are introduced; pick token names matching the
+  prefixes above.
+- **`templates/musician-site-legacy/`** — `src/content/config/appearance.json`
+  (CMS-editable) → injected via `BaseLayout.astro` → consumed by
+  `src/styles/global.css`. Non-CMS tokens (font-size scale, spacing,
+  breakpoints) live in `src/content/config/theme.json`.
+
+### Inline HTML returned from route handlers
+
+API routes that return HTML (e.g. one-off transitional pages) must
+either (a) reference token classes via a stylesheet `<link>`, or (b)
+inline `<style>` blocks whose declarations use `var(--*)` references.
+Do not paste raw hex / px values into an inline `<style>` block.
 
 ---
 

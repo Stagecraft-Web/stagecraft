@@ -1,7 +1,7 @@
 # ADR-008: Stagecraft GitHub App
 
 ## Status
-Proposed
+Accepted (amended 2026-05-02 — see "Amendment" below)
 
 ## Context
 ADR-007 specifies that the new musician-site template publishes content by committing to the artist's GitHub repo via a Stagecraft-owned GitHub App. The publish endpoint runs on the artist's deployed site (a serverless function on Netlify/Vercel), not on the platform. Several decisions follow from that split:
@@ -33,22 +33,24 @@ The artist site's `/api/publish` does not hold the App private key. Instead it r
 ```
 artist-site /api/publish
   → POST https://platform.stagecraft.com/api/publish-token
-      { siteId, sessionToken }   # session = magic-link cookie from ADR-007
-  ← { token, expiresAt }          # GitHub installation token, ~1hr lifetime
+      Authorization: Bearer <STAGECRAFT_BROKER_SECRET>   # per-site shared secret
+      { siteId }
+  ← { ok: true, token, expiresAt, repo: { owner, name } }  # GitHub installation token, ~1hr lifetime
   → uses token to commit via Octokit Git Data API
   → discards token
 ```
 
 - **Why broker, not at-edge:** the App private key is the master credential. Distributing it to every artist site multiplies the blast radius of any single-site compromise. The broker model keeps the master credential confined to the platform's secret manager.
-- **Auth from artist site to platform:** the magic-link session cookie (ADR-007 §4) is forwarded; the broker validates it against the platform DB and confirms the requesting site matches the session's `siteId`.
+- **Auth from artist site to platform:** *per-site shared secret* (`STAGECRAFT_BROKER_SECRET`) sent as `Authorization: Bearer`. The platform stores only the SHA-256 hash on the `Site` row (`brokerSecretHash`); the plaintext is shown to the artist exactly once at install time and lives only in their site's deployment env vars. Comparison is constant-time. **(Amended from earlier draft.)**
 - **Tokens are not cached on the artist site.** Each publish requests a fresh token. Tokens may be cached on the platform for the remaining lifetime to reduce GitHub API calls; cache key is `installationId`.
 - **Rate limiting** lives in the broker, not in the artist site — the broker is the chokepoint for all publishes.
 
 ### 3. Installation flow
 - Artist signs in to the platform via GitHub OAuth (per ADR-006).
-- Platform dashboard shows a "Connect repo" CTA → links to GitHub App install URL with `state` parameter encoding the artist's `siteId`.
-- Artist selects the repo on GitHub's install screen → GitHub redirects to platform `/api/github/install-callback?state=<siteId>&installation_id=<id>`.
-- Callback validates `state`, persists `installationId` and `repoFullName` on the `Site` record.
+- Platform dashboard shows a "Connect repo" CTA → links to `GITHUB_APP_INSTALL_URL` with `state=<signed siteId>` (signed using the platform's session secret to prevent CSRF; expires in 10 min).
+- Artist selects exactly one repo on GitHub's install screen → GitHub redirects to platform `/api/github/install-callback?state=<signed siteId>&installation_id=<id>&setup_action=install`.
+- Callback validates `state` (signature + expiry), confirms the signed-in user owns the `siteId`, fetches the installation's repo via the App, and persists `githubInstallationId`, `githubRepoOwner`, and `githubRepoName` on the `Site` record.
+- **Generates the broker secret** (`generateBrokerSecret()` from `apps/web/src/lib/broker-secret.ts`), stores `brokerSecretHash`, and renders a one-time "reveal" page showing the plaintext with copy-to-env-var instructions. The plaintext is **never persisted** and **never re-displayed** — losing it requires rotation.
 - One installation per repo. Multiple repos under one artist's GitHub account require multiple installations; each maps to a different `Site`.
 
 ### 4. Commit author and committer
@@ -56,15 +58,44 @@ artist-site /api/publish
 - **Author:** the artist's email from the magic-link session, with a chosen name (also from the platform `Site` record). This makes the artist visible in `git log` and GitHub's contribution graph (when they later associate that email with their GitHub account).
 - **Commit messages** include a structured trailer: `Stagecraft-Publish-Id: <uuid>` to enable later auditing / rollback.
 
-### 5. Credential storage
-- App private key (`.pem`) lives in the platform's secret manager (env var on the deployed platform — Netlify/Vercel environment, or a dedicated KMS later). Never committed.
-- Installation IDs are non-secret but are stored in the platform DB (`Site.githubInstallationId`).
-- Webhook secret is a separate env var; used to validate incoming `installation` events.
+### 5. Credential storage and env vars
 
-### 6. Uninstall and revocation
-- `installation.deleted` webhook → mark `Site.githubInstallationId = null`. Subsequent publishes return 409 with a "reinstall the app" CTA.
-- `installation.suspend` webhook → same treatment; the site is read-only until reinstalled.
-- `installation_repositories.removed` event → if the repo for a `Site` is removed but the installation still exists, treat the same as uninstall.
+**Platform (one set, server-side):**
+
+| Var | Purpose |
+|---|---|
+| `GITHUB_APP_ID` | App's numeric id, from GitHub App General page |
+| `GITHUB_APP_PRIVATE_KEY` | Contents of the `.pem` private key. Escaped `\n` newlines are normalized at read time |
+| `GITHUB_APP_WEBHOOK_SECRET` | Validates HMAC signatures on incoming webhook events |
+| `GITHUB_APP_INSTALL_URL` | Where "Connect repo" sends the artist (e.g. `https://github.com/apps/<slug>/installations/new`) |
+
+**Per-artist site (one per `Site`):**
+
+| Var | Purpose |
+|---|---|
+| `STAGECRAFT_PLATFORM_URL` | Base URL of the broker, e.g. `https://platform.stagecraft.com` |
+| `SITE_ID` | The `Site.id` for this deployment |
+| `STAGECRAFT_BROKER_SECRET` | The per-site secret revealed once at install. Used to authenticate to the broker |
+
+**Storage rules:**
+- App private key never leaves the platform's secret manager. Never committed.
+- `Site.brokerSecretHash` stores SHA-256 of the secret; plaintext is never persisted on the platform.
+- `Site.githubInstallationId`, `githubRepoOwner`, `githubRepoName` are non-secret, stored in the platform DB.
+- Artist sites only ever see installation tokens (short-lived) and their own broker secret (set in their deployment env).
+
+### 6. Webhook handling, uninstall, and revocation
+The platform exposes `POST /api/github/webhook` to receive App lifecycle events.
+
+- **Signature validation:** every incoming request's `X-Hub-Signature-256` header is verified via HMAC-SHA256 against `GITHUB_APP_WEBHOOK_SECRET` (constant-time). Invalid → 401.
+- **Idempotency:** GitHub may redeliver. Store the `X-GitHub-Delivery` id and skip duplicates.
+- **Events handled:**
+  - `installation.created` — usually a no-op (the install_callback already wired things up); used as a sanity check.
+  - `installation.suspend` → set `Site.githubAppSuspended = true`. Broker returns 423 until unsuspended.
+  - `installation.unsuspend` → clear `githubAppSuspended`.
+  - `installation.deleted` → null out `githubInstallationId`, `githubRepoOwner`, `githubRepoName`. Broker returns 409 ("reinstall"). Don't drop the broker secret hash — the artist may reinstall on a new repo and we'd want to allow that; rotation is a separate explicit action.
+  - `installation_repositories.removed` → if the removed repo matches `Site.githubRepoName`, treat as uninstall (null out repo fields).
+  - `installation_repositories.added` → log only; we don't auto-attach to new repos (one Site = one repo).
+
 - No automatic re-install attempt; the artist must take explicit action.
 
 ### 7. Failure modes worth noting
@@ -82,9 +113,23 @@ artist-site /api/publish
 
 ## Consequences
 
-- **New platform endpoints.** `/api/publish-token` (POST, token broker), `/api/github/install-callback` (GET, install completion), `/api/github/webhook` (POST, install/uninstall events).
-- **`Site` schema gains fields.** `githubInstallationId: number | null`, `repoFullName: string | null`, `githubAppSuspended: boolean`. Migration via Prisma.
-- **Two GitHub App secrets enter the platform's environment:** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, plus `GITHUB_APP_WEBHOOK_SECRET`.
+- **New platform endpoints.** `/api/publish-token` (POST, token broker — landed in PR #72), `/api/github/install-callback` (GET, install completion), `/api/github/webhook` (POST, lifecycle events).
+- **`Site` schema gains fields** (landed in PR #72): `githubInstallationId Int?`, `githubAppSuspended Boolean`, `brokerSecretHash String?`. (`githubRepoOwner` and `githubRepoName` already existed.)
+- **Four GitHub App env vars enter the platform's environment:** `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_WEBHOOK_SECRET`, `GITHUB_APP_INSTALL_URL`.
 - **Octokit becomes a platform dependency.** `@octokit/auth-app` mints installation tokens; `@octokit/rest` issues commits. Artist sites only see `@octokit/rest` configured with the broker-issued token — not the App auth flow.
-- **First-time artist onboarding gains a step:** install GitHub App after platform sign-in. The platform's onboarding flow needs to handle the case where the artist signs in but hasn't yet installed the App ("connect your repo to publish").
+- **First-time artist onboarding gains a step:** install GitHub App after platform sign-in. Platform UI needs a "Connect repo" CTA and a one-time "broker secret reveal" view.
 - **Repo transfers (artist moves the repo to a new owner) require reinstall.** Documented behavior; the platform detects via `installation_repositories.removed` and prompts.
+
+---
+
+## Amendment (2026-05-02)
+
+This section reconciles the original draft with the implementation that landed in PR #72 and supersedes any conflicting earlier wording.
+
+**Cross-service auth.** Original §2 sketched broker auth as "forwarded magic-link cookie." That doesn't work cross-service: the artist site signs sessions with its own `MAGIC_LINK_SIGNING_SECRET`, which the platform doesn't hold. Implementation uses a per-site shared secret (`STAGECRAFT_BROKER_SECRET`) instead. The artist site sends `Authorization: Bearer <secret>`; the broker compares its SHA-256 to `Site.brokerSecretHash` in constant time.
+
+**Secret lifecycle.** Plaintext is generated by the platform exactly once during the install callback (`generateBrokerSecret()` returns plaintext + hash). Only the hash is persisted; the plaintext is rendered to the artist on a "reveal" page they see exactly once and is then discarded server-side. Rotation requires regenerating and updating the artist's deployment env var.
+
+**Schema field naming.** The original ADR used `repoFullName: string | null`. Implementation reuses the existing `githubRepoOwner` and `githubRepoName` columns instead — they predate this ADR and capture the same data, so no new column was added.
+
+**Status.** Token broker (#72) shipped. Install callback, webhook handler, and onboarding UI are tracked as follow-up PRs against this ADR.

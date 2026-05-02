@@ -24,12 +24,13 @@ The new template will live at `templates/musician-site-next/` during migration; 
 - MIT-licensed React library; embedded as a route component at `/admin`. No vendor backend.
 - Block schema = React components + typed props. Output is plain JSON.
 - Ships a complete editor UI (drag handles, inspector, preview, undo) — avoids months of editor-UI work.
-- Existing Markdoc tags (`section`, `columns`, `tour-dates`, etc.) port to Puck blocks one-for-one.
-- Rich text within a block: **Tiptap**, wired as a Puck field component.
+- **Set up Puck on its happy path.** Block configs are written natively as Puck `Config` objects (`fields`, `defaultProps`, `render`); we don't force Puck to mirror the existing Markdoc tag set or auto-generate from Zod. The existing tags are a reference for *what kinds of blocks an artist needs*, not a contract for how Puck blocks are configured.
+- Rich text within a block: **Tiptap**, wired as a Puck custom field component.
 
-### 3. Schema source of truth: Zod, unchanged convention
-- `RELEASE_TYPES`, `TOUR_DATE_STATUSES`, etc. continue to live in `src/lib/schemas.ts` as `as const` arrays with derived types (per the existing CLAUDE.md rule).
-- Puck block schemas are **derived** from those constants — never duplicate the literal values. A small adapter (`zodToPuckField`) generates Puck `select` / `text` / `number` fields from Zod schemas so the SSOT rule extends to the editor.
+### 3. Schema split: Puck-native blocks, Zod for collections
+- **Page-level block schemas live in Puck's `Config`** (`templates/musician-site-next/src/puck/config.ts`). That config is the source of truth for blocks: their fields, defaults, allowed values, and render. No `zodToPuckField` adapter; no derivation from `src/lib/schemas.ts` for block fields. Idiomatic Puck wins over cross-system DRY.
+- **Structured content collections** (releases, tour dates, posts, store items) keep using Zod schemas in `src/lib/schemas.ts` with `as const` enums (per the existing CLAUDE.md rule). These collections feed dynamic blocks (e.g. a `TourDates` block that lists upcoming shows) but the block's *config* — what props the artist sets in the editor — is pure Puck.
+- Where a Puck block needs to reference a collection enum (e.g. a "filter by status" prop), the block config can import the const array and map it to Puck `select` options inline. That's a one-line lookup, not an adapter.
 
 ### 4. Authentication: magic link via Resend
 - Single allowed email per site, set as an env var. No user table.
@@ -82,7 +83,8 @@ The new template will live at `templates/musician-site-next/` during migration; 
 
 - **Two templates coexist during migration.** `templates/musician-site/` (Astro) stays operational until `templates/musician-site-next/` reaches feature parity. Skills that reference Keystatic config (e.g. `recreate-artist-site`) keep working against the old template.
 - **Platform app unchanged.** ADR-001 (Next.js for `apps/web`) stands. ADR-006 (NextAuth + GitHub OAuth for the platform) stands. Site-level auth is independent (magic link, single email).
-- **New shared concerns surface in `packages/shared`.** Image-metadata types, GitHub-commit helpers, and the Puck-from-Zod adapter belong there if they're used by both the template and platform tooling.
+- **New shared concerns surface in `packages/shared`.** Image-metadata types and GitHub-commit helpers belong there if they're used by both the template and platform tooling. Puck `Config` itself stays inside the template — it's template-specific, not cross-package.
+- **Block schemas diverge from the SSOT rule in `templates/musician-site/CLAUDE.md` §1.** That rule continues to apply to Zod-validated collection content. Puck block configs are exempt: they're written idiomatically per Puck's docs, even when that means duplicating an enum literal at a block-config site. The trade is intentional — fighting Puck's idioms costs more than the duplication it would prevent.
 - **Repo-size growth.** Image variants live in the artist's git repo. Manageable for one artist over years; if Stagecraft hosts many high-volume sites in a single repo later, Git LFS becomes the answer.
 - **No SSR for the public site.** Pages are statically exported. Acceptable per requirements; revisit only if dynamic per-request behavior becomes necessary.
 - **GitHub App is a new platform-level artifact.** App registration, installation flow at onboarding, and credential storage are net-new platform work — separate ADR when designed.

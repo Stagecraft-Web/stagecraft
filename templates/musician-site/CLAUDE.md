@@ -87,11 +87,35 @@ Middleware (`src/middleware.ts`) gates `/admin/*` and `/api/save`. `/admin/login
 
 **Logging out:** the editor header shows the signed-in email and a Sign out button that POSTs to `/api/auth/logout`. The endpoint is POST-only by design — a GET logout would be a CSRF foot-gun (any external `<img src>` could log everyone out).
 
+## Images (ADR-007 §6)
+
+**Pipeline.** `POST /api/upload-image` accepts a multipart form with `file`, `contentSlug`, and `alt`. The handler:
+
+1. Validates MIME type (`jpeg`/`png`/`webp`/`avif`) and size (≤25 MB).
+2. Computes a 16-char SHA-256 content hash → used as the image id.
+3. If the original already exists at the target path, skips processing (dedup; ADR-007 §6).
+4. Otherwise, runs `sharp().rotate()` (EXIF-correct) and emits variants `400/800/1600` in **webp + avif**, plus a tiny inline-base64 LQIP placeholder.
+5. Returns `ImageMetadata` (zod-validated).
+
+**On disk:**
+```
+public/images/<content-slug>/<image-id>/
+  original.<ext>
+  {400,800,1600}.{webp,avif}
+```
+
+**Rendering.** `<Image>` from `@/components/Image` consumes `ImageMetadata` and emits a `<picture>` with avif → webp `<source>` tags, lazy loading, async decoding, explicit width/height (CLS-safe), and the LQIP as `background-image` for instant paint. The component is intentionally a thin renderer — alt comes from the metadata, not a separate prop. ESLint's `jsx-a11y/alt-text` rule is overridden to allow this for our `Image` component (see `eslint.config.mjs`).
+
+**Migration.** Variant scheme changes are out of band — a one-shot script that walks `public/images/`, reads each `original.<ext>`, and writes new variants. Not part of the live publish path.
+
+**TODO (covered by stacked PRs):**
+- GitHub-backed dedup check (currently uses local filesystem — fine in dev, wrong in prod once GitHub App publish lands).
+- A Puck custom field for image picking (today blocks would need to manually reference an `ImageMetadata` object).
+
 ## What's intentionally not here yet
 
 - GitHub App publish flow (per ADR-008; current `/api/save` writes to local disk)
-- Image upload pipeline with `sharp` (per ADR-007 §6)
-- Image-metadata schema and `<Image>` render component
 - Real block library (releases, tour dates, posts — ported from legacy)
+- Custom Puck field for image picking (uploads work via API; editor UI for picking comes after)
 
 These ship in stacked PRs.

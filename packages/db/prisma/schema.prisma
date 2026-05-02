@@ -218,3 +218,14 @@ model AuditEvent {
   @@index([eventType])
   @@index([createdAt])
 }
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  provider   String   // "github"
+  deliveryId String
+  eventType  String
+  receivedAt DateTime @default(now())
+
+  @@unique([provider, deliveryId])
+  @@index([receivedAt])
+}

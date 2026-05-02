@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@measured/puck": "^0.20.0",
+    "jose": "^6.2.3",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "resend": "^6.12.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

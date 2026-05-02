@@ -60,12 +60,34 @@ npm run build
 
 Run before committing.
 
+## Authentication (ADR-007 §4)
+
+Single allowed email per site, gated by middleware. Magic-link flow:
+
+1. Visit `/admin` → middleware redirects to `/admin/login`
+2. Enter email → POST `/api/auth/request` → token emailed
+3. Click email link → GET `/api/auth/verify?token=...` → session cookie set, redirect to `/admin`
+
+**Env vars:**
+
+| Var | Required | Notes |
+| --- | --- | --- |
+| `MAGIC_LINK_SIGNING_SECRET` | yes | Random string, ≥32 bytes. Used to sign JWTs (HS256). Rotate forces re-login. |
+| `ADMIN_EMAIL` | yes | Single allowed email. Anything else gets the same "check your email" response (no enumeration). |
+| `RESEND_API_KEY` | dev: no, prod: yes | Without it, magic links log to server console (dev fallback). |
+| `MAGIC_LINK_FROM` | no | Sender email. Defaults to `noreply@example.com`. |
+
+**Cookie:** `mc_session`, HttpOnly, SameSite=Lax, 7-day max age. `Secure` flag set in production.
+
+Middleware (`src/middleware.ts`) gates `/admin/*` and `/api/save`. `/admin/login` is allowlisted. API routes return 401; pages redirect.
+
+**Server-side session access:** `getSession()` from `@/lib/auth` reads the cookie and verifies it. Use it in Server Components and route handlers.
+
 ## What's intentionally not here yet
 
-- Magic-link auth (gated by env in v1; spike's `/admin` is unguarded for now)
-- GitHub App publish flow (per ADR-008; spike's `/api/save` writes to local disk)
+- GitHub App publish flow (per ADR-008; current `/api/save` writes to local disk)
 - Image upload pipeline with `sharp` (per ADR-007 §6)
 - Image-metadata schema and `<Image>` render component
 - Real block library (releases, tour dates, posts — ported from legacy)
 
-These ship in stacked PRs after the spike merges.
+These ship in stacked PRs.

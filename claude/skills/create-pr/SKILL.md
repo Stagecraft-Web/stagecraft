@@ -49,6 +49,19 @@ views, append the item slug: `admin-releases-item-first-album.png`.
   JPEG (`quality: 80`) or post-process with `pngquant` / `jpegoptim`.
 - Default viewport **1440×900** (matches the site crawler).
 
+## Automating capture (opt-in)
+
+The `capture-pr-screenshots` skill wraps the steps below — boot dev
+server, run the script, upload to a gist, return ready-to-embed
+markdown — into one runnable flow. It is **opt-in**: invoke it only
+when the user explicitly asks for screenshots ("capture screenshots
+for the PR", "include screenshots", etc.). Cloud sessions are the
+primary audience, since there's no local terminal to run the dev
+server and capture script in parallel.
+
+If the user hasn't opted in, follow the manual workflow below. Either
+way, the upload + embed conventions are identical.
+
 ## Workflow
 
 ### 1. Capture

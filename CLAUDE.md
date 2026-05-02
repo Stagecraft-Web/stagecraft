@@ -1,7 +1,7 @@
 # CLAUDE.md — Monorepo Coding Standards
 
 Code-quality rules for the Stagecraft monorepo. These override general
-defaults. Musician-facing documentation for the `templates/musician-site/`
+defaults. Musician-facing documentation for the `templates/musician-site-legacy/`
 template lives inside that directory and is user-oriented; the
 convention-level rules for how that template is built and edited live
 in this file.
@@ -16,7 +16,8 @@ packages/
   db/               Prisma schema + client
   queue/            Async job queue
 templates/
-  musician-site/    Astro musician-site template (user-facing docs inside)
+  musician-site-legacy/  Legacy Astro + Keystatic template (superseded by ADR-007)
+  musician-site/         Next.js + Puck template (per ADR-007, scaffold pending)
 claude/
   skills/           Repo-scoped skills (e.g. create-pr, artist-site-pipeline)
 docs/
@@ -152,7 +153,7 @@ PRs may omit screenshots — note this explicitly in the PR body.
 
 ---
 
-## 6. Musician-site template (`templates/musician-site/`)
+## 6. Legacy musician-site template (`templates/musician-site-legacy/`)
 
 The user-facing docs inside the template (`README.md`, `EDITING.md`,
 `CLAUDE.md`) are for musicians editing their own site. The

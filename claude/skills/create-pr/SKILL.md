@@ -53,12 +53,12 @@ views, append the item slug: `admin-releases-item-first-album.png`.
 
 ### 1. Capture
 
-For the musician-site template, use the helper script — it covers
+For the musician-site-legacy template, use the helper script — it covers
 site home, each nav page, and the Keystatic admin views:
 
 ```bash
 # Terminal 1: dev server
-cd templates/musician-site
+cd templates/musician-site-legacy
 npm run dev
 
 # Terminal 2: capture

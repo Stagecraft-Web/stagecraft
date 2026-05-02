@@ -33,12 +33,12 @@ jobs:
 
       - run: npm run build
 
-  musician-site:
-    name: Template (musician-site)
+  musician-site-legacy:
+    name: Template (musician-site-legacy)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: templates/musician-site
+        working-directory: templates/musician-site-legacy
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: templates/musician-site/package-lock.json
+          cache-dependency-path: templates/musician-site-legacy/package-lock.json
 
       - run: npm ci
 

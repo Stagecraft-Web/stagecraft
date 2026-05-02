@@ -9,7 +9,7 @@ import { buildMigrationReport } from "@/lib/migration/report";
 import { readTemplateFiles } from "@/lib/template-reader";
 import path from "path";
 
-const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site");
+const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site-legacy");
 
 interface MigrateSitePayload {
   url: string;

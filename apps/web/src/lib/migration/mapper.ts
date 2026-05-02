@@ -2,7 +2,7 @@
  * Migration content mapper — v1
  *
  * Maps extracted site content into the Stagecraft template content schema.
- * Targets the musician-site template layout:
+ * Targets the musician-site-legacy template layout:
  *   src/content/config/site.json
  *   src/content/config/nav.json
  *   src/content/config/theme.json

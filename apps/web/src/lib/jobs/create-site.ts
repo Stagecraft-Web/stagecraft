@@ -6,7 +6,7 @@ import { createSite as createNetlifySite } from "@/lib/integrations/netlify";
 import { readTemplateFiles } from "@/lib/template-reader";
 import path from "path";
 
-const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site");
+const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site-legacy");
 
 interface CreateSitePayload {
   name: string;

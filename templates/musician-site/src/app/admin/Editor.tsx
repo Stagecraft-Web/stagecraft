@@ -7,17 +7,50 @@ import { useCallback } from "react";
 import { puckConfig } from "@/puck/config";
 import type { PageData } from "@/lib/content";
 
-export function Editor({ initialData }: { initialData: PageData }) {
-  const onPublish = useCallback(async (data: PageData) => {
-    const res = await fetch("/api/save", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ slug: "home", data }),
-    });
-    if (!res.ok) {
-      throw new Error(`Save failed: ${res.status}`);
-    }
-  }, []);
+type Props = {
+  initialData: PageData;
+  pageSlug: string;
+  email: string;
+};
 
-  return <Puck config={puckConfig} data={initialData} onPublish={onPublish} />;
+export function Editor({ initialData, pageSlug, email }: Props) {
+  const onPublish = useCallback(
+    async (data: PageData) => {
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug: pageSlug, data }),
+      });
+      if (!res.ok) {
+        throw new Error(`Save failed: ${res.status}`);
+      }
+    },
+    [pageSlug],
+  );
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0.5rem 1rem",
+          borderBottom: "1px solid #e5e7eb",
+          background: "#f9fafb",
+          fontSize: "0.875rem",
+        }}
+      >
+        <span>
+          Signed in as <strong>{email || "(unknown)"}</strong>
+        </span>
+        <form action="/api/auth/logout" method="POST" style={{ margin: 0 }}>
+          <button type="submit" style={{ padding: "0.25rem 0.75rem" }}>
+            Sign out
+          </button>
+        </form>
+      </div>
+      <Puck config={puckConfig} data={initialData} onPublish={onPublish} />
+    </div>
+  );
 }

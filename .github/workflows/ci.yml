@@ -61,3 +61,28 @@ jobs:
       - run: npm run test
 
       - run: npm run build
+
+  musician-site:
+    name: Template (musician-site)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: templates/musician-site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: templates/musician-site/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run test
+
+      - run: npm run build

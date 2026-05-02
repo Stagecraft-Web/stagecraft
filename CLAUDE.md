@@ -17,7 +17,7 @@ packages/
   queue/            Async job queue
 templates/
   musician-site-legacy/  Legacy Astro + Keystatic template (superseded by ADR-007)
-  musician-site/         Next.js + Puck template (per ADR-007, scaffold pending)
+  musician-site/         Next.js + Puck template (per ADR-007)
 claude/
   skills/           Repo-scoped skills (e.g. create-pr, artist-site-pipeline)
 docs/

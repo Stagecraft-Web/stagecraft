@@ -5,6 +5,10 @@ import { prisma } from "@stagecraft/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  // NextAuth v5 doesn't trust the request Host off Vercel by default — even
+  // when it matches AUTH_URL. On Netlify, functions are only reachable via
+  // the edge (which controls the Host header), so trusting it is safe.
+  trustHost: true,
   providers: [
     GitHub({
       authorization: { params: { scope: "read:user user:email repo delete_repo" } },

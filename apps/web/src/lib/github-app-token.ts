@@ -17,18 +17,40 @@ export class GitHubAppMisconfiguredError extends Error {
 /**
  * Normalize whatever PEM is in `GITHUB_APP_PRIVATE_KEY` into PKCS#8.
  *
- * GitHub's downloaded `.pem` is PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`),
- * but `@octokit/auth-app` v8+ uses `universal-github-app-jwt` v2+ which
- * signs via Web Crypto (`crypto.subtle.importKey('pkcs8', …)`). Web Crypto
- * only accepts PKCS#8, so a raw PKCS#1 key throws `DataError: Invalid
- * keyData`. Round-tripping through `createPrivateKey` accepts either
- * format and re-emits PKCS#8 — fixes the most common footgun without
- * making operators run `openssl pkcs8` by hand.
+ * Handles three real-world env-var shapes:
  *
- * Also handles single-line env vars where newlines were escaped as `\n`.
+ * 1. Multi-line PEM with real newlines (the `.pem` you download from GitHub).
+ * 2. Single-line PEM where newlines are escaped as literal `\n` (some
+ *    deployment dashboards do this).
+ * 3. Single-line PEM where newlines have been replaced with single spaces
+ *    (Netlify dashboard fields and `netlify env:set` both flatten this way —
+ *    confirmed in production smoke testing). The header / footer still have
+ *    `-----BEGIN ... PRIVATE KEY-----` markers; we extract those, strip all
+ *    whitespace from the body, and re-emit canonical 64-char-line form.
+ *
+ * After format reconstruction, round-trip through `createPrivateKey` to
+ * accept either PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`) or PKCS#8
+ * (`-----BEGIN PRIVATE KEY-----`) and always emit PKCS#8 — required by
+ * `@octokit/auth-app` v8+'s Web Crypto path.
  */
 export function normalizePrivateKey(raw: string): string {
-  const pem = raw.replace(/\\n/g, "\n");
+  let pem = raw.replace(/\\n/g, "\n");
+
+  if (!pem.includes("\n")) {
+    const begin = pem.match(/-----BEGIN [A-Z0-9 ]+ KEY-----/);
+    const end = pem.match(/-----END [A-Z0-9 ]+ KEY-----/);
+    if (begin && end && begin.index !== undefined && end.index !== undefined) {
+      const body = pem
+        .slice(begin.index + begin[0].length, end.index)
+        .replace(/\s+/g, "");
+      const lines: string[] = [];
+      for (let i = 0; i < body.length; i += 64) {
+        lines.push(body.slice(i, i + 64));
+      }
+      pem = `${begin[0]}\n${lines.join("\n")}\n${end[0]}\n`;
+    }
+  }
+
   const keyObject = createPrivateKey(pem);
   return keyObject.export({ type: "pkcs8", format: "pem" }) as string;
 }

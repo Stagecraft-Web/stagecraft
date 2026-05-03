@@ -16,7 +16,7 @@ beforeEach(() => {
   commitFilesMock.mockReset();
   process.env = { ...ORIGINAL_ENV };
   delete process.env.STAGECRAFT_PLATFORM_URL;
-  delete process.env.SITE_ID;
+  delete process.env.STAGECRAFT_SITE_ID;
   delete process.env.STAGECRAFT_BROKER_SECRET;
 });
 
@@ -35,7 +35,7 @@ function configurePlatform({
   status = 200,
 }: { ok?: boolean; body?: unknown; status?: number } = {}) {
   process.env.STAGECRAFT_PLATFORM_URL = "https://platform.example.com";
-  process.env.SITE_ID = "site-123";
+  process.env.STAGECRAFT_SITE_ID = "site-123";
   process.env.STAGECRAFT_BROKER_SECRET = "broker-secret";
   globalThis.fetch = vi.fn().mockResolvedValue({
     ok,
@@ -52,14 +52,14 @@ describe("isPlatformConfigured", () => {
 
   it("true when all three are set", () => {
     process.env.STAGECRAFT_PLATFORM_URL = "x";
-    process.env.SITE_ID = "y";
+    process.env.STAGECRAFT_SITE_ID = "y";
     process.env.STAGECRAFT_BROKER_SECRET = "z";
     expect(isPlatformConfigured()).toBe(true);
   });
 
   it("false when any one is missing", () => {
     process.env.STAGECRAFT_PLATFORM_URL = "x";
-    process.env.SITE_ID = "y";
+    process.env.STAGECRAFT_SITE_ID = "y";
     expect(isPlatformConfigured()).toBe(false);
   });
 });

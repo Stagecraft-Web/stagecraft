@@ -152,7 +152,7 @@ describe("handleCreateSite", () => {
       MAGIC_LINK_SIGNING_SECRET: expect.stringMatching(/^[0-9a-f]{64}$/),
       ADMIN_EMAIL: "artist@example.com",
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
-      SITE_ID: "site-1",
+      STAGECRAFT_SITE_ID: "site-1",
     });
   });
 

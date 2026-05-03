@@ -6,6 +6,14 @@ import { auth } from "@/lib/auth";
 import { generateBrokerSecret } from "@/lib/broker-secret";
 import { listInstallationRepos } from "@/lib/github-app-install";
 import { GitHubAppMisconfiguredError } from "@/lib/github-app-token";
+import {
+  setEnvVars as setNetlifyEnvVars,
+  triggerBuild as triggerNetlifyBuild,
+} from "@/lib/integrations/netlify";
+import {
+  setEnvVars as setVercelEnvVars,
+  triggerDeployment as triggerVercelDeployment,
+} from "@/lib/integrations/vercel";
 import { verifyInstallState } from "@/lib/state-signing";
 
 const searchSchema = z.object({
@@ -72,6 +80,73 @@ function errorPage(status: number, title: string, message: string) {
       `<h1 class="error">${escape(title)}</h1><p>${escape(message)}</p><p><a href="/dashboard">Back to dashboard</a></p>`,
     ),
   );
+}
+
+/**
+ * Push the broker secret + companion env vars to the artist's deploy
+ * target and kick off a fresh build so the next request picks them up.
+ *
+ * Returns `{ ok: true }` on success or `{ ok: false, reason }` when the
+ * site doesn't have a deploy target wired up (older sites pre-#90) or
+ * when the upstream API call fails. The caller falls back to showing
+ * the manual-setup instructions in either case.
+ */
+async function provisionBrokerSecret(args: {
+  userId: string;
+  site: {
+    id: string;
+    deployTarget: string;
+    netlifySiteId: string | null;
+    vercelProjectId: string | null;
+    vercelTeamId: string | null;
+  };
+  platformUrl: string;
+  brokerSecret: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const envVars: Record<string, string> = {
+    STAGECRAFT_PLATFORM_URL: args.platformUrl,
+    STAGECRAFT_SITE_ID: args.site.id,
+    STAGECRAFT_BROKER_SECRET: args.brokerSecret,
+  };
+
+  try {
+    if (args.site.deployTarget === "vercel") {
+      if (!args.site.vercelProjectId) {
+        return { ok: false, reason: "Site has no Vercel project id on file" };
+      }
+      await setVercelEnvVars({
+        userId: args.userId,
+        projectId: args.site.vercelProjectId,
+        teamId: args.site.vercelTeamId ?? undefined,
+        vars: envVars,
+      });
+      await triggerVercelDeployment(
+        args.userId,
+        args.site.vercelProjectId,
+        args.site.vercelTeamId ?? undefined,
+      );
+      return { ok: true };
+    }
+
+    if (args.site.deployTarget === "netlify") {
+      if (!args.site.netlifySiteId) {
+        return { ok: false, reason: "Site has no Netlify site id on file" };
+      }
+      await setNetlifyEnvVars(args.userId, args.site.netlifySiteId, envVars);
+      await triggerNetlifyBuild(args.userId, args.site.netlifySiteId);
+      return { ok: true };
+    }
+
+    return {
+      ok: false,
+      reason: `Unknown deploy target: ${args.site.deployTarget}`,
+    };
+  } catch (cause) {
+    return {
+      ok: false,
+      reason: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
 }
 
 export async function GET(request: Request) {
@@ -190,23 +265,47 @@ export async function GET(request: Request) {
     },
   });
 
+  const provisioned = await provisionBrokerSecret({
+    userId: session.user.id,
+    site: {
+      id: site.id,
+      deployTarget: site.deployTarget,
+      netlifySiteId: site.netlifySiteId,
+      vercelProjectId: site.vercelProjectId,
+      vercelTeamId: site.vercelTeamId,
+    },
+    platformUrl,
+    brokerSecret: plaintext,
+  });
+
+  if (provisioned.ok) {
+    return htmlResponse(
+      200,
+      page(
+        "GitHub App connected",
+        `<h1 class="ok">Connected — your site is rebuilding</h1>
+<p>Site <code>${escape(site.name)}</code> is now linked to <code>${escape(owner)}/${escape(name)}</code>. We pushed the broker secret to your <strong>${escape(site.deployTarget)}</strong> deploy and triggered a fresh build — it will pick up the new env vars and start serving updates from the editor in a minute or two.</p>
+<p><a class="button" href="/dashboard">Continue to dashboard</a></p>`,
+      ),
+    );
+  }
+
+  // Auto-provision failed — fall back to showing the manual env-var
+  // block. Keep the broker secret on screen so the artist can recover
+  // without rotating; rotation invalidates the hash we just stored.
   return htmlResponse(
     200,
     page(
-      "GitHub App connected",
-      `<h1 class="ok">GitHub App connected</h1>
-<p>Site <code>${escape(site.name)}</code> is now connected to <code>${escape(owner)}/${escape(name)}</code>.</p>
+      "GitHub App connected — manual setup needed",
+      `<h1 class="warn">Connected — finish setup manually</h1>
+<p>Site <code>${escape(site.name)}</code> is linked to <code>${escape(owner)}/${escape(name)}</code>, but we couldn't push the broker secret to your <strong>${escape(site.deployTarget)}</strong> deploy automatically. Reason: <code>${escape(provisioned.reason)}</code>.</p>
 
-<h2>Your broker secret</h2>
-<p><strong>Copy this now.</strong> It is shown exactly once and never stored on the platform in plaintext. Set it as an env var on your deployed site.</p>
-<pre>${escape(plaintext)}</pre>
-
-<h2>Env vars to set on your deployed site</h2>
+<h2>Set these env vars on your deployed site, then redeploy</h2>
 <pre>STAGECRAFT_PLATFORM_URL=${escape(platformUrl)}
 STAGECRAFT_SITE_ID=${escape(site.id)}
 STAGECRAFT_BROKER_SECRET=${escape(plaintext)}</pre>
 
-<p>If you lose the secret, rotate it from the dashboard; the previous one will stop working.</p>
+<p><strong>Copy the secret now</strong> — it is shown exactly once and never stored on the platform in plaintext. If you lose it, rotate it from the dashboard; the previous one will stop working.</p>
 <p><a class="button" href="/dashboard">Continue to dashboard</a></p>`,
     ),
   );

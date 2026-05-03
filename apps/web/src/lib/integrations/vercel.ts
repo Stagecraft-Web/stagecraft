@@ -216,6 +216,64 @@ export async function setEnvVars(options: SetEnvVarsOptions): Promise<void> {
 }
 
 /**
+ * Trigger a fresh production deployment on a Vercel project. Used after
+ * writing env vars post-deploy so the next deployment picks them up —
+ * Vercel does not automatically redeploy when only env-vars change.
+ *
+ * Implemented as a deploy-hook-style call against `/v13/deployments` with
+ * `gitSource.ref` pointing at the project's production branch (resolved
+ * via the project metadata). Returns the deployment id so callers can
+ * surface a "redeploying…" link.
+ */
+export async function triggerDeployment(
+  userId: string,
+  projectId: string,
+  teamId?: string,
+): Promise<{ deploymentId: string }> {
+  const token = await getVercelToken(userId);
+
+  // Look up the project to get its name + linked git repo. `/v13/deployments`
+  // requires either gitSource (preferred — triggers a fresh build from the
+  // production branch) or files (we don't have those locally).
+  const project = (await vercelApi(
+    token,
+    `/v9/projects/${encodeURIComponent(projectId)}`,
+    { teamId },
+  )) as {
+    name: string;
+    link?: {
+      type?: string;
+      org?: string;
+      repo?: string;
+      repoId?: number;
+      productionBranch?: string;
+    };
+  };
+
+  if (!project.link?.repoId) {
+    throw new Error("Vercel project has no linked git repo; cannot trigger redeploy");
+  }
+
+  const ref = project.link.productionBranch ?? "main";
+
+  const data = (await vercelApi(token, "/v13/deployments", {
+    method: "POST",
+    body: JSON.stringify({
+      name: project.name,
+      target: "production",
+      gitSource: {
+        type: "github",
+        repoId: project.link.repoId,
+        ref,
+      },
+    }),
+    teamId,
+  })) as { id: string };
+
+  return { deploymentId: data.id };
+}
+
+/**
  * Delete a Vercel project. Idempotent — Vercel returns 404 if the project
  * is already gone, which we swallow to match Netlify's deleteSite shape.
  */

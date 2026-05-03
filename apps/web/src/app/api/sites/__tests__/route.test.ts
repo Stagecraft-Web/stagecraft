@@ -71,15 +71,41 @@ describe("POST /api/sites", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 when GitHub or Netlify integrations are missing", async () => {
+  it("400 when GitHub is missing", async () => {
+    prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
+      { provider: "netlify" },
+    ]);
+    const res = await POST(buildRequest({ name: "Sarah Chen" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("GitHub must be connected"),
+    });
+  });
+
+  it("400 when neither Vercel nor Netlify is connected", async () => {
     prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
       { provider: "github" },
     ]);
     const res = await POST(buildRequest({ name: "Sarah Chen" }));
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: "GitHub and Netlify must be connected before creating a site",
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("deploy target"),
     });
+  });
+
+  it("201 when GitHub + Vercel are connected (no Netlify required)", async () => {
+    prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
+      { provider: "github" },
+      { provider: "vercel" },
+    ]);
+    handleCreateSiteMock.mockResolvedValue({ success: true, data: { deployTarget: "vercel" } });
+    prismaMock.site.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "site-1", status: "active" });
+
+    const res = await POST(buildRequest({ name: "Sarah Chen" }));
+    expect(res.status).toBe(201);
+    expect(handleCreateSiteMock).toHaveBeenCalledTimes(1);
   });
 
   it("409 when slug is taken", async () => {

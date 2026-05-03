@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
 
+import { ConnectVercel } from "./ConnectVercel";
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -18,6 +20,11 @@ export default async function SettingsPage({
 
   const github = integrations.find((i: { provider: string }) => i.provider === "github");
   const netlify = integrations.find((i: { provider: string }) => i.provider === "netlify");
+  const vercel = integrations.find((i: { provider: string }) => i.provider === "vercel");
+  const vercelUsername =
+    vercel?.metadata && typeof vercel.metadata === "object" && vercel.metadata !== null
+      ? (vercel.metadata as { username?: string }).username ?? null
+      : null;
 
   return (
     <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "system-ui" }}>
@@ -28,6 +35,8 @@ export default async function SettingsPage({
         <div style={{ padding: 12, background: "#d4edda", borderRadius: 4, marginBottom: 16 }}>
           {params.success === "github_connected" && "GitHub connected successfully."}
           {params.success === "netlify_connected" && "Netlify connected successfully."}
+          {params.success === "vercel_connected" && "Vercel connected successfully."}
+          {params.success === "vercel_disconnected" && "Vercel disconnected."}
         </div>
       )}
 
@@ -39,6 +48,9 @@ export default async function SettingsPage({
 
       <section style={{ marginTop: 32 }}>
         <h2>Integrations</h2>
+        <p style={{ color: "#555", fontSize: 14 }}>
+          GitHub is required (the platform commits to your repo). For deploys, connect either Vercel or Netlify — Vercel is recommended for new sites because its API auto-resolves repo linking; Netlify needs manual GitHub-App setup per repo.
+        </p>
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3>GitHub</h3>
@@ -49,6 +61,11 @@ export default async function SettingsPage({
           ) : (
             <p style={{ color: "#666" }}>Sign in with GitHub to connect.</p>
           )}
+        </div>
+
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <h3>Vercel <span style={{ fontSize: 12, color: "#0070f3", fontWeight: 400 }}>(recommended)</span></h3>
+          <ConnectVercel connectedUsername={vercelUsername} />
         </div>
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>

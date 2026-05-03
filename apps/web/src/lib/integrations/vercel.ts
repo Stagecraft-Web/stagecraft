@@ -1,0 +1,244 @@
+import { prisma } from "@stagecraft/db";
+
+/**
+ * Vercel integration — mirrors `netlify.ts`'s surface for the parts the
+ * platform needs (createProject, setEnvVars, deleteProject) so the rest of
+ * the platform can branch on `Site.deployTarget` without per-target
+ * conditionals deep in business logic.
+ *
+ * Auth uses a Personal Access Token from https://vercel.com/account/tokens
+ * pasted by the artist at /settings → Connect Vercel. Stored in
+ * `IntegrationAccount{provider:"vercel"}.accessToken`.
+ *
+ * Vercel's API auto-resolves the user's GitHub App installation for repo
+ * linking — no `installation_id` plumbing required (which is the failure
+ * mode that pushed us toward this integration on the Netlify side).
+ */
+
+const VERCEL_API = "https://api.vercel.com";
+
+interface VercelTokenInfo {
+  /** Vercel user id (`user.id`); used as IntegrationAccount.providerAccountId */
+  userId: string;
+  /** Display name / email shown in /settings */
+  username: string;
+}
+
+interface CreateProjectOptions {
+  userId: string;
+  /** Project name (must be unique within the user's Vercel account; usually `stagecraft-site-${slug}`) */
+  name: string;
+  /** Optional: scope creation to a specific Vercel team */
+  teamId?: string;
+  /** GitHub repo to link for auto-deploy. */
+  repo: {
+    /** "owner/name" */
+    repo: string;
+  };
+  /** Framework preset hint. Defaults to `nextjs` for the musician-site template. */
+  framework?: string;
+}
+
+interface VercelProjectResult {
+  /** Vercel's internal project id (e.g. `prj_…`) */
+  projectId: string;
+  /** Project name (what shows in URLs and the dashboard) */
+  projectName: string;
+  /** Team id the project lives under (null for personal account) */
+  teamId: string | null;
+  /** Production URL (e.g. `https://my-project.vercel.app`) */
+  productionUrl: string;
+  /** URL to the Vercel dashboard for this project */
+  adminUrl: string;
+}
+
+async function getVercelToken(userId: string): Promise<string> {
+  const integration = await prisma.integrationAccount.findUnique({
+    where: { userId_provider: { userId, provider: "vercel" } },
+  });
+
+  if (!integration?.accessToken) {
+    throw new Error("Vercel account not connected");
+  }
+
+  return integration.accessToken;
+}
+
+async function vercelApi(
+  token: string,
+  path: string,
+  options?: RequestInit & { teamId?: string },
+): Promise<unknown> {
+  const url = new URL(`${VERCEL_API}${path}`);
+  if (options?.teamId) {
+    url.searchParams.set("teamId", options.teamId);
+  }
+
+  const res = await fetch(url.toString(), {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Vercel API error (${res.status}): ${body}`);
+  }
+
+  // 204 No Content (e.g. from DELETE) has no JSON body.
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+/**
+ * Validate a token by calling Vercel's `/v2/user` endpoint. Returns user
+ * info on success; throws on invalid / revoked / network failure.
+ *
+ * Used by the `/api/integrations/vercel/connect` route to confirm the
+ * pasted PAT works before storing it.
+ */
+export async function validateVercelToken(token: string): Promise<VercelTokenInfo> {
+  const data = (await vercelApi(token, "/v2/user")) as {
+    user?: { id?: string; uid?: string; username?: string; email?: string; name?: string };
+  };
+
+  // Vercel's payload shape has been `{ user: { id, username, email, ... } }`
+  // historically; some versions return `uid` instead of `id`. Coerce.
+  const userId = data.user?.id ?? data.user?.uid;
+  if (!userId) {
+    throw new Error("Vercel /v2/user did not return a user id");
+  }
+
+  return {
+    userId,
+    username:
+      data.user?.username ?? data.user?.email ?? data.user?.name ?? userId,
+  };
+}
+
+/**
+ * Create a Vercel project linked to a GitHub repo.
+ *
+ * Unlike Netlify, Vercel's API auto-resolves the user's GitHub App
+ * installation — no installation_id required in the request body. Vercel
+ * matches the repo against the user's connected GitHub account based on
+ * the bearer token. Pre-req: the user has connected GitHub on
+ * vercel.com (via their UI's "Connect Git" flow), and Vercel's GitHub
+ * App is installed on the artist's account/repo.
+ */
+export async function createProject(
+  options: CreateProjectOptions,
+): Promise<VercelProjectResult> {
+  const token = await getVercelToken(options.userId);
+
+  const data = (await vercelApi(token, "/v9/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      name: options.name,
+      framework: options.framework ?? "nextjs",
+      gitRepository: {
+        type: "github",
+        repo: options.repo.repo,
+      },
+    }),
+    teamId: options.teamId,
+  })) as {
+    id: string;
+    name: string;
+    accountId?: string;
+    targets?: { production?: { alias?: string[] } };
+  };
+
+  // Vercel's primary alias is usually `<name>.vercel.app` for personal
+  // projects; teams use a slightly different domain shape. Fall back to
+  // constructing it if the response doesn't include one yet (fresh
+  // projects sometimes lack `targets.production` until first deploy).
+  const aliasFromResponse = data.targets?.production?.alias?.[0];
+  const productionUrl = aliasFromResponse
+    ? `https://${aliasFromResponse}`
+    : `https://${data.name}.vercel.app`;
+
+  const adminUrl = options.teamId
+    ? `https://vercel.com/${options.teamId}/${data.name}`
+    : `https://vercel.com/${data.name}`;
+
+  return {
+    projectId: data.id,
+    projectName: data.name,
+    teamId: options.teamId ?? null,
+    productionUrl,
+    adminUrl,
+  };
+}
+
+interface SetEnvVarsOptions {
+  userId: string;
+  projectId: string;
+  teamId?: string;
+  vars: Record<string, string>;
+  /** Which environments the var applies to. Defaults to all three. */
+  target?: Array<"production" | "preview" | "development">;
+}
+
+/**
+ * Set (or upsert) plain-text env vars on a Vercel project. Mirrors the
+ * shape of Netlify's `setEnvVars` so callers can branch by deployTarget.
+ *
+ * Vercel's API expects one POST per var (or a batch via array). Sends as
+ * a batch for fewer round-trips.
+ */
+export async function setEnvVars(options: SetEnvVarsOptions): Promise<void> {
+  const token = await getVercelToken(options.userId);
+
+  const target = options.target ?? ["production", "preview", "development"];
+
+  const body = Object.entries(options.vars).map(([key, value]) => ({
+    key,
+    value,
+    type: "encrypted",
+    target,
+  }));
+
+  // `upsert=true` makes this idempotent: re-running with the same key
+  // updates the existing var instead of erroring on conflict.
+  await vercelApi(
+    token,
+    `/v10/projects/${encodeURIComponent(options.projectId)}/env?upsert=true`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+      teamId: options.teamId,
+    },
+  );
+}
+
+/**
+ * Delete a Vercel project. Idempotent — Vercel returns 404 if the project
+ * is already gone, which we swallow to match Netlify's deleteSite shape.
+ */
+export async function deleteProject(
+  userId: string,
+  projectId: string,
+  teamId?: string,
+): Promise<void> {
+  const token = await getVercelToken(userId);
+
+  const url = new URL(
+    `${VERCEL_API}/v9/projects/${encodeURIComponent(projectId)}`,
+  );
+  if (teamId) url.searchParams.set("teamId", teamId);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  // 404 = already deleted; treat as success
+  if (!res.ok && res.status !== 404) {
+    const body = await res.text();
+    throw new Error(`Vercel API error (${res.status}): ${body}`);
+  }
+}

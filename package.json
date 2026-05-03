@@ -15,7 +15,8 @@
     "db:migrate": "npm run migrate --workspace=@stagecraft/db",
     "db:generate": "npm run generate --workspace=@stagecraft/db",
     "db:seed": "npm run seed --workspace=@stagecraft/db",
-    "db:studio": "npm run studio --workspace=@stagecraft/db"
+    "db:studio": "npm run studio --workspace=@stagecraft/db",
+    "db:psql": "bash scripts/db-psql.sh"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

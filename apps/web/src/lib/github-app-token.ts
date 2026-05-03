@@ -47,12 +47,42 @@ export async function mintInstallationToken(
     throw new GitHubAppMisconfiguredError("GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY not set");
   }
 
-  const privateKey = normalizePrivateKey(privateKeyRaw);
-  const auth = createAppAuth({ appId, privateKey, installationId });
-  const result = await auth({ type: "installation" });
+  // TEMP DEBUG: trace where DECODER errors originate on production. Remove
+  // once the install-callback flow is verified end-to-end.
+  const debugTag = "[debug:mintInstallationToken]";
+  console.log(debugTag, "called", {
+    installationId,
+    appIdLen: appId.length,
+    keyRawLen: privateKeyRaw.length,
+    keyRawHead: privateKeyRaw.slice(0, 32),
+    keyRawTail: privateKeyRaw.slice(-32),
+    keyRawHasEscapedNewlines: privateKeyRaw.includes("\\n"),
+    keyRawHasRealNewlines: privateKeyRaw.includes("\n"),
+    nodeVersion: process.version,
+  });
 
-  return {
-    token: result.token,
-    expiresAt: result.expiresAt,
-  };
+  let privateKey: string;
+  try {
+    privateKey = normalizePrivateKey(privateKeyRaw);
+    console.log(debugTag, "normalize ok", {
+      pkcs8Len: privateKey.length,
+      pkcs8Head: privateKey.slice(0, 32),
+    });
+  } catch (cause) {
+    console.error(debugTag, "normalize threw", cause);
+    throw cause;
+  }
+
+  try {
+    const auth = createAppAuth({ appId, privateKey, installationId });
+    const result = await auth({ type: "installation" });
+    console.log(debugTag, "auth ok", { tokenHead: result.token.slice(0, 8) });
+    return {
+      token: result.token,
+      expiresAt: result.expiresAt,
+    };
+  } catch (cause) {
+    console.error(debugTag, "auth threw", cause);
+    throw cause;
+  }
 }

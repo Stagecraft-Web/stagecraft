@@ -51,7 +51,7 @@ artist-site /api/publish
 - Artist selects exactly one repo on GitHub's install screen → GitHub redirects to platform `/api/github/install-callback?state=<signed siteId>&installation_id=<id>&setup_action=install`.
 - Callback validates `state` (signature + expiry), confirms the signed-in user owns the `siteId`, fetches the installation's repo via the App, and persists `githubInstallationId`, `githubRepoOwner`, and `githubRepoName` on the `Site` record.
 - **Generates the broker secret** (`generateBrokerSecret()` from `apps/web/src/lib/broker-secret.ts`), stores `brokerSecretHash`, and renders a one-time "reveal" page showing the plaintext with copy-to-env-var instructions. The plaintext is **never persisted** and **never re-displayed** — losing it requires rotation.
-- One installation per repo. Multiple repos under one artist's GitHub account require multiple installations; each maps to a different `Site`.
+- One installation per artist account, scoped to one or more repos. GitHub creates a single installation per account/org and grows its repository list as the artist grants access to more repos over time. The install-callback locates the **specific** repo for the current `Site` (matched on `githubRepoOwner` + `githubRepoName` set by `/create`) within the installation's repo list, rather than assuming the installation grants access to exactly one repo.
 
 ### 4. Commit author and committer
 - **Committer:** `stagecraft-app[bot] <{appId}+stagecraft-app[bot]@users.noreply.github.com>` (GitHub generates the noreply email for App identities).
@@ -134,5 +134,7 @@ This section reconciles the original draft with the implementation that landed i
 **Schema field naming.** The original ADR used `repoFullName: string | null`. Implementation reuses the existing `githubRepoOwner` and `githubRepoName` columns instead — they predate this ADR and capture the same data, so no new column was added.
 
 **State-signing secret.** Original §3 said the install state is "signed using the platform's session secret." Implementation uses a dedicated `STAGECRAFT_STATE_SIGNING_SECRET` (HS256) so install-state signing stays decoupled from session signing — rotating one doesn't force the other. Added to the platform env-vars table in §5.
+
+**Installation scope.** Original §3 read "one installation per repo" — that's not how GitHub Apps work in practice. GitHub creates one installation **per account/org**, and the installation's repository list grows as the artist grants access to more repos. The install-callback now locates the current Site's repo (matched on existing `githubRepoOwner` + `githubRepoName` from `/create`) within the installation's list, rather than rejecting installs that span multiple repos. Surfaced when an artist with multiple Stagecraft sites tried to connect their 8th and the install-callback failed with "Multiple repositories selected".
 
 **Status.** Token broker (#72) shipped. Install callback, webhook handler, and onboarding UI are tracked as follow-up PRs against this ADR.

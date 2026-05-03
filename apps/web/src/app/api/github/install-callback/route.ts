@@ -170,6 +170,13 @@ export async function GET(request: Request) {
     name = repos[0].name;
   }
 
+  // Canonical platform URL for the env-var block. Don't use url.origin —
+  // Netlify's edge → Lambda routing can hand the function a deploy-permalink
+  // Host (`<deploy-id>--<site>.netlify.app`) instead of the custom domain,
+  // which would tell the artist to point STAGECRAFT_PLATFORM_URL at a
+  // preview that won't exist after the next deploy.
+  const platformUrl = (process.env.AUTH_URL ?? url.origin).replace(/\/$/, "");
+
   const { plaintext, hash } = generateBrokerSecret();
 
   await prisma.site.update({
@@ -195,8 +202,8 @@ export async function GET(request: Request) {
 <pre>${escape(plaintext)}</pre>
 
 <h2>Env vars to set on your deployed site</h2>
-<pre>STAGECRAFT_PLATFORM_URL=${escape(url.origin)}
-SITE_ID=${escape(site.id)}
+<pre>STAGECRAFT_PLATFORM_URL=${escape(platformUrl)}
+STAGECRAFT_SITE_ID=${escape(site.id)}
 STAGECRAFT_BROKER_SECRET=${escape(plaintext)}</pre>
 
 <p>If you lose the secret, rotate it from the dashboard; the previous one will stop working.</p>

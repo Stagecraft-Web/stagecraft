@@ -100,7 +100,9 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
         MAGIC_LINK_SIGNING_SECRET: randomBytes(32).toString("hex"),
         ADMIN_EMAIL: user.email,
         STAGECRAFT_PLATFORM_URL: getPlatformUrl(),
-        SITE_ID: siteId,
+        // STAGECRAFT_SITE_ID, not SITE_ID — Netlify reserves the latter
+        // (it injects its own Netlify-side site id into Functions).
+        STAGECRAFT_SITE_ID: siteId,
       });
     } catch (cause) {
       netlifyEnvWarning =

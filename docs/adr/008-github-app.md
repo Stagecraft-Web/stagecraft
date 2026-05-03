@@ -75,7 +75,7 @@ artist-site /api/publish
 | Var | Purpose |
 |---|---|
 | `STAGECRAFT_PLATFORM_URL` | Base URL of the broker, e.g. `https://platform.stagecraft.com` |
-| `SITE_ID` | The `Site.id` for this deployment |
+| `STAGECRAFT_SITE_ID` | The `Site.id` for this deployment. Namespaced because Netlify reserves `SITE_ID` (injected automatically into Functions) |
 | `STAGECRAFT_BROKER_SECRET` | The per-site secret revealed once at install. Used to authenticate to the broker |
 
 **Storage rules:**
@@ -136,5 +136,7 @@ This section reconciles the original draft with the implementation that landed i
 **State-signing secret.** Original §3 said the install state is "signed using the platform's session secret." Implementation uses a dedicated `STAGECRAFT_STATE_SIGNING_SECRET` (HS256) so install-state signing stays decoupled from session signing — rotating one doesn't force the other. Added to the platform env-vars table in §5.
 
 **Installation scope.** Original §3 read "one installation per repo" — that's not how GitHub Apps work in practice. GitHub creates one installation **per account/org**, and the installation's repository list grows as the artist grants access to more repos. The install-callback now locates the current Site's repo (matched on existing `githubRepoOwner` + `githubRepoName` from `/create`) within the installation's list, rather than rejecting installs that span multiple repos. Surfaced when an artist with multiple Stagecraft sites tried to connect their 8th and the install-callback failed with "Multiple repositories selected".
+
+**Per-site env-var name.** Original §5 listed the artist-side env var as `SITE_ID`. Netlify reserves that name (it injects its own Netlify-side site identifier into Functions under `SITE_ID`), so the platform's broker-side site id has been renamed to `STAGECRAFT_SITE_ID`. Templates, broker consumers, and the install-callback's reveal page all use the namespaced name.
 
 **Status.** Token broker (#72) shipped. Install callback, webhook handler, and onboarding UI are tracked as follow-up PRs against this ADR.

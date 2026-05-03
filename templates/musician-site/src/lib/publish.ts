@@ -45,7 +45,9 @@ type Env = {
 function readEnv(): Env {
   return {
     platformUrl: process.env.STAGECRAFT_PLATFORM_URL?.replace(/\/$/, ""),
-    siteId: process.env.SITE_ID,
+    // STAGECRAFT_SITE_ID, not SITE_ID — the latter is reserved by Netlify
+    // (injected automatically into Functions to identify the Netlify site).
+    siteId: process.env.STAGECRAFT_SITE_ID,
     brokerSecret: process.env.STAGECRAFT_BROKER_SECRET,
     branch: process.env.SITE_GIT_BRANCH ?? "main",
   };

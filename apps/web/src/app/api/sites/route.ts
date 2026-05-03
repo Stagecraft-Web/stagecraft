@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { handleCreateSite } from "@/lib/jobs/create-site";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
+import type { JobContext } from "@stagecraft/queue";
 
 const DEFAULT_BLUEPRINT = "solo-artist";
 
@@ -66,22 +68,60 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Enqueue create_site job
+  // Run create_site synchronously inside this request handler.
+  //
+  // The previous design enqueued a SiteJob and let a poll-based worker
+  // process it. That doesn't work on Netlify Functions: each Lambda
+  // invocation freezes when the HTTP handler returns, so any awaits in
+  // a "background" job get abandoned and the SiteJob stays in `running`
+  // forever. Awaiting directly here blocks the request for ~5-10s but
+  // the outcome is deterministic.
+  //
+  // The SiteJob row is still created (status starts at `running`) for
+  // audit + compatibility with the existing dashboard, then updated
+  // with the result before the response is returned.
   const job = await prisma.siteJob.create({
     data: {
       siteId: site.id,
       userId: session.user.id,
       type: "create_site",
-      status: "queued",
+      status: "running",
       requestPayload: {
         name,
         slug,
         blueprintType: DEFAULT_BLUEPRINT,
       },
+      startedAt: new Date(),
     },
   });
 
-  return NextResponse.json({ site, jobId: job.id }, { status: 201 });
+  const ctx: JobContext = { job };
+  const result = await handleCreateSite(ctx);
+
+  await prisma.siteJob.update({
+    where: { id: job.id },
+    data: {
+      status: result.success ? "completed" : "failed",
+      completedAt: new Date(),
+      // Prisma's InputJsonValue requires plain JSON shapes; result.data
+      // is Record<string, unknown> from the JobResult type.
+      resultPayload: result.data
+        ? (result.data as Record<string, unknown> as object)
+        : undefined,
+      errorMessage: result.message ?? null,
+      failureCategory: result.failureCategory ?? null,
+    },
+  });
+
+  // Re-read the site so the response reflects whatever handleCreateSite
+  // wrote during the run (githubRepoOwner/Name, netlifySiteId,
+  // productionUrl, status transitioning to active or error).
+  const finalSite = await prisma.site.findUnique({ where: { id: site.id } });
+
+  return NextResponse.json(
+    { site: finalSite, jobId: job.id, jobResult: result },
+    { status: result.success ? 201 : 500 }
+  );
 }
 
 export async function GET() {

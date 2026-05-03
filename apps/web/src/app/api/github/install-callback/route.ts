@@ -127,17 +127,49 @@ export async function GET(request: Request) {
   }
 
   if (repos.length === 0) {
-    return errorPage(400, "No repositories selected", "Select exactly one repository during install. Restart and try again.");
-  }
-  if (repos.length > 1) {
     return errorPage(
       400,
-      "Multiple repositories selected",
-      `The install grants access to ${repos.length} repositories, but a Stagecraft site is one repo. Restart and select exactly one.`,
+      "No repositories selected",
+      "Add at least one repository to the install on GitHub.",
     );
   }
 
-  const [{ owner, name }] = repos;
+  // GitHub Apps install per account, not per repo — one artist with
+  // multiple Stagecraft sites has one installation whose repo list grows
+  // as they grant more repos. Find the specific repo this Site already
+  // owns (set by /create's createRepo step) inside the installation's
+  // list; don't reject just because the install spans many repos.
+  let owner: string;
+  let name: string;
+  if (site.githubRepoOwner && site.githubRepoName) {
+    const target = `${site.githubRepoOwner}/${site.githubRepoName}`;
+    const matched = repos.find(
+      (r) => r.owner === site.githubRepoOwner && r.name === site.githubRepoName,
+    );
+    if (!matched) {
+      return errorPage(
+        400,
+        "Repo not in install",
+        `This site needs the App on ${target}, but the installation grants access to ${repos.length} other ${repos.length === 1 ? "repository" : "repositories"}. Edit the install on GitHub to include ${target}.`,
+      );
+    }
+    owner = matched.owner;
+    name = matched.name;
+  } else {
+    // Fallback for sites that haven't been through /create's repo-creation
+    // step (currently every Site goes through it, but the schema allows
+    // these fields to be null). Single-repo installs only.
+    if (repos.length > 1) {
+      return errorPage(
+        400,
+        "Multiple repositories selected",
+        `The install grants access to ${repos.length} repositories, but this site has no repo on file yet. Edit the install on GitHub to select exactly one.`,
+      );
+    }
+    owner = repos[0].owner;
+    name = repos[0].name;
+  }
+
   const { plaintext, hash } = generateBrokerSecret();
 
   await prisma.site.update({

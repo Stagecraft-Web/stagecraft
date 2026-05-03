@@ -117,9 +117,9 @@ describe("GET /api/github/install-callback", () => {
     expect(prismaMock.site.update).not.toHaveBeenCalled();
   });
 
-  it("400 when installation has multiple repos", async () => {
+  it("400 'Multiple repositories' only when site has no repo on file (fallback)", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } });
-    prismaMock.site.findUnique.mockResolvedValue(makeSite());
+    prismaMock.site.findUnique.mockResolvedValue(makeSite()); // no githubRepoName set
     listReposMock.mockResolvedValue([
       { owner: "artist", name: "a" },
       { owner: "artist", name: "b" },
@@ -128,6 +128,58 @@ describe("GET /api/github/install-callback", () => {
     const res = await GET(buildRequest({ installation_id: "1", state }));
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Multiple repositories selected");
+    expect(prismaMock.site.update).not.toHaveBeenCalled();
+  });
+
+  it("happy path: multi-repo install with one repo matching the site's existing repo succeeds", async () => {
+    // Real-world scenario: artist has multiple Stagecraft sites, so their
+    // single GitHub App installation has access to many repos. The
+    // install-callback should find the site's repo in the list rather
+    // than rejecting on count.
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    prismaMock.site.findUnique.mockResolvedValue(
+      makeSite({ githubRepoOwner: "artist", githubRepoName: "smoke-test-7" }),
+    );
+    listReposMock.mockResolvedValue([
+      { owner: "artist", name: "smoke-test-1" },
+      { owner: "artist", name: "smoke-test-2" },
+      { owner: "artist", name: "smoke-test-7" },
+      { owner: "artist", name: "smoke-test-9" },
+    ]);
+    prismaMock.site.update.mockResolvedValue({});
+
+    const state = await signInstallState({ siteId: "site-1", userId: "user-1" });
+    const res = await GET(buildRequest({ installation_id: "98765", state }));
+
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("GitHub App connected");
+    expect(body).toContain("artist/smoke-test-7");
+    expect(prismaMock.site.update).toHaveBeenCalledWith({
+      where: { id: "site-1" },
+      data: expect.objectContaining({
+        githubInstallationId: 98765,
+        githubRepoOwner: "artist",
+        githubRepoName: "smoke-test-7",
+      }),
+    });
+  });
+
+  it("400 'Repo not in install' when site has a repo on file but it's not in the installation list", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } });
+    prismaMock.site.findUnique.mockResolvedValue(
+      makeSite({ githubRepoOwner: "artist", githubRepoName: "smoke-test-7" }),
+    );
+    listReposMock.mockResolvedValue([
+      { owner: "artist", name: "smoke-test-1" },
+      { owner: "artist", name: "smoke-test-2" },
+    ]);
+    const state = await signInstallState({ siteId: "site-1", userId: "user-1" });
+    const res = await GET(buildRequest({ installation_id: "1", state }));
+    expect(res.status).toBe(400);
+    const body = await res.text();
+    expect(body).toContain("Repo not in install");
+    expect(body).toContain("artist/smoke-test-7");
     expect(prismaMock.site.update).not.toHaveBeenCalled();
   });
 

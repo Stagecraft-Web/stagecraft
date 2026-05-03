@@ -9,6 +9,18 @@ interface CreateSiteOptions {
     repo_branch: string;
     cmd: string;
     dir: string;
+    /**
+     * Numeric id of Netlify's GitHub App installation on the repo's owner
+     * account. When present, Netlify clones via App-based HTTPS+token
+     * (the same path the dashboard's "Link to a different repository"
+     * UI uses). When absent, Netlify falls back to deploy-key (SSH) mode,
+     * which requires Netlify to register an SSH key on the repo and
+     * frequently fails with "Host key verification failed" on first deploy.
+     *
+     * Discoverable via `findGithubAppInstallation(userId, "netlify",
+     * repoOwner)` from `integrations/github.ts`.
+     */
+    installation_id?: number;
   };
 }
 

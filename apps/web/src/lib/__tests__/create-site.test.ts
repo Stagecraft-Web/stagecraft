@@ -19,9 +19,11 @@ vi.mock("@stagecraft/db", () => ({
 
 const mockCreateRepo = vi.fn();
 const mockPushFiles = vi.fn();
+const mockFindGithubAppInstallation = vi.fn();
 vi.mock("@/lib/integrations/github", () => ({
   createRepo: mockCreateRepo,
   pushFiles: mockPushFiles,
+  findGithubAppInstallation: mockFindGithubAppInstallation,
 }));
 
 const mockCreateNetlifySite = vi.fn();
@@ -108,6 +110,8 @@ beforeEach(() => {
   mockSetVercelEnvVars.mockResolvedValue(undefined);
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
+  // Default: Netlify's GitHub App is installed on the artist's account.
+  mockFindGithubAppInstallation.mockResolvedValue(15980838);
   mockCreateNetlifySite.mockResolvedValue(NETLIFY_SITE_RESULT);
   mockCreateVercelProject.mockResolvedValue(VERCEL_PROJECT_RESULT);
 });
@@ -208,6 +212,32 @@ describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
     });
+  });
+
+  it("passes the GitHub-side Netlify App installation_id into createNetlifySite", async () => {
+    mockFindGithubAppInstallation.mockResolvedValueOnce(15980838);
+
+    await handleCreateSite(makeContext());
+
+    expect(mockFindGithubAppInstallation).toHaveBeenCalledWith(
+      "user-1",
+      "netlify",
+      "jclaw",
+    );
+    expect(mockCreateNetlifySite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repo: expect.objectContaining({ installation_id: 15980838 }),
+      }),
+    );
+  });
+
+  it("omits installation_id when Netlify's GitHub App isn't installed (createSite still attempted)", async () => {
+    mockFindGithubAppInstallation.mockResolvedValueOnce(null);
+
+    await handleCreateSite(makeContext());
+
+    const createCall = mockCreateNetlifySite.mock.calls[0][0];
+    expect(createCall.repo).not.toHaveProperty("installation_id");
   });
 
   it("falls back to plain Netlify site when repo linking fails", async () => {

@@ -5,7 +5,7 @@ import { prisma } from "@stagecraft/db";
 import type { JobContext, JobResult } from "@stagecraft/queue";
 import type { BlueprintType } from "@stagecraft/shared";
 
-import { createRepo, pushFiles } from "@/lib/integrations/github";
+import { createRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
 import {
   createProject as createVercelProject,
@@ -78,6 +78,19 @@ async function deployToNetlify(args: {
   repoBranch: string;
   envVars: Record<string, string>;
 }): Promise<DeployResult> {
+  // Find Netlify's GitHub App installation on the repo owner so the
+  // create-site call can use App-based cloning. Without this, Netlify
+  // silently falls back to deploy-key (SSH) mode, which fails on the
+  // first build with "Host key verification failed". Lookup is best-
+  // effort — if Netlify's App isn't installed, we omit the field and
+  // the existing fallback path (plain Netlify site + manual link URL)
+  // kicks in.
+  const installationId = await findGithubAppInstallation(
+    args.userId,
+    "netlify",
+    args.repoOwner,
+  );
+
   let netlifySite;
   let netlifyLinkUrl: string | undefined;
   try {
@@ -90,6 +103,7 @@ async function deployToNetlify(args: {
         repo_branch: args.repoBranch,
         cmd: "npm run build",
         dir: ".next",
+        ...(installationId !== null ? { installation_id: installationId } : {}),
       },
     });
   } catch {

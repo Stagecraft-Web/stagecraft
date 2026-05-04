@@ -252,6 +252,59 @@ export async function setEnvVars(options: SetEnvVarsOptions): Promise<void> {
   );
 }
 
+export interface LatestDeployment {
+  /** Vercel deployment id (e.g. `dpl_…`); null if no deploys yet */
+  id: string | null;
+  /** Normalized state: queued | building | ready | error | unknown */
+  state: "queued" | "building" | "ready" | "error" | "unknown";
+  /** Public URL of the deploy (e.g. `<project>-<hash>.vercel.app`); null when not yet published */
+  url: string | null;
+  /** ISO 8601 of when this deployment was created */
+  createdAt: string | null;
+}
+
+/**
+ * Get the most recent deployment on a Vercel project. Used by the
+ * platform's site-detail page to show "Building…" / "Ready" state after
+ * `/create` — `createProject` + `triggerDeployment` return immediately
+ * but the first build runs for 1–3 minutes.
+ */
+export async function getLatestDeployment(
+  userId: string,
+  projectId: string,
+  teamId?: string,
+): Promise<LatestDeployment> {
+  const token = await getVercelToken(userId);
+  const data = (await vercelApi(
+    token,
+    `/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=1`,
+    { teamId },
+  )) as { deployments?: Array<{ uid: string; readyState?: string; state?: string; url?: string; created?: number }> };
+  const deps = data.deployments ?? [];
+  if (deps.length === 0) {
+    return { id: null, state: "queued", url: null, createdAt: null };
+  }
+  const d = deps[0];
+  // Vercel readyState: QUEUED | INITIALIZING | BUILDING | UPLOADING | DEPLOYING | READY | ERROR | CANCELED
+  const raw = (d.readyState ?? d.state ?? "").toUpperCase();
+  const state: LatestDeployment["state"] =
+    raw === "READY"
+      ? "ready"
+      : raw === "ERROR" || raw === "CANCELED"
+      ? "error"
+      : raw === "QUEUED"
+      ? "queued"
+      : raw === "INITIALIZING" || raw === "BUILDING" || raw === "UPLOADING" || raw === "DEPLOYING"
+      ? "building"
+      : "unknown";
+  return {
+    id: d.uid,
+    state,
+    url: d.url ? `https://${d.url}` : null,
+    createdAt: d.created ? new Date(d.created).toISOString() : null,
+  };
+}
+
 /**
  * Trigger a fresh production deployment on a Vercel project. Used after
  * writing env vars post-deploy so the next deployment picks them up —

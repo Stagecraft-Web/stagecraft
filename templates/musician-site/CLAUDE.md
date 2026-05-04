@@ -122,8 +122,10 @@ public/images/<content-slug>/<image-id>/
 
 **Editor integration.** The `Image` Puck block uses a custom field (`src/puck/ImagePickerField.tsx`) that wraps `/api/upload-image`: the artist picks a file, types alt text, hits Upload — the field stores the returned `ImageMetadata` as the block's value. The public render path passes that metadata straight to the `<Image>` component above. Editor-side state stays in the field component; the field is `"use client"` since Puck calls it inside the editor surface.
 
+**Production vs dev:** when the platform env vars are configured (see Publishing below), the route commits the original + every variant to the artist's repo through the broker (one commit per upload). Without the env vars (local dev), it writes the same files to `public/images/` so the dev server can serve them.
+
 **TODO (covered by stacked PRs):**
-- GitHub-backed dedup check (currently uses local filesystem — fine in dev, wrong in prod once GitHub App publish lands).
+- GitHub-backed dedup check. Today both code paths recompute variants on every upload; the broker path produces a no-op tree for re-uploads (deterministic blob SHAs) but still creates a commit. A `getContent`-based pre-check would skip the commit entirely.
 
 ## Publishing (ADR-007 §5, ADR-008)
 
@@ -154,7 +156,6 @@ public/images/<content-slug>/<image-id>/
 ## What's intentionally not here yet
 
 - **Platform-side endpoints** (token broker, install callback, webhook) — separate PR; without them, publish runs in dev fallback.
-- **Image commits to GitHub** — `/api/upload-image` still writes locally. Reuse `commitFiles` once the broker side is wired.
 - **Real block library** (releases, tour dates, posts — ported from legacy).
 
 These ship in stacked PRs.

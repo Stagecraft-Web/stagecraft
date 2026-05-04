@@ -3,8 +3,14 @@ import { Octokit } from "@octokit/rest";
 export type FileToCommit = {
   /** Path relative to the repo root, e.g. "src/content/pages/home.json". */
   path: string;
-  /** UTF-8 string content (use base64 commits via a different helper for binaries). */
+  /** Content as a UTF-8 string, or as a base64-encoded string for binaries. */
   content: string;
+  /**
+   * Encoding of `content`. Defaults to "utf-8" for text. Set "base64" when
+   * committing binary files (e.g. images), and pass `content` as the
+   * base64-encoded payload (e.g. `buffer.toString("base64")`).
+   */
+  encoding?: "utf-8" | "base64";
 };
 
 export type CommitArgs = {
@@ -43,7 +49,7 @@ export async function commitFiles(args: CommitArgs): Promise<string> {
         owner,
         repo,
         content: file.content,
-        encoding: "utf-8",
+        encoding: file.encoding ?? "utf-8",
       });
       return { path: file.path, sha: blob.data.sha };
     }),

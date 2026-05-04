@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@stagecraft/db";
 import { deleteRepo, setRepoArchived } from "@/lib/integrations/github";
 import { deleteSite as deleteNetlifySite } from "@/lib/integrations/netlify";
+import { deleteProject as deleteVercelProject } from "@/lib/integrations/vercel";
 
 export async function GET(
   _req: NextRequest,
@@ -123,6 +124,20 @@ export async function DELETE(
       await deleteNetlifySite(session.user.id, site.netlifySiteId);
     } catch (e) {
       const msg = `Netlify: ${e instanceof Error ? e.message : "unknown error"}`;
+      console.error(`[delete-site] ${msg}`);
+      errors.push(msg);
+    }
+  }
+
+  if (site.vercelProjectId) {
+    try {
+      await deleteVercelProject(
+        session.user.id,
+        site.vercelProjectId,
+        site.vercelTeamId ?? undefined,
+      );
+    } catch (e) {
+      const msg = `Vercel: ${e instanceof Error ? e.message : "unknown error"}`;
       console.error(`[delete-site] ${msg}`);
       errors.push(msg);
     }

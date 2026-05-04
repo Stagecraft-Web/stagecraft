@@ -32,17 +32,26 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Check integrations are connected
+  // Check integrations are connected. GitHub is always required (the
+  // platform commits to the artist's repo). The deploy target can be
+  // either Vercel OR Netlify — at least one must be connected.
   const integrations = await prisma.integrationAccount.findMany({
     where: { userId: session.user.id },
   });
 
   const hasGithub = integrations.some((i: { provider: string }) => i.provider === "github");
   const hasNetlify = integrations.some((i: { provider: string }) => i.provider === "netlify");
+  const hasVercel = integrations.some((i: { provider: string }) => i.provider === "vercel");
 
-  if (!hasGithub || !hasNetlify) {
+  if (!hasGithub) {
     return NextResponse.json(
-      { error: "GitHub and Netlify must be connected before creating a site" },
+      { error: "GitHub must be connected before creating a site" },
+      { status: 400 }
+    );
+  }
+  if (!hasNetlify && !hasVercel) {
+    return NextResponse.json(
+      { error: "A deploy target must be connected (Vercel or Netlify) before creating a site" },
       { status: 400 }
     );
   }

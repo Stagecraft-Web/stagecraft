@@ -1,0 +1,346 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { prismaMock } = vi.hoisted(() => ({
+  prismaMock: {
+    integrationAccount: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
+
+vi.mock("@stagecraft/db", () => ({ prisma: prismaMock }));
+
+import {
+  validateVercelToken,
+  createProject,
+  setEnvVars,
+  triggerDeployment,
+  deleteProject,
+} from "../vercel";
+
+const ORIGINAL_FETCH = globalThis.fetch;
+
+function mockFetch(handler: (url: string, init?: RequestInit) => { status: number; body: unknown }) {
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const { status, body } = handler(url, init);
+    // 204/205/304 must have null body per the Response spec.
+    const noBodyStatus = status === 204 || status === 205 || status === 304;
+    const responseBody = noBodyStatus
+      ? null
+      : typeof body === "string"
+        ? body
+        : JSON.stringify(body);
+    return new Response(responseBody, {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+}
+
+beforeEach(() => {
+  prismaMock.integrationAccount.findUnique.mockReset();
+  prismaMock.integrationAccount.findUnique.mockResolvedValue({
+    accessToken: "vercel_test_token",
+  });
+});
+
+afterEach(() => {
+  globalThis.fetch = ORIGINAL_FETCH;
+});
+
+describe("validateVercelToken", () => {
+  it("returns userId + username on a valid token", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { user: { id: "vercel-user-1", username: "jclaw", email: "j@example.com" } },
+    }));
+    const result = await validateVercelToken("vercel_test_token");
+    expect(result).toEqual({ userId: "vercel-user-1", username: "jclaw" });
+  });
+
+  it("falls back to email when username is missing", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { user: { id: "u1", email: "j@example.com" } },
+    }));
+    const result = await validateVercelToken("vercel_test_token");
+    expect(result.username).toBe("j@example.com");
+  });
+
+  it("accepts `uid` field as user id (older payload shape)", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { user: { uid: "u-old", username: "legacy" } },
+    }));
+    const result = await validateVercelToken("vercel_test_token");
+    expect(result.userId).toBe("u-old");
+  });
+
+  it("throws on a 401 from Vercel", async () => {
+    mockFetch(() => ({ status: 401, body: { error: { code: "forbidden" } } }));
+    await expect(validateVercelToken("bad-token")).rejects.toThrow(/Vercel API error \(401\)/);
+  });
+
+  it("throws when /v2/user returns no user id at all", async () => {
+    mockFetch(() => ({ status: 200, body: { user: { username: "anon" } } }));
+    await expect(validateVercelToken("vercel_test_token")).rejects.toThrow(/did not return a user id/);
+  });
+});
+
+describe("createProject", () => {
+  it("POSTs /v9/projects with the GitHub repo info and nextjs framework default", async () => {
+    let capturedUrl = "";
+    let capturedBody = "";
+    mockFetch((url, init) => {
+      capturedUrl = url;
+      capturedBody = (init?.body as string) ?? "";
+      return {
+        status: 200,
+        body: {
+          id: "prj_abc",
+          name: "stagecraft-site-test",
+          targets: { production: { alias: ["stagecraft-site-test.vercel.app"] } },
+        },
+      };
+    });
+
+    const result = await createProject({
+      userId: "user-1",
+      name: "stagecraft-site-test",
+      repo: { repo: "jclaw/stagecraft-site-test" },
+    });
+
+    expect(capturedUrl).toBe("https://api.vercel.com/v9/projects");
+    const body = JSON.parse(capturedBody);
+    expect(body).toMatchObject({
+      name: "stagecraft-site-test",
+      framework: "nextjs",
+      gitRepository: { type: "github", repo: "jclaw/stagecraft-site-test" },
+    });
+    expect(result).toEqual({
+      projectId: "prj_abc",
+      projectName: "stagecraft-site-test",
+      teamId: null,
+      productionUrl: "https://stagecraft-site-test.vercel.app",
+      adminUrl: "https://vercel.com/stagecraft-site-test",
+    });
+  });
+
+  it("appends teamId to the URL when provided", async () => {
+    let capturedUrl = "";
+    mockFetch((url) => {
+      capturedUrl = url;
+      return { status: 200, body: { id: "prj_x", name: "n" } };
+    });
+
+    await createProject({
+      userId: "user-1",
+      name: "n",
+      teamId: "team_xyz",
+      repo: { repo: "jclaw/n" },
+    });
+    expect(capturedUrl).toContain("teamId=team_xyz");
+  });
+
+  it("constructs a productionUrl when Vercel response lacks aliases (fresh project)", async () => {
+    mockFetch(() => ({ status: 200, body: { id: "prj_x", name: "fresh-project" } }));
+    const result = await createProject({
+      userId: "user-1",
+      name: "fresh-project",
+      repo: { repo: "jclaw/fresh-project" },
+    });
+    expect(result.productionUrl).toBe("https://fresh-project.vercel.app");
+  });
+
+  it("propagates Vercel API errors with status + body", async () => {
+    mockFetch(() => ({ status: 400, body: { error: { message: "name in use" } } }));
+    await expect(
+      createProject({
+        userId: "user-1",
+        name: "existing",
+        repo: { repo: "jclaw/existing" },
+      }),
+    ).rejects.toThrow(/Vercel API error \(400\)/);
+  });
+});
+
+describe("setEnvVars", () => {
+  it("POSTs an upsert batch to /v10/projects/{id}/env with the right shape", async () => {
+    let capturedUrl = "";
+    let capturedBody = "";
+    mockFetch((url, init) => {
+      capturedUrl = url;
+      capturedBody = (init?.body as string) ?? "";
+      return { status: 200, body: {} };
+    });
+
+    await setEnvVars({
+      userId: "user-1",
+      projectId: "prj_abc",
+      vars: { FOO: "bar", BAZ: "qux" },
+    });
+
+    expect(capturedUrl).toContain("/v10/projects/prj_abc/env");
+    expect(capturedUrl).toContain("upsert=true");
+    const body = JSON.parse(capturedBody);
+    expect(body).toEqual([
+      { key: "FOO", value: "bar", type: "encrypted", target: ["production", "preview", "development"] },
+      { key: "BAZ", value: "qux", type: "encrypted", target: ["production", "preview", "development"] },
+    ]);
+  });
+
+  it("respects a custom target list", async () => {
+    let capturedBody = "";
+    mockFetch((_url, init) => {
+      capturedBody = (init?.body as string) ?? "";
+      return { status: 200, body: {} };
+    });
+
+    await setEnvVars({
+      userId: "user-1",
+      projectId: "prj_abc",
+      vars: { FOO: "bar" },
+      target: ["production"],
+    });
+
+    const body = JSON.parse(capturedBody);
+    expect(body[0].target).toEqual(["production"]);
+  });
+});
+
+describe("triggerDeployment", () => {
+  it("looks up the project then POSTs /v13/deployments with gitSource", async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    mockFetch((url, init) => {
+      requests.push({
+        url,
+        method: init?.method ?? "GET",
+        body: init?.body as string | undefined,
+      });
+      // First call: GET /v9/projects/{id} → return project metadata.
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: {
+            name: "stagecraft-site-test",
+            link: {
+              type: "github",
+              org: "jclaw",
+              repo: "stagecraft-site-test",
+              repoId: 12345,
+              productionBranch: "main",
+            },
+          },
+        };
+      }
+      // Second call: POST /v13/deployments → deploy result.
+      return { status: 200, body: { id: "dpl_abc" } };
+    });
+
+    const result = await triggerDeployment("user-1", "prj_abc");
+
+    expect(result).toEqual({ deploymentId: "dpl_abc" });
+    expect(requests).toHaveLength(2);
+    expect(requests[1].url).toBe("https://api.vercel.com/v13/deployments");
+    expect(requests[1].method).toBe("POST");
+    const body = JSON.parse(requests[1].body ?? "{}");
+    expect(body).toMatchObject({
+      name: "stagecraft-site-test",
+      target: "production",
+      gitSource: { type: "github", repoId: 12345, ref: "main" },
+    });
+  });
+
+  it("defaults ref to 'main' when project has no productionBranch", async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    mockFetch((url, init) => {
+      requests.push({
+        url,
+        method: init?.method ?? "GET",
+        body: init?.body as string | undefined,
+      });
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: { name: "n", link: { repoId: 99 } },
+        };
+      }
+      return { status: 200, body: { id: "dpl_y" } };
+    });
+
+    await triggerDeployment("user-1", "prj_x");
+
+    const body = JSON.parse(requests[1].body ?? "{}");
+    expect(body.gitSource.ref).toBe("main");
+  });
+
+  it("throws when the project has no linked git repo", async () => {
+    mockFetch((url, init) => {
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return { status: 200, body: { name: "n", link: {} } };
+      }
+      return { status: 200, body: {} };
+    });
+
+    await expect(triggerDeployment("user-1", "prj_x")).rejects.toThrow(
+      /no linked git repo/,
+    );
+  });
+
+  it("forwards teamId to both API calls when provided", async () => {
+    const urls: string[] = [];
+    mockFetch((url, init) => {
+      urls.push(url);
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: { name: "n", link: { repoId: 1, productionBranch: "main" } },
+        };
+      }
+      return { status: 200, body: { id: "dpl_z" } };
+    });
+
+    await triggerDeployment("user-1", "prj_x", "team_t");
+
+    expect(urls[0]).toContain("teamId=team_t");
+    expect(urls[1]).toContain("teamId=team_t");
+  });
+});
+
+describe("deleteProject", () => {
+  it("issues DELETE /v9/projects/{id}", async () => {
+    let capturedUrl = "";
+    let capturedMethod = "";
+    mockFetch((url, init) => {
+      capturedUrl = url;
+      capturedMethod = init?.method ?? "GET";
+      return { status: 204, body: "" };
+    });
+
+    await deleteProject("user-1", "prj_abc");
+
+    expect(capturedUrl).toContain("/v9/projects/prj_abc");
+    expect(capturedMethod).toBe("DELETE");
+  });
+
+  it("treats 404 as success (idempotent delete)", async () => {
+    mockFetch(() => ({ status: 404, body: { error: { code: "not_found" } } }));
+    await expect(deleteProject("user-1", "missing")).resolves.toBeUndefined();
+  });
+
+  it("throws on non-404 errors", async () => {
+    mockFetch(() => ({ status: 500, body: { error: { code: "internal" } } }));
+    await expect(deleteProject("user-1", "prj_x")).rejects.toThrow(/500/);
+  });
+
+  it("appends teamId to the URL when provided", async () => {
+    let capturedUrl = "";
+    mockFetch((url) => {
+      capturedUrl = url;
+      return { status: 204, body: "" };
+    });
+    await deleteProject("user-1", "prj_x", "team_y");
+    expect(capturedUrl).toContain("teamId=team_y");
+  });
+});

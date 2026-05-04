@@ -4,27 +4,40 @@ import type { JobContext } from "@stagecraft/queue";
 const mockSiteUpdate = vi.fn();
 const mockUserFindUnique = vi.fn();
 const mockIntegrationFindUnique = vi.fn();
+const mockIntegrationFindMany = vi.fn();
 
 vi.mock("@stagecraft/db", () => ({
   prisma: {
     site: { update: mockSiteUpdate },
     user: { findUnique: mockUserFindUnique },
-    integrationAccount: { findUnique: mockIntegrationFindUnique },
+    integrationAccount: {
+      findUnique: mockIntegrationFindUnique,
+      findMany: mockIntegrationFindMany,
+    },
   },
 }));
 
 const mockCreateRepo = vi.fn();
 const mockPushFiles = vi.fn();
+const mockFindGithubAppInstallation = vi.fn();
 vi.mock("@/lib/integrations/github", () => ({
   createRepo: mockCreateRepo,
   pushFiles: mockPushFiles,
+  findGithubAppInstallation: mockFindGithubAppInstallation,
 }));
 
 const mockCreateNetlifySite = vi.fn();
-const mockSetEnvVars = vi.fn();
+const mockSetNetlifyEnvVars = vi.fn();
 vi.mock("@/lib/integrations/netlify", () => ({
   createSite: mockCreateNetlifySite,
-  setEnvVars: mockSetEnvVars,
+  setEnvVars: mockSetNetlifyEnvVars,
+}));
+
+const mockCreateVercelProject = vi.fn();
+const mockSetVercelEnvVars = vi.fn();
+vi.mock("@/lib/integrations/vercel", () => ({
+  createProject: mockCreateVercelProject,
+  setEnvVars: mockSetVercelEnvVars,
 }));
 
 const mockReadTemplateFiles = vi.fn().mockResolvedValue([]);
@@ -60,48 +73,100 @@ function makeContext(overrides = {}): JobContext {
   };
 }
 
-describe("handleCreateSite", () => {
+const REPO_RESULT = {
+  owner: "jclaw",
+  name: "sarah-chen-music",
+  fullName: "jclaw/sarah-chen-music",
+  htmlUrl: "https://github.com/jclaw/sarah-chen-music",
+  cloneUrl: "https://github.com/jclaw/sarah-chen-music.git",
+  defaultBranch: "main",
+};
+
+const NETLIFY_SITE_RESULT = {
+  siteId: "netlify-123",
+  siteName: "stagecraft-site-sarah-chen-music",
+  url: "https://stagecraft-site-sarah-chen-music.netlify.app",
+  adminUrl: "https://app.netlify.com/sites/stagecraft-site-sarah-chen-music",
+  sslUrl: "https://stagecraft-site-sarah-chen-music.netlify.app",
+};
+
+const VERCEL_PROJECT_RESULT = {
+  projectId: "prj_abc123",
+  projectName: "stagecraft-site-sarah-chen-music",
+  teamId: null,
+  productionUrl: "https://stagecraft-site-sarah-chen-music.vercel.app",
+  adminUrl: "https://vercel.com/stagecraft-site-sarah-chen-music",
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  process.env = { ...ORIGINAL_ENV, AUTH_URL: "https://stagecraft.test" };
+  mockSiteUpdate.mockResolvedValue({});
+  mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "artist@example.com" });
+  mockIntegrationFindUnique.mockResolvedValue({ accessToken: "token" });
+  // Default: only Netlify connected → Netlify path
+  mockIntegrationFindMany.mockResolvedValue([{ provider: "netlify", metadata: null }]);
+  mockSetNetlifyEnvVars.mockResolvedValue(undefined);
+  mockSetVercelEnvVars.mockResolvedValue(undefined);
+  mockCreateRepo.mockResolvedValue(REPO_RESULT);
+  mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
+  // Default: Netlify's GitHub App is installed on the artist's account.
+  mockFindGithubAppInstallation.mockResolvedValue(15980838);
+  mockCreateNetlifySite.mockResolvedValue(NETLIFY_SITE_RESULT);
+  mockCreateVercelProject.mockResolvedValue(VERCEL_PROJECT_RESULT);
+});
+
+afterEach(() => {
+  process.env = ORIGINAL_ENV;
+});
+
+describe("handleCreateSite — common preconditions", () => {
+  it("returns failure for missing payload", async () => {
+    const result = await handleCreateSite(makeContext({ requestPayload: {} }));
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Missing required payload");
+  });
+
+  it("marks site as error when the user has no email on file", async () => {
+    mockUserFindUnique.mockResolvedValueOnce({ id: "user-1", email: null });
+    const result = await handleCreateSite(makeContext());
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("email");
+    expect(mockCreateRepo).not.toHaveBeenCalled();
+  });
+
+  it("marks site as error when no deploy-target integration is connected", async () => {
+    mockIntegrationFindMany.mockResolvedValueOnce([]); // neither netlify nor vercel
+    const result = await handleCreateSite(makeContext());
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("No deploy-target integration");
+    expect(mockCreateRepo).not.toHaveBeenCalled();
+  });
+
+  it("marks site as error when GitHub repo creation fails", async () => {
+    mockCreateRepo.mockRejectedValueOnce(new Error("name already exists"));
+    const result = await handleCreateSite(makeContext());
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("name already exists");
+  });
+});
+
+describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    process.env = { ...ORIGINAL_ENV, AUTH_URL: "https://stagecraft.test" };
-    mockSiteUpdate.mockResolvedValue({});
-    mockIntegrationFindUnique.mockResolvedValue({ accessToken: "token" });
-    mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "artist@example.com" });
-    mockSetEnvVars.mockResolvedValue(undefined);
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "netlify", metadata: null }]);
   });
 
-  afterEach(() => {
-    process.env = ORIGINAL_ENV;
-  });
-
-  it("creates repo, pushes files, creates linked Netlify site, and marks site active", async () => {
-    mockCreateRepo.mockResolvedValue({
-      owner: "jclaw",
-      name: "sarah-chen-music",
-      fullName: "jclaw/sarah-chen-music",
-      htmlUrl: "https://github.com/jclaw/sarah-chen-music",
-      cloneUrl: "https://github.com/jclaw/sarah-chen-music.git",
-      defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
-    mockCreateNetlifySite.mockResolvedValue({
-      siteId: "netlify-123",
-      siteName: "sarah-chen-music",
-      url: "https://sarah-chen-music.netlify.app",
-      adminUrl: "https://app.netlify.com/sites/sarah-chen-music",
-      sslUrl: "https://sarah-chen-music.netlify.app",
-    });
-
+  it("happy path: creates linked Netlify site, persists deployTarget=netlify, marks active", async () => {
     const result = await handleCreateSite(makeContext());
 
     expect(result.success).toBe(true);
-    expect(result.data).toEqual({
+    expect(result.data).toMatchObject({
+      deployTarget: "netlify",
       githubUrl: "https://github.com/jclaw/sarah-chen-music",
-      netlifyAdminUrl: "https://app.netlify.com/sites/sarah-chen-music",
       netlifySiteId: "netlify-123",
+      netlifyAdminUrl: NETLIFY_SITE_RESULT.adminUrl,
     });
 
-    // Netlify site created with Next.js build settings
     expect(mockCreateNetlifySite).toHaveBeenCalledWith(
       expect.objectContaining({
         repo: expect.objectContaining({
@@ -111,41 +176,34 @@ describe("handleCreateSite", () => {
           cmd: "npm run build",
           dir: ".next",
         }),
-      })
+      }),
     );
+    expect(mockCreateVercelProject).not.toHaveBeenCalled();
 
     expect(mockSiteUpdate).toHaveBeenCalledWith({
       where: { id: "site-1" },
       data: expect.objectContaining({
         githubRepoOwner: "jclaw",
         githubRepoName: "sarah-chen-music",
+        deployTarget: "netlify",
       }),
     });
-
     expect(mockSiteUpdate).toHaveBeenCalledWith({
       where: { id: "site-1" },
-      data: {
+      data: expect.objectContaining({
         netlifySiteId: "netlify-123",
-        productionUrl: "https://sarah-chen-music.netlify.app",
+        netlifyAdminUrl: NETLIFY_SITE_RESULT.adminUrl,
+        productionUrl: NETLIFY_SITE_RESULT.sslUrl,
         status: "active",
-      },
+      }),
     });
   });
 
-  it("provisions the new template's runtime env vars on Netlify", async () => {
-    mockCreateRepo.mockResolvedValue({
-      owner: "jclaw", name: "sarah-chen-music", fullName: "jclaw/sarah-chen-music",
-      htmlUrl: "", cloneUrl: "", defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc" });
-    mockCreateNetlifySite.mockResolvedValue({
-      siteId: "netlify-123", siteName: "x", url: "u", adminUrl: "a", sslUrl: "s",
-    });
-
+  it("provisions runtime env vars on Netlify (the four artist-site vars)", async () => {
     await handleCreateSite(makeContext());
 
-    expect(mockSetEnvVars).toHaveBeenCalledTimes(1);
-    const [envUserId, envSiteId, envVars] = mockSetEnvVars.mock.calls[0];
+    expect(mockSetNetlifyEnvVars).toHaveBeenCalledTimes(1);
+    const [envUserId, envSiteId, envVars] = mockSetNetlifyEnvVars.mock.calls[0];
     expect(envUserId).toBe("user-1");
     expect(envSiteId).toBe("netlify-123");
     expect(envVars).toEqual({
@@ -156,142 +214,186 @@ describe("handleCreateSite", () => {
     });
   });
 
-  it("strips a trailing slash from AUTH_URL when setting STAGECRAFT_PLATFORM_URL", async () => {
-    process.env.AUTH_URL = "https://stagecraft.test/";
-    mockCreateRepo.mockResolvedValue({
-      owner: "j", name: "n", fullName: "j/n", htmlUrl: "", cloneUrl: "", defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc" });
-    mockCreateNetlifySite.mockResolvedValue({
-      siteId: "netlify-123", siteName: "x", url: "u", adminUrl: "a", sslUrl: "s",
-    });
+  it("passes the GitHub-side Netlify App installation_id into createNetlifySite", async () => {
+    mockFindGithubAppInstallation.mockResolvedValueOnce(15980838);
 
     await handleCreateSite(makeContext());
 
-    const envVars = mockSetEnvVars.mock.calls[0][2];
-    expect(envVars.STAGECRAFT_PLATFORM_URL).toBe("https://stagecraft.test");
+    expect(mockFindGithubAppInstallation).toHaveBeenCalledWith(
+      "user-1",
+      "netlify",
+      "jclaw",
+    );
+    expect(mockCreateNetlifySite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repo: expect.objectContaining({ installation_id: 15980838 }),
+      }),
+    );
   });
 
-  it("surfaces a netlifyEnvWarning when env-var provisioning fails (site still active)", async () => {
-    mockCreateRepo.mockResolvedValue({
-      owner: "j", name: "n", fullName: "j/n", htmlUrl: "", cloneUrl: "", defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc" });
-    mockCreateNetlifySite.mockResolvedValue({
-      siteId: "netlify-123", siteName: "x", url: "u", adminUrl: "a", sslUrl: "s",
-    });
-    mockSetEnvVars.mockRejectedValueOnce(new Error("Netlify rate limit"));
+  it("omits installation_id when Netlify's GitHub App isn't installed (createSite still attempted)", async () => {
+    mockFindGithubAppInstallation.mockResolvedValueOnce(null);
+
+    await handleCreateSite(makeContext());
+
+    const createCall = mockCreateNetlifySite.mock.calls[0][0];
+    expect(createCall.repo).not.toHaveProperty("installation_id");
+  });
+
+  it("falls back to plain Netlify site when repo linking fails", async () => {
+    mockCreateNetlifySite
+      .mockRejectedValueOnce(new Error("installation_id required"))
+      .mockResolvedValueOnce(NETLIFY_SITE_RESULT);
 
     const result = await handleCreateSite(makeContext());
 
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).netlifyEnvWarning).toBe("Netlify rate limit");
-    // Site still marked active so the artist can recover by setting env vars manually
+    expect((result.data as Record<string, unknown>).netlifyLinkUrl).toBe(
+      "https://app.netlify.com/projects/stagecraft-site-sarah-chen-music/link",
+    );
+    expect(mockCreateNetlifySite).toHaveBeenCalledTimes(2);
+    expect(mockCreateNetlifySite).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ repo: expect.anything() }),
+    );
+  });
+
+  it("surfaces envWarning when env-var provisioning fails (site still active)", async () => {
+    mockSetNetlifyEnvVars.mockRejectedValueOnce(new Error("Netlify rate limit"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).envWarning).toBe("Netlify rate limit");
     expect(mockSiteUpdate).toHaveBeenCalledWith({
       where: { id: "site-1" },
       data: expect.objectContaining({ status: "active" }),
     });
   });
 
-  it("falls back to a plain Netlify site when repo linking fails and returns netlifyLinkUrl", async () => {
-    mockCreateRepo.mockResolvedValue({
-      owner: "jclaw",
-      name: "sarah-chen-music",
-      fullName: "jclaw/sarah-chen-music",
-      htmlUrl: "https://github.com/jclaw/sarah-chen-music",
-      cloneUrl: "https://github.com/jclaw/sarah-chen-music.git",
-      defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
-    mockCreateNetlifySite
-      .mockRejectedValueOnce(new Error("installation_id required"))
-      .mockResolvedValueOnce({
-        siteId: "netlify-123",
-        siteName: "stagecraft-site-sarah-chen-music",
-        url: "https://stagecraft-site-sarah-chen-music.netlify.app",
-        adminUrl: "https://app.netlify.com/sites/stagecraft-site-sarah-chen-music",
-        sslUrl: "https://stagecraft-site-sarah-chen-music.netlify.app",
-      });
-
-    const result = await handleCreateSite(makeContext());
-
-    expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).netlifyLinkUrl).toBe(
-      "https://app.netlify.com/projects/stagecraft-site-sarah-chen-music/link"
-    );
-    expect(mockCreateNetlifySite).toHaveBeenCalledTimes(2);
-    expect(mockCreateNetlifySite).toHaveBeenLastCalledWith(
-      expect.not.objectContaining({ repo: expect.anything() })
-    );
-  });
-
-  it("returns failure for missing payload", async () => {
-    const ctx = makeContext({ requestPayload: {} });
-    const result = await handleCreateSite(ctx);
-
-    expect(result.success).toBe(false);
-    expect(result.message).toContain("Missing required payload");
-  });
-
-  it("marks site as error when GitHub repo creation fails", async () => {
-    mockCreateRepo.mockRejectedValue(new Error("name already exists"));
-
-    const result = await handleCreateSite(makeContext());
-
-    expect(result.success).toBe(false);
-    expect(result.message).toBe("name already exists");
-
-    expect(mockSiteUpdate).toHaveBeenCalledWith({
-      where: { id: "site-1" },
-      data: { status: "error" },
-    });
-  });
-
-  it("marks site as error when the user has no email on file", async () => {
-    mockUserFindUnique.mockResolvedValueOnce({ id: "user-1", email: null });
-
-    const result = await handleCreateSite(makeContext());
-
-    expect(result.success).toBe(false);
-    expect(result.message).toContain("email");
-    expect(mockCreateRepo).not.toHaveBeenCalled();
-    expect(mockSiteUpdate).toHaveBeenCalledWith({
-      where: { id: "site-1" },
-      data: { status: "error" },
-    });
-  });
-
-  it("marks site as error when AUTH_URL is unset on the platform", async () => {
-    delete process.env.AUTH_URL;
-    mockCreateRepo.mockResolvedValue({
-      owner: "j", name: "n", fullName: "j/n", htmlUrl: "", cloneUrl: "", defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc" });
-    mockCreateNetlifySite.mockResolvedValue({
-      siteId: "netlify-123", siteName: "x", url: "u", adminUrl: "a", sslUrl: "s",
-    });
-
-    const result = await handleCreateSite(makeContext());
-
-    expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).netlifyEnvWarning).toContain("AUTH_URL");
-  });
-
-  it("marks site as error when Netlify fails", async () => {
-    mockCreateRepo.mockResolvedValue({
-      owner: "jclaw", name: "test", fullName: "jclaw/test",
-      htmlUrl: "", cloneUrl: "", defaultBranch: "main",
-    });
-    mockPushFiles.mockResolvedValue({ commitSha: "abc" });
+  it("marks site as error when Netlify project creation fails (no fallback recovery)", async () => {
     mockCreateNetlifySite.mockRejectedValue(new Error("Netlify quota exceeded"));
 
     const result = await handleCreateSite(makeContext());
 
     expect(result.success).toBe(false);
     expect(result.message).toBe("Netlify quota exceeded");
+  });
+});
+
+describe("handleCreateSite — Vercel path (Vercel connected)", () => {
+  beforeEach(() => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+  });
+
+  it("happy path: creates Vercel project with the GitHub repo + nextjs framework", async () => {
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      deployTarget: "vercel",
+      githubUrl: "https://github.com/jclaw/sarah-chen-music",
+      vercelProjectId: "prj_abc123",
+      vercelProjectName: "stagecraft-site-sarah-chen-music",
+      productionUrl: VERCEL_PROJECT_RESULT.productionUrl,
+    });
+    expect(mockCreateVercelProject).toHaveBeenCalledWith({
+      userId: "user-1",
+      name: "stagecraft-site-sarah-chen-music",
+      teamId: undefined,
+      repo: { repo: "jclaw/sarah-chen-music" },
+      framework: "nextjs",
+    });
+    expect(mockCreateNetlifySite).not.toHaveBeenCalled();
+
     expect(mockSiteUpdate).toHaveBeenCalledWith({
       where: { id: "site-1" },
-      data: { status: "error" },
+      data: expect.objectContaining({
+        deployTarget: "vercel",
+      }),
     });
+    expect(mockSiteUpdate).toHaveBeenCalledWith({
+      where: { id: "site-1" },
+      data: expect.objectContaining({
+        vercelProjectId: "prj_abc123",
+        vercelProjectName: "stagecraft-site-sarah-chen-music",
+        vercelTeamId: null,
+        productionUrl: VERCEL_PROJECT_RESULT.productionUrl,
+        status: "active",
+      }),
+    });
+  });
+
+  it("provisions runtime env vars on Vercel using the project id", async () => {
+    await handleCreateSite(makeContext());
+
+    expect(mockSetVercelEnvVars).toHaveBeenCalledTimes(1);
+    const [args] = mockSetVercelEnvVars.mock.calls[0];
+    expect(args.userId).toBe("user-1");
+    expect(args.projectId).toBe("prj_abc123");
+    expect(args.vars).toEqual({
+      MAGIC_LINK_SIGNING_SECRET: expect.stringMatching(/^[0-9a-f]{64}$/),
+      ADMIN_EMAIL: "artist@example.com",
+      STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
+      STAGECRAFT_SITE_ID: "site-1",
+    });
+  });
+
+  it("forwards teamId from IntegrationAccount.metadata into both create + setEnvVars", async () => {
+    mockIntegrationFindMany.mockResolvedValue([
+      { provider: "vercel", metadata: { teamId: "team_xyz" } },
+    ]);
+    mockIntegrationFindUnique.mockResolvedValue({
+      metadata: { teamId: "team_xyz" },
+    });
+    mockCreateVercelProject.mockResolvedValue({
+      ...VERCEL_PROJECT_RESULT,
+      teamId: "team_xyz",
+    });
+
+    await handleCreateSite(makeContext());
+
+    expect(mockCreateVercelProject).toHaveBeenCalledWith(
+      expect.objectContaining({ teamId: "team_xyz" }),
+    );
+    const [args] = mockSetVercelEnvVars.mock.calls[0];
+    expect(args.teamId).toBe("team_xyz");
+  });
+
+  it("surfaces envWarning when Vercel env-var provisioning fails (site still active)", async () => {
+    mockSetVercelEnvVars.mockRejectedValueOnce(new Error("Vercel rate limit"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).envWarning).toBe("Vercel rate limit");
+    expect(mockSiteUpdate).toHaveBeenCalledWith({
+      where: { id: "site-1" },
+      data: expect.objectContaining({ status: "active" }),
+    });
+  });
+
+  it("marks site as error when Vercel project creation fails", async () => {
+    mockCreateVercelProject.mockRejectedValue(new Error("Vercel name conflict"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Vercel name conflict");
+  });
+});
+
+describe("handleCreateSite — Vercel preferred when both connected", () => {
+  it("picks vercel when both vercel and netlify integrations are connected", async () => {
+    mockIntegrationFindMany.mockResolvedValue([
+      { provider: "netlify", metadata: null },
+      { provider: "vercel", metadata: null },
+    ]);
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect(mockCreateVercelProject).toHaveBeenCalledTimes(1);
+    expect(mockCreateNetlifySite).not.toHaveBeenCalled();
+    expect((result.data as Record<string, unknown>).deployTarget).toBe("vercel");
   });
 });

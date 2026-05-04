@@ -9,6 +9,18 @@ interface CreateSiteOptions {
     repo_branch: string;
     cmd: string;
     dir: string;
+    /**
+     * Numeric id of Netlify's GitHub App installation on the repo's owner
+     * account. When present, Netlify clones via App-based HTTPS+token
+     * (the same path the dashboard's "Link to a different repository"
+     * UI uses). When absent, Netlify falls back to deploy-key (SSH) mode,
+     * which requires Netlify to register an SSH key on the repo and
+     * frequently fails with "Host key verification failed" on first deploy.
+     *
+     * Discoverable via `findGithubAppInstallation(userId, "netlify",
+     * repoOwner)` from `integrations/github.ts`.
+     */
+    installation_id?: number;
   };
 }
 
@@ -129,6 +141,24 @@ export async function getDeployPreviewForPR(
     previewUrl: deploy.deploy_url ?? null,
     state: deploy.state ?? "building",
   };
+}
+
+/**
+ * Trigger a fresh build on a Netlify site. Used after writing env vars
+ * post-deploy so the next build picks them up — Netlify does not
+ * automatically rebuild when only env-vars change.
+ *
+ * Returns the build id so callers can surface a "rebuilding…" link.
+ */
+export async function triggerBuild(
+  userId: string,
+  netlifySiteId: string,
+): Promise<{ buildId: string }> {
+  const token = await getNetlifyToken(userId);
+  const data = (await netlifyApi(token, `/sites/${netlifySiteId}/builds`, {
+    method: "POST",
+  })) as { id: string };
+  return { buildId: data.id };
 }
 
 /**

@@ -313,3 +313,40 @@ export async function deleteRepo(userId: string, owner: string, repo: string): P
     throw new Error(`Failed to delete GitHub repo (${res.status}): ${body}`);
   }
 }
+
+interface GithubInstallation {
+  id: number;
+  app_slug: string;
+  account: { login: string };
+}
+
+/**
+ * Find the numeric installation id for a given GitHub App on a given owner
+ * (user or org). Used to thread `installation_id` through to deploy
+ * providers like Netlify whose API needs it for App-based repo cloning.
+ *
+ * GitHub's `/user/installations` endpoint returns every App installed on
+ * the authenticated user's accounts (personal + orgs they belong to).
+ * Match by `app_slug` (e.g. "netlify") AND `account.login` (the owner of
+ * the repo we're connecting), so artists with the same App installed on
+ * multiple accounts get the right installation.
+ *
+ * Returns null when no matching installation exists — caller can then
+ * fall back to a manual-link flow rather than erroring hard.
+ */
+export async function findGithubAppInstallation(
+  userId: string,
+  appSlug: string,
+  ownerLogin: string,
+): Promise<number | null> {
+  const token = await getGitHubToken(userId);
+
+  const data = (await githubApi(token, "/user/installations?per_page=100")) as {
+    installations: GithubInstallation[];
+  };
+
+  const match = data.installations.find(
+    (i) => i.app_slug === appSlug && i.account.login === ownerLogin,
+  );
+  return match?.id ?? null;
+}

@@ -122,6 +122,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  if (result.failureCategory === "vercel_github_app_missing") {
+    return NextResponse.json(
+      {
+        error: result.message,
+        failureCategory: result.failureCategory,
+        installUrl: result.data?.installUrl,
+      },
+      { status: 400 },
+    );
+  }
+
   // Re-read the site so the response reflects whatever handleCreateSite
   // wrote during the run (githubRepoOwner/Name, netlifySiteId,
   // productionUrl, status transitioning to active or error).

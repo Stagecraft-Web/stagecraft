@@ -73,11 +73,28 @@ export function ConnectVercel({ connectedUsername }: ConnectVercelProps) {
         <p>
           Connected as <strong>{connectedUsername}</strong>
         </p>
+        <div style={{ marginTop: 12, padding: 12, background: "#f0f7ff", borderRadius: 6, border: "1px solid #cce0ff" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+            Step 2: Install Vercel&rsquo;s GitHub App
+          </p>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#444" }}>
+            Vercel needs its GitHub App installed on your account to link repositories for auto-deploy.
+            If you haven&rsquo;t done this yet:
+          </p>
+          <a
+            href="https://github.com/apps/vercel/installations/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-block", marginTop: 8, fontSize: 14, fontWeight: 600 }}
+          >
+            Install Vercel GitHub App &rarr;
+          </a>
+        </div>
         <button
           type="button"
           onClick={handleDisconnect}
           disabled={pending}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 12 }}
         >
           {pending ? "Disconnecting…" : "Disconnect"}
         </button>

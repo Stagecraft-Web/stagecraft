@@ -5,11 +5,12 @@ import { prisma } from "@stagecraft/db";
 import type { JobContext, JobResult } from "@stagecraft/queue";
 import type { BlueprintType } from "@stagecraft/shared";
 
-import { createRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
+import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
 import {
   createProject as createVercelProject,
   setEnvVars as setVercelEnvVars,
+  VercelGitHubAppNotInstalledError,
 } from "@/lib/integrations/vercel";
 import { readTemplateFiles } from "@/lib/template-reader";
 
@@ -292,6 +293,24 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       },
     };
   } catch (error) {
+    if (error instanceof VercelGitHubAppNotInstalledError) {
+      const site = await prisma.site.findUnique({
+        where: { id: siteId },
+        select: { githubRepoOwner: true, githubRepoName: true },
+      });
+      if (site?.githubRepoOwner && site.githubRepoName) {
+        await deleteRepo(userId, site.githubRepoOwner, site.githubRepoName);
+      }
+      await prisma.site.delete({ where: { id: siteId } });
+
+      return {
+        success: false,
+        message: error.message,
+        failureCategory: "vercel_github_app_missing",
+        data: { installUrl: error.installUrl },
+      };
+    }
+
     await prisma.site.update({
       where: { id: siteId },
       data: { status: "error" },

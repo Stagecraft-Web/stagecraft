@@ -14,6 +14,8 @@ export default async function SettingsPage({
 
   const params = await searchParams;
 
+  const githubAppInstallUrl = process.env.GITHUB_APP_INSTALL_URL ?? null;
+
   const integrations = await prisma.integrationAccount.findMany({
     where: { userId: session.user.id },
   });
@@ -78,6 +80,25 @@ export default async function SettingsPage({
             <a href="/api/integrations/netlify">Connect Netlify</a>
           )}
         </div>
+
+        {githubAppInstallUrl && (
+          <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginTop: 16 }}>
+            <h3>Stagecraft GitHub App</h3>
+            <p style={{ color: "#555", fontSize: 14, marginTop: 4 }}>
+              Installing the Stagecraft App on your GitHub account lets the platform
+              manage repos without a per-site connection step. Select &ldquo;All repositories&rdquo;
+              for the smoothest experience.
+            </p>
+            <a
+              href={githubAppInstallUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontWeight: 600 }}
+            >
+              Install Stagecraft App &rarr;
+            </a>
+          </div>
+        )}
       </section>
     </main>
   );

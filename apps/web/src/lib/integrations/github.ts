@@ -331,8 +331,13 @@ interface GithubInstallation {
  * the repo we're connecting), so artists with the same App installed on
  * multiple accounts get the right installation.
  *
- * Returns null when no matching installation exists — caller can then
- * fall back to a manual-link flow rather than erroring hard.
+ * Returns null when no matching installation exists OR when GitHub denies
+ * the request (e.g. 403 because Stagecraft signs users in via a regular
+ * OAuth App, not a GitHub App — and `/user/installations` only accepts
+ * GitHub App user-to-server tokens). Either way the caller treats it as
+ * "no installation found" and falls back to its manual-link path; the
+ * site is created without the auto-link, and the artist clicks "Link to
+ * a different repository" in Netlify's UI to finish hookup.
  */
 export async function findGithubAppInstallation(
   userId: string,
@@ -341,9 +346,23 @@ export async function findGithubAppInstallation(
 ): Promise<number | null> {
   const token = await getGitHubToken(userId);
 
-  const data = (await githubApi(token, "/user/installations?per_page=100")) as {
-    installations: GithubInstallation[];
-  };
+  let data: { installations: GithubInstallation[] };
+  try {
+    data = (await githubApi(token, "/user/installations?per_page=100")) as {
+      installations: GithubInstallation[];
+    };
+  } catch (cause) {
+    // Don't kill the create_site job over a discovery API failure —
+    // log + continue without an installation_id. The most common case
+    // here is the 403 above; other errors (rate limits, network blips)
+    // also degrade gracefully to the manual-link path.
+    console.warn("[findGithubAppInstallation] discovery failed; continuing without installation_id", {
+      appSlug,
+      ownerLogin,
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return null;
+  }
 
   const match = data.installations.find(
     (i) => i.app_slug === appSlug && i.account.login === ownerLogin,

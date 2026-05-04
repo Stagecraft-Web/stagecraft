@@ -56,10 +56,11 @@ values (colors, fonts, spacing, sizes, radii, shadows) come from CSS
 custom properties — no hardcoded hex, sizes, or weights in CSS, in
 inline `style={...}` props, or in HTML returned from route handlers.
 
-Token definitions ship with the template's CSS as the styling layer
-lands. Use the shared prefix conventions (`--color-*`, `--font-size-*`,
-`--font-weight-*`, `--space-*`, `--radius-*`, `--shadow-*`) so the
-naming stays consistent with `apps/web/` and the legacy template.
+The token set is defined at `src/app/globals.css` (imported once from
+`src/app/layout.tsx`). Naming follows the shared prefix conventions
+(`--color-*`, `--font-size-*`, `--font-weight-*`, `--space-*`,
+`--radius-*`) so it stays consistent with `apps/web/` and the legacy
+template.
 
 ## Validation
 
@@ -120,11 +121,12 @@ public/images/<content-slug>/<image-id>/
 
 **Migration.** Variant scheme changes are out of band — a one-shot script that walks `public/images/`, reads each `original.<ext>`, and writes new variants. Not part of the live publish path.
 
+**Editor integration.** The `Image` Puck block uses a custom field (`src/puck/ImagePickerField.tsx`) that wraps `/api/upload-image`: the artist picks a file, types alt text, hits Upload — the field stores the returned `ImageMetadata` as the block's value. The public render path passes that metadata straight to the `<Image>` component above. Editor-side state stays in the field component; the field is `"use client"` since Puck calls it inside the editor surface.
+
 **Production vs dev:** when the platform env vars are configured (see Publishing below), the route commits the original + every variant to the artist's repo through the broker (one commit per upload). Without the env vars (local dev), it writes the same files to `public/images/` so the dev server can serve them.
 
 **TODO (covered by stacked PRs):**
 - GitHub-backed dedup check. Today both code paths recompute variants on every upload; the broker path produces a no-op tree for re-uploads (deterministic blob SHAs) but still creates a commit. A `getContent`-based pre-check would skip the commit entirely.
-- A Puck custom field for image picking (today blocks would need to manually reference an `ImageMetadata` object).
 
 ## Publishing (ADR-007 §5, ADR-008)
 
@@ -156,6 +158,5 @@ public/images/<content-slug>/<image-id>/
 
 - **Platform-side endpoints** (token broker, install callback, webhook) — separate PR; without them, publish runs in dev fallback.
 - **Real block library** (releases, tour dates, posts — ported from legacy).
-- **Custom Puck field for image picking** (uploads work via API; editor picker UI later).
 
 These ship in stacked PRs.

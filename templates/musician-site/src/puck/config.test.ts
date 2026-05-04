@@ -94,35 +94,48 @@ describe("puckConfig", () => {
   });
 
   describe("Image", () => {
-    it("renders a placeholder when src is empty (editor-time empty state)", () => {
-      const html = render("Image", { src: "", alt: "", width: 800, height: 600, caption: "" });
-      expect(html).toContain("No image source set");
-      expect(html).not.toContain("<img");
+    const sampleImage = {
+      id: "abc1234567890def",
+      alt: "stage shot",
+      width: 1200,
+      height: 800,
+      placeholderDataUri: "data:image/webp;base64,AAAA",
+      contentSlug: "uploads",
+      originalExt: "jpg" as const,
+    };
+
+    it("uses a custom field for image picking (no raw text inputs for src/alt/width/height)", () => {
+      // Puck's Config<T> generic collapses BlockProps.Image's fields type
+      // through the branded ImageId — TS infers `fields` as `{}` so the
+      // `image`/`caption` keys aren't statically reachable. Cast through
+      // a permissive shape; runtime keys + types are what we're asserting.
+      const fields = (puckConfig.components.Image.fields ?? {}) as Record<
+        string,
+        { type?: string }
+      >;
+      const fieldKeys = Object.keys(fields).sort();
+      expect(fieldKeys).toEqual(["caption", "image"].sort());
+      expect(fields.image?.type).toBe("custom");
     });
 
-    it("renders <figure><img> with width/height/alt when src is set", () => {
-      const html = render("Image", {
-        src: "/uploads/foo.webp",
-        alt: "stage shot",
-        width: 1200,
-        height: 800,
-        caption: "",
-      });
-      expect(html).toContain("<figure");
-      expect(html).toContain('src="/uploads/foo.webp"');
+    it("renders an empty-state placeholder when image is null", () => {
+      const html = render("Image", { image: null, caption: "" });
+      expect(html).toContain("No image picked yet");
+      expect(html).not.toContain("<picture");
+    });
+
+    it("renders the public <Image> (a <picture>) when image is set", () => {
+      const html = render("Image", { image: sampleImage, caption: "" });
+      expect(html).toContain("<picture");
+      // The public Image component emits avif + webp <source> tags pointing
+      // at /images/<slug>/<id>/<width>.<ext>
+      expect(html).toMatch(/srcSet="\/images\/uploads\/abc1234567890def\/[0-9]+\.webp/);
       expect(html).toContain('alt="stage shot"');
-      expect(html).toContain('width="1200"');
-      expect(html).toContain('height="800"');
-      expect(html).toContain('loading="lazy"');
     });
 
     it("renders <figcaption> only when caption is non-empty", () => {
-      const without = render("Image", {
-        src: "/x.webp", alt: "x", width: 800, height: 600, caption: "",
-      });
-      const withCaption = render("Image", {
-        src: "/x.webp", alt: "x", width: 800, height: 600, caption: "Live at the venue",
-      });
+      const without = render("Image", { image: sampleImage, caption: "" });
+      const withCaption = render("Image", { image: sampleImage, caption: "Live at the venue" });
       expect(without).not.toContain("<figcaption");
       expect(withCaption).toContain("<figcaption");
       expect(withCaption).toContain("Live at the venue");
@@ -138,17 +151,17 @@ describe("puckConfig", () => {
       }
     });
 
-    it("renders a presentation div with the configured height (sm < md < lg < xl)", () => {
-      const heights = SPACER_SIZES.map((size) => {
+    it("renders a presentation div whose height is a CSS-token reference, distinct per size", () => {
+      const refs = SPACER_SIZES.map((size) => {
         const html = render("Spacer", { size });
-        const match = html.match(/height:\s*([0-9.]+)rem/);
-        expect(match).not.toBeNull();
-        return parseFloat(match![1]);
+        const match = html.match(/height:\s*var\(--space-([0-9]+)\)/);
+        expect(match, `Spacer size=${size} should resolve to a var(--space-N) token`).not.toBeNull();
+        return parseInt(match![1], 10);
       });
-      // sm < md < lg < xl
-      expect(heights).toEqual([...heights].sort((a, b) => a - b));
+      // sm < md < lg < xl (token numeric scale increases monotonically)
+      expect(refs).toEqual([...refs].sort((a, b) => a - b));
       // and they're all distinct
-      expect(new Set(heights).size).toBe(heights.length);
+      expect(new Set(refs).size).toBe(refs.length);
     });
 
     it("is aria-hidden (presentation only)", () => {
@@ -158,15 +171,15 @@ describe("puckConfig", () => {
   });
 
   describe("Divider", () => {
-    it("renders an <hr> with default margins when not inset", () => {
+    it("renders an <hr> with the default-margin token (no horizontal inset) when inset=false", () => {
       const html = render("Divider", { inset: false });
       expect(html).toContain("<hr");
-      expect(html).toMatch(/margin:\s*2rem 0/);
+      expect(html).toMatch(/margin:\s*var\(--space-[0-9]+\) 0/);
     });
 
-    it("renders inset margins when inset=true", () => {
+    it("renders the inset-margin token pair (vertical + horizontal) when inset=true", () => {
       const html = render("Divider", { inset: true });
-      expect(html).toMatch(/margin:\s*2rem 4rem/);
+      expect(html).toMatch(/margin:\s*var\(--space-[0-9]+\) var\(--space-[0-9]+\)/);
     });
   });
 });

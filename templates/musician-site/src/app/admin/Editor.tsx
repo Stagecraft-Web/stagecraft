@@ -36,17 +36,17 @@ export function Editor({ initialData, pageSlug, email }: Props) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0.5rem 1rem",
-          borderBottom: "1px solid #e5e7eb",
-          background: "#f9fafb",
-          fontSize: "0.875rem",
+          padding: "var(--space-2) var(--space-4)",
+          borderBottom: "1px solid var(--color-border)",
+          background: "var(--color-surface-subtle)",
+          fontSize: "var(--font-size-sm)",
         }}
       >
         <span>
           Signed in as <strong>{email || "(unknown)"}</strong>
         </span>
         <form action="/api/auth/logout" method="POST" style={{ margin: 0 }}>
-          <button type="submit" style={{ padding: "0.25rem 0.75rem" }}>
+          <button type="submit" style={{ padding: "var(--space-1) var(--space-3)" }}>
             Sign out
           </button>
         </form>

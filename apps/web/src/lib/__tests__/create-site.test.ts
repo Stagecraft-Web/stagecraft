@@ -121,8 +121,12 @@ beforeEach(() => {
   mockTriggerVercelDeployment.mockResolvedValue({ deploymentId: "dpl_test" });
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
-  // Default: Netlify's GitHub App is installed on the artist's account.
-  mockFindGithubAppInstallation.mockResolvedValue(15980838);
+  // Default: Netlify's GitHub App is installed on the artist's account
+  // (15980838); the Stagecraft bot App is not (null) so existing tests
+  // continue to exercise the post-/create install-callback path.
+  mockFindGithubAppInstallation.mockImplementation(async (_userId, appSlug) =>
+    appSlug === "netlify" ? 15980838 : null,
+  );
   mockCreateNetlifySite.mockResolvedValue(NETLIFY_SITE_RESULT);
   mockCreateVercelProject.mockResolvedValue(VERCEL_PROJECT_RESULT);
 });
@@ -243,7 +247,7 @@ describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
   });
 
   it("omits installation_id when Netlify's GitHub App isn't installed (createSite still attempted)", async () => {
-    mockFindGithubAppInstallation.mockResolvedValueOnce(null);
+    mockFindGithubAppInstallation.mockResolvedValue(null);
 
     await handleCreateSite(makeContext());
 
@@ -411,6 +415,40 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
 
     expect(result.success).toBe(true);
     expect((result.data as Record<string, unknown>).envWarning).toBe("Vercel deploy hook 500");
+  });
+});
+
+describe("handleCreateSite — broker secret upfront provisioning", () => {
+  it("when stagecraft-bot installation is found, generates broker secret + bakes it into env vars + stores hash on Site", async () => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockFindGithubAppInstallation.mockImplementation(async (_uid, slug) =>
+      slug === "stagecraft-bot" ? 129023518 : null,
+    );
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
+    expect(envVarsCall.vars.STAGECRAFT_BROKER_SECRET).toMatch(/^scbs_[0-9a-f]{64}$/);
+    const updateCalls = mockSiteUpdate.mock.calls;
+    const brokerUpdate = updateCalls.find(([arg]) => arg.data?.brokerSecretHash);
+    expect(brokerUpdate).toBeDefined();
+    expect(brokerUpdate![0].data.githubInstallationId).toBe(129023518);
+    expect(brokerUpdate![0].data.brokerSecretHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("when stagecraft-bot installation is NOT found, omits broker secret env var (artist clicks install link later)", async () => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockFindGithubAppInstallation.mockResolvedValue(null);
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
+    expect(envVarsCall.vars).not.toHaveProperty("STAGECRAFT_BROKER_SECRET");
+    const updateCalls = mockSiteUpdate.mock.calls;
+    const brokerUpdate = updateCalls.find(([arg]) => arg.data?.brokerSecretHash);
+    expect(brokerUpdate).toBeUndefined();
   });
 });
 

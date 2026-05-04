@@ -144,6 +144,24 @@ export async function getDeployPreviewForPR(
 }
 
 /**
+ * Trigger a fresh build on a Netlify site. Used after writing env vars
+ * post-deploy so the next build picks them up — Netlify does not
+ * automatically rebuild when only env-vars change.
+ *
+ * Returns the build id so callers can surface a "rebuilding…" link.
+ */
+export async function triggerBuild(
+  userId: string,
+  netlifySiteId: string,
+): Promise<{ buildId: string }> {
+  const token = await getNetlifyToken(userId);
+  const data = (await netlifyApi(token, `/sites/${netlifySiteId}/builds`, {
+    method: "POST",
+  })) as { id: string };
+  return { buildId: data.id };
+}
+
+/**
  * Delete a Netlify site.
  */
 export async function deleteSite(userId: string, siteId: string): Promise<void> {

@@ -14,6 +14,7 @@ import {
   validateVercelToken,
   createProject,
   setEnvVars,
+  triggerDeployment,
   deleteProject,
 } from "../vercel";
 
@@ -205,6 +206,105 @@ describe("setEnvVars", () => {
 
     const body = JSON.parse(capturedBody);
     expect(body[0].target).toEqual(["production"]);
+  });
+});
+
+describe("triggerDeployment", () => {
+  it("looks up the project then POSTs /v13/deployments with gitSource", async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    mockFetch((url, init) => {
+      requests.push({
+        url,
+        method: init?.method ?? "GET",
+        body: init?.body as string | undefined,
+      });
+      // First call: GET /v9/projects/{id} → return project metadata.
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: {
+            name: "stagecraft-site-test",
+            link: {
+              type: "github",
+              org: "jclaw",
+              repo: "stagecraft-site-test",
+              repoId: 12345,
+              productionBranch: "main",
+            },
+          },
+        };
+      }
+      // Second call: POST /v13/deployments → deploy result.
+      return { status: 200, body: { id: "dpl_abc" } };
+    });
+
+    const result = await triggerDeployment("user-1", "prj_abc");
+
+    expect(result).toEqual({ deploymentId: "dpl_abc" });
+    expect(requests).toHaveLength(2);
+    expect(requests[1].url).toBe("https://api.vercel.com/v13/deployments");
+    expect(requests[1].method).toBe("POST");
+    const body = JSON.parse(requests[1].body ?? "{}");
+    expect(body).toMatchObject({
+      name: "stagecraft-site-test",
+      target: "production",
+      gitSource: { type: "github", repoId: 12345, ref: "main" },
+    });
+  });
+
+  it("defaults ref to 'main' when project has no productionBranch", async () => {
+    const requests: Array<{ url: string; method: string; body?: string }> = [];
+    mockFetch((url, init) => {
+      requests.push({
+        url,
+        method: init?.method ?? "GET",
+        body: init?.body as string | undefined,
+      });
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: { name: "n", link: { repoId: 99 } },
+        };
+      }
+      return { status: 200, body: { id: "dpl_y" } };
+    });
+
+    await triggerDeployment("user-1", "prj_x");
+
+    const body = JSON.parse(requests[1].body ?? "{}");
+    expect(body.gitSource.ref).toBe("main");
+  });
+
+  it("throws when the project has no linked git repo", async () => {
+    mockFetch((url, init) => {
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return { status: 200, body: { name: "n", link: {} } };
+      }
+      return { status: 200, body: {} };
+    });
+
+    await expect(triggerDeployment("user-1", "prj_x")).rejects.toThrow(
+      /no linked git repo/,
+    );
+  });
+
+  it("forwards teamId to both API calls when provided", async () => {
+    const urls: string[] = [];
+    mockFetch((url, init) => {
+      urls.push(url);
+      if (url.includes("/v9/projects/") && (init?.method ?? "GET") === "GET") {
+        return {
+          status: 200,
+          body: { name: "n", link: { repoId: 1, productionBranch: "main" } },
+        };
+      }
+      return { status: 200, body: { id: "dpl_z" } };
+    });
+
+    await triggerDeployment("user-1", "prj_x", "team_t");
+
+    expect(urls[0]).toContain("teamId=team_t");
+    expect(urls[1]).toContain("teamId=team_t");
   });
 });
 

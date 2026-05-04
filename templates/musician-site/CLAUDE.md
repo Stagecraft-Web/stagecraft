@@ -56,10 +56,11 @@ values (colors, fonts, spacing, sizes, radii, shadows) come from CSS
 custom properties — no hardcoded hex, sizes, or weights in CSS, in
 inline `style={...}` props, or in HTML returned from route handlers.
 
-Token definitions ship with the template's CSS as the styling layer
-lands. Use the shared prefix conventions (`--color-*`, `--font-size-*`,
-`--font-weight-*`, `--space-*`, `--radius-*`, `--shadow-*`) so the
-naming stays consistent with `apps/web/` and the legacy template.
+The token set is defined at `src/app/globals.css` (imported once from
+`src/app/layout.tsx`). Naming follows the shared prefix conventions
+(`--color-*`, `--font-size-*`, `--font-weight-*`, `--space-*`,
+`--radius-*`) so it stays consistent with `apps/web/` and the legacy
+template.
 
 ## Validation
 

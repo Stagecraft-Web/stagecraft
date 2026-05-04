@@ -151,17 +151,17 @@ describe("puckConfig", () => {
       }
     });
 
-    it("renders a presentation div with the configured height (sm < md < lg < xl)", () => {
-      const heights = SPACER_SIZES.map((size) => {
+    it("renders a presentation div whose height is a CSS-token reference, distinct per size", () => {
+      const refs = SPACER_SIZES.map((size) => {
         const html = render("Spacer", { size });
-        const match = html.match(/height:\s*([0-9.]+)rem/);
-        expect(match).not.toBeNull();
-        return parseFloat(match![1]);
+        const match = html.match(/height:\s*var\(--space-([0-9]+)\)/);
+        expect(match, `Spacer size=${size} should resolve to a var(--space-N) token`).not.toBeNull();
+        return parseInt(match![1], 10);
       });
-      // sm < md < lg < xl
-      expect(heights).toEqual([...heights].sort((a, b) => a - b));
+      // sm < md < lg < xl (token numeric scale increases monotonically)
+      expect(refs).toEqual([...refs].sort((a, b) => a - b));
       // and they're all distinct
-      expect(new Set(heights).size).toBe(heights.length);
+      expect(new Set(refs).size).toBe(refs.length);
     });
 
     it("is aria-hidden (presentation only)", () => {
@@ -171,15 +171,15 @@ describe("puckConfig", () => {
   });
 
   describe("Divider", () => {
-    it("renders an <hr> with default margins when not inset", () => {
+    it("renders an <hr> with the default-margin token (no horizontal inset) when inset=false", () => {
       const html = render("Divider", { inset: false });
       expect(html).toContain("<hr");
-      expect(html).toMatch(/margin:\s*2rem 0/);
+      expect(html).toMatch(/margin:\s*var\(--space-[0-9]+\) 0/);
     });
 
-    it("renders inset margins when inset=true", () => {
+    it("renders the inset-margin token pair (vertical + horizontal) when inset=true", () => {
       const html = render("Divider", { inset: true });
-      expect(html).toMatch(/margin:\s*2rem 4rem/);
+      expect(html).toMatch(/margin:\s*var\(--space-[0-9]+\) var\(--space-[0-9]+\)/);
     });
   });
 });

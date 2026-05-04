@@ -17,44 +17,46 @@ export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 export const SPACER_SIZES = ["sm", "md", "lg", "xl"] as const;
 export type SpacerSize = (typeof SPACER_SIZES)[number];
 
+// All visual values come from CSS custom properties (see app/globals.css).
+// CLAUDE.md §7 forbids raw hex/px/size values in inline styles.
 const SECTION_WIDTH_MAX: Record<SectionWidth, string> = {
-  sm: "32rem",
-  md: "48rem",
-  lg: "64rem",
+  sm: "var(--max-width-narrow)",
+  md: "var(--max-width-content)",
+  lg: "var(--max-width-wide)",
   full: "100%",
 };
 
 const SPACER_HEIGHT: Record<SpacerSize, string> = {
-  sm: "1rem",
-  md: "2rem",
-  lg: "4rem",
-  xl: "8rem",
+  sm: "var(--space-4)",
+  md: "var(--space-8)",
+  lg: "var(--space-16)",
+  xl: "var(--space-32)",
 };
 
 const BUTTON_STYLE: Record<ButtonVariant, React.CSSProperties> = {
   primary: {
-    background: "#111827",
-    color: "#ffffff",
-    border: "1px solid #111827",
+    background: "var(--color-action)",
+    color: "var(--color-action-fg)",
+    border: "1px solid var(--color-action)",
   },
   secondary: {
-    background: "#f3f4f6",
-    color: "#111827",
-    border: "1px solid #f3f4f6",
+    background: "var(--color-surface-raised)",
+    color: "var(--color-text)",
+    border: "1px solid var(--color-surface-raised)",
   },
   outline: {
     background: "transparent",
-    color: "#111827",
-    border: "1px solid #111827",
+    color: "var(--color-text)",
+    border: "1px solid var(--color-text)",
   },
 };
 
 const BUTTON_BASE: React.CSSProperties = {
   display: "inline-block",
-  padding: "0.5rem 1rem",
-  borderRadius: "0.375rem",
+  padding: "var(--space-2) var(--space-4)",
+  borderRadius: "var(--radius)",
   textDecoration: "none",
-  fontWeight: 600,
+  fontWeight: "var(--font-weight-semibold)",
   cursor: "pointer",
 };
 
@@ -103,7 +105,7 @@ export const puckConfig: Config<BlockProps> = {
           style={{
             maxWidth: SECTION_WIDTH_MAX[width],
             margin: "0 auto",
-            padding: "2rem 1rem",
+            padding: "var(--space-8) var(--space-4)",
           }}
         >
           <h2>{headline}</h2>
@@ -117,7 +119,13 @@ export const puckConfig: Config<BlockProps> = {
         text: "Write your paragraph here.\n\nBlank lines start a new paragraph.",
       },
       render: ({ text }) => (
-        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1rem" }}>
+        <div
+          style={{
+            maxWidth: "var(--max-width-content)",
+            margin: "0 auto",
+            padding: "0 var(--space-4)",
+          }}
+        >
           {text
             .split(/\n\s*\n/)
             .filter((p) => p.trim().length > 0)
@@ -138,7 +146,7 @@ export const puckConfig: Config<BlockProps> = {
       },
       defaultProps: { text: "Click me", href: "#", variant: "primary" },
       render: ({ text, href, variant }) => (
-        <div style={{ textAlign: "center", padding: "1rem" }}>
+        <div style={{ textAlign: "center", padding: "var(--space-4)" }}>
           <a
             href={href}
             style={{ ...BUTTON_BASE, ...BUTTON_STYLE[variant] }}
@@ -167,11 +175,11 @@ export const puckConfig: Config<BlockProps> = {
           return (
             <div
               style={{
-                maxWidth: "48rem",
+                maxWidth: "var(--max-width-content)",
                 margin: "0 auto",
-                padding: "2rem 1rem",
+                padding: "var(--space-8) var(--space-4)",
                 textAlign: "center",
-                color: "#6b7280",
+                color: "var(--color-text-muted)",
                 fontStyle: "italic",
               }}
             >
@@ -185,15 +193,21 @@ export const puckConfig: Config<BlockProps> = {
         // structurally assignable to ImageMetadata even though its runtime
         // shape is identical. Cast at the render boundary.
         return (
-          <figure style={{ maxWidth: "48rem", margin: "0 auto", padding: "1rem" }}>
+          <figure
+            style={{
+              maxWidth: "var(--max-width-content)",
+              margin: "0 auto",
+              padding: "var(--space-4)",
+            }}
+          >
             <PublicImage image={image as ImageMetadata} />
             {caption ? (
               <figcaption
                 style={{
-                  fontSize: "0.875rem",
-                  color: "#6b7280",
+                  fontSize: "var(--font-size-sm)",
+                  color: "var(--color-text-muted)",
                   textAlign: "center",
-                  marginTop: "0.5rem",
+                  marginTop: "var(--space-2)",
                 }}
               >
                 {caption}
@@ -228,8 +242,8 @@ export const puckConfig: Config<BlockProps> = {
         <hr
           style={{
             border: "none",
-            borderTop: "1px solid #e5e7eb",
-            margin: inset ? "2rem 4rem" : "2rem 0",
+            borderTop: "1px solid var(--color-border)",
+            margin: inset ? "var(--space-8) var(--space-16)" : "var(--space-8) 0",
           }}
         />
       ),

@@ -66,9 +66,9 @@ export function ImagePickerField({ value, onChange }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
       {value && previewSrc ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewSrc}
@@ -76,21 +76,21 @@ export function ImagePickerField({ value, onChange }: Props) {
             style={{
               maxWidth: "100%",
               height: "auto",
-              border: "1px solid #e5e7eb",
-              borderRadius: "0.25rem",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
             }}
           />
-          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
             {value.width}×{value.height} · {value.originalExt} · alt: {value.alt || "(none)"}
           </div>
           <button
             type="button"
             onClick={handleClear}
             style={{
-              padding: "0.25rem 0.5rem",
-              fontSize: "0.75rem",
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
+              padding: "var(--space-1) var(--space-2)",
+              fontSize: "var(--font-size-xs)",
+              border: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
               cursor: "pointer",
               alignSelf: "flex-start",
             }}
@@ -112,7 +112,7 @@ export function ImagePickerField({ value, onChange }: Props) {
       />
       {pendingFile ? (
         <>
-          <label style={{ fontSize: "0.75rem", color: "#374151" }}>
+          <label style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-emphasis)" }}>
             Alt text (describe the image for screen readers)
             <input
               type="text"
@@ -122,11 +122,11 @@ export function ImagePickerField({ value, onChange }: Props) {
               style={{
                 display: "block",
                 width: "100%",
-                marginTop: "0.25rem",
-                padding: "0.25rem 0.5rem",
-                border: "1px solid #d1d5db",
-                borderRadius: "0.25rem",
-                fontSize: "0.875rem",
+                marginTop: "var(--space-1)",
+                padding: "var(--space-1) var(--space-2)",
+                border: "1px solid var(--color-border-strong)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "var(--font-size-sm)",
               }}
             />
           </label>
@@ -135,11 +135,11 @@ export function ImagePickerField({ value, onChange }: Props) {
             onClick={handleUpload}
             disabled={isUploading}
             style={{
-              padding: "0.375rem 0.75rem",
-              fontSize: "0.875rem",
-              border: "1px solid #111827",
-              background: isUploading ? "#9ca3af" : "#111827",
-              color: "#ffffff",
+              padding: "var(--space-1) var(--space-3)",
+              fontSize: "var(--font-size-sm)",
+              border: "1px solid var(--color-action)",
+              background: isUploading ? "var(--color-action-disabled)" : "var(--color-action)",
+              color: "var(--color-action-fg)",
               cursor: isUploading ? "wait" : "pointer",
               alignSelf: "flex-start",
             }}
@@ -149,7 +149,7 @@ export function ImagePickerField({ value, onChange }: Props) {
         </>
       ) : null}
       {error ? (
-        <div role="alert" style={{ fontSize: "0.75rem", color: "#b91c1c" }}>
+        <div role="alert" style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-error)" }}>
           {error}
         </div>
       ) : null}

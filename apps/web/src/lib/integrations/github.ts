@@ -346,26 +346,40 @@ export async function findGithubAppInstallation(
 ): Promise<number | null> {
   const token = await getGitHubToken(userId);
 
-  let data: { installations: GithubInstallation[] };
+  let data: { installations: GithubInstallation[] } | null = null;
   try {
     data = (await githubApi(token, "/user/installations?per_page=100")) as {
       installations: GithubInstallation[];
     };
   } catch (cause) {
     // Don't kill the create_site job over a discovery API failure —
-    // log + continue without an installation_id. The most common case
-    // here is the 403 above; other errors (rate limits, network blips)
-    // also degrade gracefully to the manual-link path.
-    console.warn("[findGithubAppInstallation] discovery failed; continuing without installation_id", {
+    // log + continue. The most common case here is the 403 above; other
+    // errors (rate limits, network blips) also fall through to the env
+    // fallback below.
+    console.warn("[findGithubAppInstallation] discovery failed; trying env fallback", {
       appSlug,
       ownerLogin,
       error: cause instanceof Error ? cause.message : String(cause),
     });
-    return null;
   }
 
-  const match = data.installations.find(
+  const match = data?.installations.find(
     (i) => i.app_slug === appSlug && i.account.login === ownerLogin,
   );
-  return match?.id ?? null;
+  if (match) return match.id;
+
+  // Single-tenant fallback: an operator may pin an installation id via env
+  // (e.g. `GITHUB_APP_INSTALLATION_ID_NETLIFY=15980838`). This unblocks
+  // App-based cloning while sign-in still uses an OAuth App and
+  // `/user/installations` returns 403. Per-tenant resolution requires
+  // migrating sign-in to a GitHub App.
+  const envKey = `GITHUB_APP_INSTALLATION_ID_${appSlug.toUpperCase().replace(/-/g, "_")}`;
+  const envValue = process.env[envKey];
+  if (envValue) {
+    const parsed = Number(envValue);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    console.warn(`[findGithubAppInstallation] ${envKey} is set but not a positive integer: ${envValue}`);
+  }
+
+  return null;
 }

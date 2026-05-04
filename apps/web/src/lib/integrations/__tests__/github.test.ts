@@ -11,6 +11,7 @@ vi.mock("@stagecraft/db", () => ({ prisma: prismaMock }));
 import { findGithubAppInstallation } from "../github";
 
 const ORIGINAL_FETCH = globalThis.fetch;
+const ORIGINAL_ENV = { ...process.env };
 
 function mockFetch(handler: (url: string) => { status: number; body: unknown }) {
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -32,6 +33,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH;
+  process.env = { ...ORIGINAL_ENV };
 });
 
 describe("findGithubAppInstallation", () => {
@@ -120,6 +122,46 @@ describe("findGithubAppInstallation", () => {
     mockFetch(() => ({ status: 500, body: { message: "Server error" } }));
     const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
     expect(id).toBeNull();
+  });
+
+  it("falls back to GITHUB_APP_INSTALLATION_ID_<APPSLUG> env var when API returns 403", async () => {
+    process.env.GITHUB_APP_INSTALLATION_ID_NETLIFY = "15980838";
+    mockFetch(() => ({ status: 403, body: { message: "auth required" } }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBe(15980838);
+  });
+
+  it("falls back to env var when API returns no matching installation", async () => {
+    process.env.GITHUB_APP_INSTALLATION_ID_NETLIFY = "15980838";
+    mockFetch(() => ({ status: 200, body: { installations: [] } }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBe(15980838);
+  });
+
+  it("converts hyphens to underscores when looking up env var (e.g. stagecraft-bot)", async () => {
+    process.env.GITHUB_APP_INSTALLATION_ID_STAGECRAFT_BOT = "129023518";
+    mockFetch(() => ({ status: 403, body: { message: "auth required" } }));
+    const id = await findGithubAppInstallation("user-1", "stagecraft-bot", "jclaw");
+    expect(id).toBe(129023518);
+  });
+
+  it("ignores env var when the value is not a positive integer", async () => {
+    process.env.GITHUB_APP_INSTALLATION_ID_NETLIFY = "not-a-number";
+    mockFetch(() => ({ status: 403, body: { message: "auth required" } }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBeNull();
+  });
+
+  it("prefers API match over env var when both are present", async () => {
+    process.env.GITHUB_APP_INSTALLATION_ID_NETLIFY = "99999999";
+    mockFetch(() => ({
+      status: 200,
+      body: {
+        installations: [{ id: 111, app_slug: "netlify", account: { login: "jclaw" } }],
+      },
+    }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBe(111);
   });
 
   it("throws GitHub-not-connected when the user has no github IntegrationAccount", async () => {

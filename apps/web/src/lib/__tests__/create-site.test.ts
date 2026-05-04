@@ -39,12 +39,14 @@ vi.mock("@/lib/integrations/netlify", () => ({
 
 const mockCreateVercelProject = vi.fn();
 const mockSetVercelEnvVars = vi.fn();
+const mockTriggerVercelDeployment = vi.fn();
 vi.mock("@/lib/integrations/vercel", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/integrations/vercel")>();
   return {
     ...actual,
     createProject: mockCreateVercelProject,
     setEnvVars: mockSetVercelEnvVars,
+    triggerDeployment: mockTriggerVercelDeployment,
   };
 });
 
@@ -116,6 +118,7 @@ beforeEach(() => {
   mockIntegrationFindMany.mockResolvedValue([{ provider: "netlify", metadata: null }]);
   mockSetNetlifyEnvVars.mockResolvedValue(undefined);
   mockSetVercelEnvVars.mockResolvedValue(undefined);
+  mockTriggerVercelDeployment.mockResolvedValue({ deploymentId: "dpl_test" });
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
   // Default: Netlify's GitHub App is installed on the artist's account.
@@ -387,6 +390,27 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toBe("Vercel name conflict");
+  });
+
+  it("triggers a Vercel deployment after env vars are set", async () => {
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect(mockTriggerVercelDeployment).toHaveBeenCalledTimes(1);
+    expect(mockTriggerVercelDeployment).toHaveBeenCalledWith(
+      "user-1",
+      "prj_abc123",
+      undefined,
+    );
+  });
+
+  it("surfaces envWarning when deploy trigger fails (site still active)", async () => {
+    mockTriggerVercelDeployment.mockRejectedValueOnce(new Error("Vercel deploy hook 500"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).envWarning).toBe("Vercel deploy hook 500");
   });
 });
 

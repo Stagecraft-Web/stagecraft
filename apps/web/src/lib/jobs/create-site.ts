@@ -10,6 +10,7 @@ import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from
 import {
   createProject as createVercelProject,
   setEnvVars as setVercelEnvVars,
+  triggerDeployment as triggerVercelDeployment,
   VercelGitHubAppNotInstalledError,
 } from "@/lib/integrations/vercel";
 import { readTemplateFiles } from "@/lib/template-reader";
@@ -169,13 +170,30 @@ async function deployToVercel(args: {
     envWarning = cause instanceof Error ? cause.message : "Failed to provision Vercel env vars";
   }
 
+  // Vercel doesn't auto-deploy on project creation when linking to an
+  // existing repo — it only deploys on subsequent pushes or webhook
+  // events. Without an explicit trigger here, the production URL 404s
+  // until something else (a future broker-secret provision, a manual
+  // commit) kicks off the first build. Trigger one now so the artist's
+  // site is live as soon as createSite returns.
+  let deployWarning: string | undefined;
+  try {
+    await triggerVercelDeployment(
+      args.userId,
+      project.projectId,
+      project.teamId ?? undefined,
+    );
+  } catch (cause) {
+    deployWarning = cause instanceof Error ? cause.message : "Failed to trigger Vercel deployment";
+  }
+
   return {
     productionUrl: project.productionUrl,
     adminUrl: project.adminUrl,
     vercelProjectId: project.projectId,
     vercelProjectName: project.projectName,
     vercelTeamId: project.teamId,
-    envWarning,
+    envWarning: envWarning ?? deployWarning,
   };
 }
 

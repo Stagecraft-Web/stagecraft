@@ -68,6 +68,7 @@ interface DeployResult {
   vercelProjectId?: string;
   vercelProjectName?: string;
   vercelTeamId?: string | null;
+  vercelTeamSlug?: string | null;
   /** Soft-warning if env-var provisioning partially failed */
   envWarning?: string;
 }
@@ -194,6 +195,7 @@ async function deployToVercel(args: {
     vercelProjectId: project.projectId,
     vercelProjectName: project.projectName,
     vercelTeamId: project.teamId,
+    vercelTeamSlug: project.teamSlug,
     envWarning: envWarning ?? deployWarning,
   };
 }
@@ -315,6 +317,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
               vercelProjectId: deploy.vercelProjectId,
               vercelProjectName: deploy.vercelProjectName,
               vercelTeamId: deploy.vercelTeamId,
+              vercelTeamSlug: deploy.vercelTeamSlug,
             }
           : {}),
       },

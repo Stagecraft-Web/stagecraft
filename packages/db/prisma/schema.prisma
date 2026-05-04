@@ -114,6 +114,11 @@ model Site {
   vercelProjectId     String?
   vercelProjectName   String?
   vercelTeamId        String?
+  // URL slug of the Vercel team that owns the project. Used to construct
+  // dashboard URLs (`https://vercel.com/<slug>/<project>`); the team_xxx
+  // ID isn't valid in that path. Resolved at create time via Vercel's
+  // /v2/teams/{teamId} endpoint.
+  vercelTeamSlug      String?
   // Production URL is set regardless of target.
   productionUrl       String?
   archivedAt          DateTime?

@@ -58,8 +58,14 @@ interface VercelProjectResult {
   projectId: string;
   /** Project name (what shows in URLs and the dashboard) */
   projectName: string;
-  /** Team id the project lives under (null for personal account) */
+  /** Team id the project lives under (`team_…`); never null on Northstar accounts */
   teamId: string | null;
+  /**
+   * URL slug of the team that owns the project — needed for dashboard
+   * URLs (`https://vercel.com/<slug>/<project>`). Differs from teamId
+   * (which is the opaque `team_xxx` id and isn't valid in URL paths).
+   */
+  teamSlug: string | null;
   /** Production URL (e.g. `https://my-project.vercel.app`) */
   productionUrl: string;
   /** URL to the Vercel dashboard for this project */
@@ -105,6 +111,20 @@ async function vercelApi(
   // 204 No Content (e.g. from DELETE) has no JSON body.
   if (res.status === 204) return null;
   return res.json();
+}
+
+/**
+ * Look up a Vercel team's URL slug by id. Cached nowhere — called once
+ * per project create. Throws on API errors so the caller can fall back.
+ */
+async function getTeamSlug(token: string, teamId: string): Promise<string> {
+  const data = (await vercelApi(token, `/v2/teams/${encodeURIComponent(teamId)}`)) as {
+    slug?: string;
+  };
+  if (!data.slug) {
+    throw new Error(`Vercel team ${teamId} response had no slug`);
+  }
+  return data.slug;
 }
 
 /**
@@ -198,14 +218,22 @@ export async function createProject(
     ? `https://${aliasFromResponse}`
     : `https://${data.name}.vercel.app`;
 
-  const adminUrl = options.teamId
-    ? `https://vercel.com/${options.teamId}/${data.name}`
+  // Resolve the team URL slug. Vercel's dashboard URL is
+  // `https://vercel.com/<team-slug>/<project>`; the team_xxx id from
+  // accountId isn't a valid path segment. Northstar accounts always
+  // return an accountId; older personal accounts may not (in which case
+  // the URL is just `vercel.com/<project>`).
+  const teamId = options.teamId ?? data.accountId ?? null;
+  const teamSlug = teamId ? await getTeamSlug(token, teamId).catch(() => null) : null;
+  const adminUrl = teamSlug
+    ? `https://vercel.com/${teamSlug}/${data.name}`
     : `https://vercel.com/${data.name}`;
 
   return {
     projectId: data.id,
     projectName: data.name,
-    teamId: options.teamId ?? null,
+    teamId,
+    teamSlug,
     productionUrl,
     adminUrl,
   };

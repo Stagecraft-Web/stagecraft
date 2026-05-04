@@ -69,9 +69,9 @@ describe("uploadImageFromClient", () => {
     });
     expect(result.id).toBe("abc1234567890def");
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [, init] = fetchMock.mock.calls[0];
-    expect(init?.method).toBe("POST");
-    expect(init?.body).toBeInstanceOf(FormData);
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[1].method).toBe("POST");
+    expect(call[1].body).toBeInstanceOf(FormData);
   });
 
   it("defaults contentSlug to EDITOR_UPLOAD_SLUG when not provided", async () => {

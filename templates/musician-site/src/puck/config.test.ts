@@ -105,15 +105,17 @@ describe("puckConfig", () => {
     };
 
     it("uses a custom field for image picking (no raw text inputs for src/alt/width/height)", () => {
-      const fields = puckConfig.components.Image.fields ?? {};
+      // Puck's Config<T> generic collapses BlockProps.Image's fields type
+      // through the branded ImageId — TS infers `fields` as `{}` so the
+      // `image`/`caption` keys aren't statically reachable. Cast through
+      // a permissive shape; runtime keys + types are what we're asserting.
+      const fields = (puckConfig.components.Image.fields ?? {}) as Record<
+        string,
+        { type?: string }
+      >;
       const fieldKeys = Object.keys(fields).sort();
       expect(fieldKeys).toEqual(["caption", "image"].sort());
-      // The image field is a custom Puck field — its render function is the
-      // ImagePickerField wrapper. Don't test the editor-side render here
-      // (it imports client-only React), but assert the type so a regression
-      // back to text fields would fail.
-      const imageField = fields.image as { type?: string } | undefined;
-      expect(imageField?.type).toBe("custom");
+      expect(fields.image?.type).toBe("custom");
     });
 
     it("renders an empty-state placeholder when image is null", () => {

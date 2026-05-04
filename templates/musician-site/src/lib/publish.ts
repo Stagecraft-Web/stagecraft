@@ -35,14 +35,14 @@ export type PublishResult = {
   mode: "github" | "local";
 };
 
-type Env = {
+export type Env = {
   platformUrl: string | undefined;
   siteId: string | undefined;
   brokerSecret: string | undefined;
   branch: string;
 };
 
-function readEnv(): Env {
+export function readEnv(): Env {
   return {
     platformUrl: process.env.STAGECRAFT_PLATFORM_URL?.replace(/\/$/, ""),
     // STAGECRAFT_SITE_ID, not SITE_ID — the latter is reserved by Netlify
@@ -61,7 +61,7 @@ export function isPlatformConfigured(env: Env = readEnv()): boolean {
   return Boolean(env.platformUrl && env.siteId && env.brokerSecret);
 }
 
-async function fetchPublishToken(env: Env): Promise<{
+export async function fetchPublishToken(env: Env): Promise<{
   token: string;
   owner: string;
   repo: string;

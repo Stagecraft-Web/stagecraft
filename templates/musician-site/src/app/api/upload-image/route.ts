@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getSession } from "@/lib/auth";
+import { commitUploadedImage } from "@/lib/commit-image";
 import { processImage } from "@/lib/image";
 import {
   ALLOWED_INPUT_MIME_TYPES,
@@ -9,6 +11,7 @@ import {
   type ImageMetadata,
   uploadResponseSchema,
 } from "@/lib/image-types";
+import { isPlatformConfigured, PublishError } from "@/lib/publish";
 
 const fieldsSchema = z.object({
   contentSlug: z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
@@ -27,6 +30,13 @@ function err(status: number, error: string) {
 }
 
 export async function POST(request: Request) {
+  // Middleware also gates this route, but check session here for the
+  // authorEmail in production commits (and as defense in depth).
+  const session = await getSession();
+  if (!session) {
+    return err(401, "unauthorized");
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -60,12 +70,35 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const result = await processImage({
+  const input = {
     buffer,
     contentSlug: fields.data.contentSlug,
     alt: fields.data.alt,
     originalExt: MIME_TO_EXT[mime as AllowedInputMimeType],
-  });
+  };
 
+  // Production: commit through the GitHub App broker. Local-disk writes
+  // would land on the Lambda /tmp scratch space, get bundled into the
+  // serverless artifact, and disappear on the next cold start.
+  if (isPlatformConfigured()) {
+    try {
+      const { metadata } = await commitUploadedImage({
+        input,
+        authorEmail: session.email,
+      });
+      return NextResponse.json(uploadResponseSchema.parse({ ok: true, image: metadata }));
+    } catch (cause) {
+      if (cause instanceof PublishError) {
+        const status = cause.code === "broker-rejected" ? 502 : 500;
+        return err(status, `${cause.code}: ${cause.message}`);
+      }
+      return err(500, `github-failed: ${String(cause)}`);
+    }
+  }
+
+  // Dev fallback: local-disk write — same trigger as publish.ts. With
+  // STAGECRAFT_PLATFORM_URL/SITE_ID/BROKER_SECRET unset, files land in
+  // public/images for local Next.js dev to serve.
+  const result = await processImage(input);
   return NextResponse.json(uploadResponseSchema.parse({ ok: true, image: result.metadata }));
 }

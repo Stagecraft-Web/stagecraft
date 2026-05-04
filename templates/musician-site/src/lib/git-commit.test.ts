@@ -112,6 +112,36 @@ describe("commitFiles", () => {
     );
   });
 
+  it("defaults to utf-8 encoding when not specified", async () => {
+    setupHappyPath();
+    await commitFiles({
+      token: "t", owner: "o", repo: "r", branch: "main", message: "msg",
+      files: [{ path: "a.txt", content: "hello" }],
+    });
+    expect(createBlob).toHaveBeenCalledWith(
+      expect.objectContaining({ encoding: "utf-8" }),
+    );
+  });
+
+  it("forwards base64 encoding when committing binary files", async () => {
+    setupHappyPath();
+    await commitFiles({
+      token: "t", owner: "o", repo: "r", branch: "main", message: "msg",
+      files: [
+        { path: "img.webp", content: "AAAA", encoding: "base64" },
+        { path: "page.json", content: "{}", encoding: "utf-8" },
+      ],
+    });
+    expect(createBlob).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ encoding: "base64", content: "AAAA" }),
+    );
+    expect(createBlob).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ encoding: "utf-8", content: "{}" }),
+    );
+  });
+
   it("propagates octokit errors", async () => {
     getRef.mockRejectedValue(new Error("404"));
     await expect(

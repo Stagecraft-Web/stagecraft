@@ -123,25 +123,65 @@ describe("createProject", () => {
       projectId: "prj_abc",
       projectName: "stagecraft-site-test",
       teamId: null,
+      teamSlug: null,
       productionUrl: "https://stagecraft-site-test.vercel.app",
       adminUrl: "https://vercel.com/stagecraft-site-test",
     });
   });
 
-  it("appends teamId to the URL when provided", async () => {
-    let capturedUrl = "";
+  it("appends teamId to the URL when provided + fetches team slug for adminUrl", async () => {
+    const requests: string[] = [];
     mockFetch((url) => {
-      capturedUrl = url;
-      return { status: 200, body: { id: "prj_x", name: "n" } };
+      requests.push(url);
+      if (url.includes("/v2/teams/")) {
+        return { status: 200, body: { slug: "jclaw-8347s-projects" } };
+      }
+      return { status: 200, body: { id: "prj_x", name: "n", accountId: "team_xyz" } };
     });
 
-    await createProject({
+    const result = await createProject({
       userId: "user-1",
       name: "n",
       teamId: "team_xyz",
       repo: { repo: "jclaw/n" },
     });
-    expect(capturedUrl).toContain("teamId=team_xyz");
+    expect(requests.some((u) => u.includes("teamId=team_xyz"))).toBe(true);
+    expect(requests.some((u) => u.endsWith("/v2/teams/team_xyz"))).toBe(true);
+    expect(result.teamSlug).toBe("jclaw-8347s-projects");
+    expect(result.adminUrl).toBe("https://vercel.com/jclaw-8347s-projects/n");
+  });
+
+  it("uses accountId from project response to fetch team slug when teamId not passed (Northstar)", async () => {
+    mockFetch((url) => {
+      if (url.includes("/v2/teams/")) {
+        return { status: 200, body: { slug: "northstar-default" } };
+      }
+      return { status: 200, body: { id: "prj_y", name: "p", accountId: "team_default" } };
+    });
+    const result = await createProject({
+      userId: "user-1",
+      name: "p",
+      repo: { repo: "jclaw/p" },
+    });
+    expect(result.teamId).toBe("team_default");
+    expect(result.teamSlug).toBe("northstar-default");
+    expect(result.adminUrl).toBe("https://vercel.com/northstar-default/p");
+  });
+
+  it("falls back to bare vercel.com/<name> when team slug fetch fails", async () => {
+    mockFetch((url) => {
+      if (url.includes("/v2/teams/")) {
+        return { status: 500, body: { error: "internal" } };
+      }
+      return { status: 200, body: { id: "prj_z", name: "p", accountId: "team_x" } };
+    });
+    const result = await createProject({
+      userId: "user-1",
+      name: "p",
+      repo: { repo: "jclaw/p" },
+    });
+    expect(result.teamSlug).toBeNull();
+    expect(result.adminUrl).toBe("https://vercel.com/p");
   });
 
   it("constructs a productionUrl when Vercel response lacks aliases (fresh project)", async () => {

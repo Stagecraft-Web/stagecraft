@@ -64,6 +64,7 @@ interface Site {
   vercelProjectId?: string;
   vercelProjectName?: string;
   vercelTeamId?: string;
+  vercelTeamSlug?: string;
   productionUrl?: string;
   archivedAt?: string;
   jobs: SiteJob[];
@@ -385,8 +386,8 @@ export default function SiteDetailPage() {
                 <td style={{ padding: "0.5rem" }}>
                   <a
                     href={
-                      site.vercelTeamId
-                        ? `https://vercel.com/${site.vercelTeamId}/${site.vercelProjectName}`
+                      site.vercelTeamSlug
+                        ? `https://vercel.com/${site.vercelTeamSlug}/${site.vercelProjectName}`
                         : `https://vercel.com/${site.vercelProjectName}`
                     }
                     target="_blank"

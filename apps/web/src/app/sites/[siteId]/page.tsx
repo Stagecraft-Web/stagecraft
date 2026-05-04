@@ -57,8 +57,13 @@ interface Site {
   githubRepoName?: string;
   githubInstallationId?: number | null;
   githubAppSuspended?: boolean;
+  /** "netlify" | "vercel" — which provider hosts this site. */
+  deployTarget?: string;
   netlifySiteId?: string;
   netlifyAdminUrl?: string;
+  vercelProjectId?: string;
+  vercelProjectName?: string;
+  vercelTeamId?: string;
   productionUrl?: string;
   archivedAt?: string;
   jobs: SiteJob[];
@@ -324,6 +329,24 @@ export default function SiteDetailPage() {
                 <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Netlify</td>
                 <td style={{ padding: "0.5rem" }}>
                   <a href={site.netlifyAdminUrl} target="_blank" rel="noopener noreferrer">Site settings</a>
+                </td>
+              </tr>
+            )}
+            {site.vercelProjectName && (
+              <tr>
+                <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Vercel</td>
+                <td style={{ padding: "0.5rem" }}>
+                  <a
+                    href={
+                      site.vercelTeamId
+                        ? `https://vercel.com/${site.vercelTeamId}/${site.vercelProjectName}`
+                        : `https://vercel.com/${site.vercelProjectName}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Project settings
+                  </a>
                 </td>
               </tr>
             )}

@@ -30,6 +30,25 @@ export type ProcessImageResult = {
   processed: boolean;
 };
 
+/**
+ * One generated image variant: width × format → bytes. Used by both the
+ * local-disk path (writes to public/images) and the broker path (commits
+ * via GitHub).
+ */
+export type ImageVariant = {
+  width: ImageVariantWidth;
+  format: ImageVariantFormat;
+  buffer: Buffer;
+};
+
+export type GenerateImageVariantsResult = {
+  metadata: ImageMetadata;
+  /** Original input bytes — same buffer that was passed in, for the destination to write. */
+  originalBuffer: Buffer;
+  /** All resized + reformatted variants. */
+  variants: ImageVariant[];
+};
+
 export function computeImageId(buffer: Buffer): ImageId {
   const hex = createHash("sha256").update(buffer).digest("hex").slice(0, HASH_LENGTH);
   return asImageId(hex);
@@ -53,42 +72,36 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 /**
- * Process an uploaded image: generate variants, write to disk, return metadata.
- * Idempotent: if the original (by content hash) already exists at the target path,
- * skip processing and return existing metadata.
+ * Generate the original + resized variants + placeholder LQIP for an
+ * uploaded image, all in memory. No disk writes — the destination
+ * (local-fs vs GitHub via the broker) is the caller's responsibility.
+ *
+ * Deterministic over `input.buffer`: same input → same metadata + buffers,
+ * which lets callers safely re-upload duplicate images without divergent
+ * results.
  */
-export async function processImage(input: ProcessImageInput): Promise<ProcessImageResult> {
+export async function generateImageVariants(
+  input: ProcessImageInput,
+): Promise<GenerateImageVariantsResult> {
   const id = computeImageId(input.buffer);
-  const dir = imageDir(input.contentSlug, id);
-  const originalPath = path.join(dir, `original.${input.originalExt}`);
 
-  if (await fileExists(originalPath)) {
-    const metadata = await readImageMetadata(input.contentSlug, id, input.alt, input.originalExt);
-    return { metadata, processed: false };
-  }
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(originalPath, input.buffer);
-
-  const rotated = sharp(input.buffer).rotate();
-  const meta = await rotated.metadata();
+  const meta = await sharp(input.buffer).rotate().metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
   if (width === 0 || height === 0) {
     throw new Error("could not read image dimensions");
   }
 
-  await Promise.all(
+  const variants = await Promise.all(
     IMAGE_VARIANT_WIDTHS.flatMap((variantWidth) =>
-      IMAGE_VARIANT_FORMATS.map(async (format) => {
-        const target = path.join(dir, variantFilename(variantWidth, format));
+      IMAGE_VARIANT_FORMATS.map(async (format): Promise<ImageVariant> => {
         const pipeline = sharp(input.buffer)
           .rotate()
           .resize({ width: Math.min(variantWidth, width), withoutEnlargement: true });
         const buffer = await (format === "webp"
           ? pipeline.webp({ quality: 80 }).toBuffer()
           : pipeline.avif({ quality: 60 }).toBuffer());
-        await fs.writeFile(target, buffer);
+        return { width: variantWidth, format, buffer };
       }),
     ),
   );
@@ -110,8 +123,37 @@ export async function processImage(input: ProcessImageInput): Promise<ProcessIma
       contentSlug: input.contentSlug,
       originalExt: input.originalExt,
     },
-    processed: true,
+    originalBuffer: input.buffer,
+    variants,
   };
+}
+
+/**
+ * Process an uploaded image: generate variants, write to disk, return metadata.
+ * Idempotent: if the original (by content hash) already exists at the target path,
+ * skip processing and return existing metadata.
+ */
+export async function processImage(input: ProcessImageInput): Promise<ProcessImageResult> {
+  const id = computeImageId(input.buffer);
+  const dir = imageDir(input.contentSlug, id);
+  const originalPath = path.join(dir, `original.${input.originalExt}`);
+
+  if (await fileExists(originalPath)) {
+    const metadata = await readImageMetadata(input.contentSlug, id, input.alt, input.originalExt);
+    return { metadata, processed: false };
+  }
+
+  const generated = await generateImageVariants(input);
+
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(originalPath, generated.originalBuffer);
+  await Promise.all(
+    generated.variants.map((v) =>
+      fs.writeFile(path.join(dir, variantFilename(v.width, v.format)), v.buffer),
+    ),
+  );
+
+  return { metadata: generated.metadata, processed: true };
 }
 
 async function readImageMetadata(

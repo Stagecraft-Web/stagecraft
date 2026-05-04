@@ -143,6 +143,67 @@ export async function getDeployPreviewForPR(
   };
 }
 
+export interface LatestDeploy {
+  /** Netlify deploy id (e.g. `69f8...`); null if no deploys yet */
+  id: string | null;
+  /** Normalized state: queued | building | ready | error | unknown */
+  state: "queued" | "building" | "ready" | "error" | "unknown";
+  /** Public URL of the deploy (e.g. preview/permalink); null when not yet published */
+  url: string | null;
+  /** Build error message, when state === "error" */
+  errorMessage: string | null;
+  /** ISO 8601 of when this deploy was created */
+  createdAt: string | null;
+}
+
+/**
+ * Get the most recent deploy on a Netlify site. Used by the platform's
+ * site-detail page to show "Building…" / "Ready" state after `/create`,
+ * since createSite returns immediately but the first build runs for
+ * 1–3 minutes.
+ */
+export async function getLatestDeploy(
+  userId: string,
+  netlifySiteId: string,
+): Promise<LatestDeploy> {
+  const token = await getNetlifyToken(userId);
+  const deploys = (await netlifyApi(
+    token,
+    `/sites/${netlifySiteId}/deploys?per_page=1`,
+  )) as Array<{
+    id: string;
+    state: string;
+    deploy_ssl_url: string | null;
+    deploy_url: string | null;
+    error_message: string | null;
+    created_at: string;
+  }>;
+  if (deploys.length === 0) {
+    return { id: null, state: "queued", url: null, errorMessage: null, createdAt: null };
+  }
+  const d = deploys[0];
+  // Netlify states: new, pending_review, accepted, enqueued, building,
+  // uploading, uploaded, preparing, prepared, processing, processed, ready,
+  // error, retrying. Coalesce to a small enum the UI can branch on.
+  const state: LatestDeploy["state"] =
+    d.state === "ready"
+      ? "ready"
+      : d.state === "error"
+      ? "error"
+      : d.state === "new" || d.state === "enqueued" || d.state === "pending_review" || d.state === "accepted"
+      ? "queued"
+      : d.state === "building" || d.state === "uploading" || d.state === "uploaded" || d.state === "preparing" || d.state === "prepared" || d.state === "processing" || d.state === "processed" || d.state === "retrying"
+      ? "building"
+      : "unknown";
+  return {
+    id: d.id,
+    state,
+    url: d.deploy_ssl_url ?? d.deploy_url,
+    errorMessage: d.error_message,
+    createdAt: d.created_at,
+  };
+}
+
 /**
  * Trigger a fresh build on a Netlify site. Used after writing env vars
  * post-deploy so the next build picks them up — Netlify does not

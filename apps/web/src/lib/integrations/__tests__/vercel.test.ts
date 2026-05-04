@@ -16,6 +16,7 @@ import {
   setEnvVars,
   triggerDeployment,
   deleteProject,
+  getLatestDeployment,
 } from "../vercel";
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -341,6 +342,75 @@ describe("deleteProject", () => {
       return { status: 204, body: "" };
     });
     await deleteProject("user-1", "prj_x", "team_y");
+    expect(capturedUrl).toContain("teamId=team_y");
+  });
+});
+
+describe("getLatestDeployment", () => {
+  it("returns the most recent deployment normalized to {state, url, id}", async () => {
+    let capturedUrl = "";
+    mockFetch((url) => {
+      capturedUrl = url;
+      return {
+        status: 200,
+        body: {
+          deployments: [
+            { uid: "dpl_1", readyState: "BUILDING", url: "site-x.vercel.app", created: 1700000000000 },
+            { uid: "dpl_0", readyState: "READY", url: "site-x-old.vercel.app", created: 1699000000000 },
+          ],
+        },
+      };
+    });
+
+    const d = await getLatestDeployment("user-1", "prj_abc");
+
+    expect(capturedUrl).toContain("/v6/deployments");
+    expect(capturedUrl).toContain("projectId=prj_abc");
+    expect(capturedUrl).toContain("limit=1");
+    expect(d.id).toBe("dpl_1");
+    expect(d.state).toBe("building");
+    expect(d.url).toBe("https://site-x.vercel.app");
+    expect(d.createdAt).toBe(new Date(1700000000000).toISOString());
+  });
+
+  it("normalizes Vercel readyStates to (queued | building | ready | error | unknown)", async () => {
+    const cases: Array<[string, string]> = [
+      ["READY", "ready"],
+      ["ERROR", "error"],
+      ["CANCELED", "error"],
+      ["QUEUED", "queued"],
+      ["INITIALIZING", "building"],
+      ["BUILDING", "building"],
+      ["UPLOADING", "building"],
+      ["DEPLOYING", "building"],
+      ["WAT", "unknown"],
+    ];
+    for (const [raw, normalized] of cases) {
+      mockFetch(() => ({
+        status: 200,
+        body: { deployments: [{ uid: "dpl_x", readyState: raw, url: "x.vercel.app", created: 1 }] },
+      }));
+      const d = await getLatestDeployment("user-1", "prj_abc");
+      expect(d.state, `${raw} → ${normalized}`).toBe(normalized);
+    }
+  });
+
+  it("returns a queued/null deploy when the project has no deployments yet", async () => {
+    mockFetch(() => ({ status: 200, body: { deployments: [] } }));
+    const d = await getLatestDeployment("user-1", "prj_abc");
+    expect(d.id).toBeNull();
+    expect(d.state).toBe("queued");
+    expect(d.url).toBeNull();
+    expect(d.createdAt).toBeNull();
+  });
+
+  it("forwards teamId on the request", async () => {
+    let capturedUrl = "";
+    mockFetch((url) => {
+      capturedUrl = url;
+      return { status: 200, body: { deployments: [] } };
+    });
+    await getLatestDeployment("user-1", "prj_abc", "team_y");
     expect(capturedUrl).toContain("teamId=team_y");
   });
 });

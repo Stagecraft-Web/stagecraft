@@ -69,9 +69,20 @@ interface Site {
   jobs: SiteJob[];
 }
 
+type DeployState = "queued" | "building" | "ready" | "error" | "unknown";
+
+interface DeployStatus {
+  id: string | null;
+  state: DeployState;
+  url: string | null;
+  errorMessage?: string | null;
+  createdAt: string | null;
+}
+
 export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
+  const [deploy, setDeploy] = useState<DeployStatus | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -127,6 +138,33 @@ export default function SiteDetailPage() {
       clearInterval(interval);
     };
   }, [siteId]);
+
+  // Poll the deploy target (Vercel/Netlify) for first-build status. Runs
+  // only once Site.status flips to "active" (the deploy project exists)
+  // and stops once the build is "ready" or "error" — after that the URL
+  // either works or the artist has actionable info.
+  useEffect(() => {
+    if (!site || site.status !== "active") return;
+    if (deploy?.state === "ready" || deploy?.state === "error") return;
+
+    let active = true;
+    async function fetchDeploy() {
+      try {
+        const res = await fetch(`/api/sites/${siteId}/deploy-status`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { deploy?: DeployStatus };
+        if (active && data.deploy) setDeploy(data.deploy);
+      } catch {
+        // Transient errors don't block the UI; the next tick retries.
+      }
+    }
+    fetchDeploy();
+    const id = setInterval(fetchDeploy, 5000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [siteId, site, deploy?.state]);
 
   if (isLoading) {
     return (
@@ -224,9 +262,16 @@ export default function SiteDetailPage() {
     ? `${site.netlifyAdminUrl}/configuration/deploys#content`
     : null;
 
-  const statusBg = isCreating
+  // Treat the first-build state the same as platform-side "creating":
+  // until the deploy target says "ready", the production URL won't
+  // render anything useful and the success banner would be misleading.
+  const isBuilding = isActive && (deploy?.state === "queued" || deploy?.state === "building" || (deploy === null && site.productionUrl));
+  const isDeployError = isActive && deploy?.state === "error";
+  const isReady = isActive && deploy?.state === "ready";
+
+  const statusBg = isCreating || isBuilding
     ? "var(--color-warning-bg)"
-    : isError
+    : isError || isDeployError
     ? "var(--color-error-bg)"
     : isArchived
     ? "var(--color-neutral-bg)"
@@ -242,7 +287,9 @@ export default function SiteDetailPage() {
         {isCreating && latestJob?.type === "migrate_site" && "Migrating your site\u2026 Crawling pages and building your repo. This may take a minute."}
         {isCreating && latestJob?.type !== "migrate_site" && "Setting up your site\u2026 This may take a few minutes."}
         {site.status === "error" && `Something went wrong: ${latestJob?.errorMessage ?? "Unknown error"}`}
-        {site.status === "active" && !needsRepoLink && "Your site is live!"}
+        {isBuilding && (deploy?.state === "queued" ? "First build queued\u2026 it'll start in a few seconds." : "Building your site\u2026 1\u20133 minutes for the first deploy.")}
+        {isDeployError && `First deploy failed${deploy?.errorMessage ? `: ${deploy.errorMessage}` : "."} Check the deploy logs.`}
+        {isReady && !needsRepoLink && "Your site is live!"}
         {isArchived && "This site is archived. The GitHub repo is read-only."}
       </div>
 
@@ -354,7 +401,13 @@ export default function SiteDetailPage() {
               <tr>
                 <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Production URL</td>
                 <td style={{ padding: "0.5rem" }}>
-                  <a href={site.productionUrl} target="_blank" rel="noopener noreferrer">{site.productionUrl}</a>
+                  {isReady ? (
+                    <a href={site.productionUrl} target="_blank" rel="noopener noreferrer">{site.productionUrl}</a>
+                  ) : (
+                    <span style={{ color: "var(--color-text-faint)" }}>
+                      {site.productionUrl} <em>(available once the first build finishes)</em>
+                    </span>
+                  )}
                 </td>
               </tr>
             )}

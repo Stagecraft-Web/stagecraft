@@ -5,6 +5,7 @@ import { prisma } from "@stagecraft/db";
 import type { JobContext, JobResult } from "@stagecraft/queue";
 import type { BlueprintType } from "@stagecraft/shared";
 
+import { generateBrokerSecret } from "@/lib/broker-secret";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
 import {
@@ -239,7 +240,33 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     const files = await readTemplateFiles(TEMPLATE_DIR);
     await pushFiles(userId, repo.owner, repo.name, repo.defaultBranch, files, `Initial site: ${name}`);
 
-    // 3. Provision the deploy project on the chosen target. Both branches
+    // 3. Try to provision the broker secret upfront. When the platform's
+    //    GitHub App ("stagecraft-bot") installation can be discovered for
+    //    this owner, we generate the secret here and bake it into the
+    //    initial deploy's env vars — no second deploy needed and the
+    //    artist skips the per-site "Connect repo" step. When discovery
+    //    returns null (most common: GitHub denies `/user/installations`
+    //    over an OAuth token, no env-var fallback set, or App not yet
+    //    installed), the existing install-callback flow is the safety
+    //    net: the artist clicks "Connect repo" later, the callback
+    //    generates + provisions the secret, and triggers a redeploy.
+    const stagecraftInstallationId = await findGithubAppInstallation(
+      userId,
+      "stagecraft-bot",
+      repo.owner,
+    );
+    const brokerSecret = stagecraftInstallationId !== null ? generateBrokerSecret() : null;
+    if (brokerSecret) {
+      await prisma.site.update({
+        where: { id: siteId },
+        data: {
+          githubInstallationId: stagecraftInstallationId,
+          brokerSecretHash: brokerSecret.hash,
+        },
+      });
+    }
+
+    // 4. Provision the deploy project on the chosen target. Both branches
     //    create the project linked to the GitHub repo and set the same
     //    runtime env vars; only the IDs they return differ.
     const envVars: Record<string, string> = {
@@ -251,6 +278,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       // the namespaced name on Vercel too so the artist template stays
       // single-codepath.
       STAGECRAFT_SITE_ID: siteId,
+      ...(brokerSecret ? { STAGECRAFT_BROKER_SECRET: brokerSecret.plaintext } : {}),
     };
 
     const deploy =
@@ -273,7 +301,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
             envVars,
           });
 
-    // 4. Update site with target-specific metadata and mark active.
+    // 5. Update site with target-specific metadata and mark active.
     await prisma.site.update({
       where: { id: siteId },
       data: {

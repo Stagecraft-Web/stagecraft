@@ -179,9 +179,14 @@ export const puckConfig: Config<BlockProps> = {
             </div>
           );
         }
+        // Puck's Config<T> generic collapses ImageMetadata's branded `id`
+        // (`string & { ... [imageIdBrand]: never }`) into its methods-as-
+        // properties form during type mapping, so `image` here is no longer
+        // structurally assignable to ImageMetadata even though its runtime
+        // shape is identical. Cast at the render boundary.
         return (
           <figure style={{ maxWidth: "48rem", margin: "0 auto", padding: "1rem" }}>
-            <PublicImage image={image} />
+            <PublicImage image={image as ImageMetadata} />
             {caption ? (
               <figcaption
                 style={{

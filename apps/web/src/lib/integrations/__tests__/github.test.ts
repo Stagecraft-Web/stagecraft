@@ -103,11 +103,23 @@ describe("findGithubAppInstallation", () => {
     expect(id).toBeNull();
   });
 
-  it("propagates GitHub API errors (e.g. 401) so the caller can surface them", async () => {
-    mockFetch(() => ({ status: 401, body: { message: "Bad credentials" } }));
-    await expect(
-      findGithubAppInstallation("user-1", "netlify", "jclaw"),
-    ).rejects.toThrow(/GitHub API error \(401\)/);
+  it("returns null on GitHub API errors so create_site falls back to manual link", async () => {
+    // Real-world reproduction: production hits 403 here because
+    // Stagecraft signs users in via a regular OAuth App, not a GitHub
+    // App, and `/user/installations` only accepts GitHub App
+    // user-to-server tokens. Killing the create_site job over a
+    // discovery API failure was the wrong call — the caller in
+    // create-site.ts already treats null as "no installation found"
+    // and degrades to the manual-link Netlify path.
+    mockFetch(() => ({ status: 403, body: { message: "You must authenticate with an access token authorized to a GitHub App" } }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBeNull();
+  });
+
+  it("returns null on transient errors (network/rate-limit) too", async () => {
+    mockFetch(() => ({ status: 500, body: { message: "Server error" } }));
+    const id = await findGithubAppInstallation("user-1", "netlify", "jclaw");
+    expect(id).toBeNull();
   });
 
   it("throws GitHub-not-connected when the user has no github IntegrationAccount", async () => {

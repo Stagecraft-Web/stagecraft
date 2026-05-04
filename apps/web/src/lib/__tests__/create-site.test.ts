@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { JobContext } from "@stagecraft/queue";
 
 const mockSiteUpdate = vi.fn();
+const mockSiteDelete = vi.fn();
+const mockSiteFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();
 const mockIntegrationFindUnique = vi.fn();
 const mockIntegrationFindMany = vi.fn();
 
 vi.mock("@stagecraft/db", () => ({
   prisma: {
-    site: { update: mockSiteUpdate },
+    site: { update: mockSiteUpdate, delete: mockSiteDelete, findUnique: mockSiteFindUnique },
     user: { findUnique: mockUserFindUnique },
     integrationAccount: {
       findUnique: mockIntegrationFindUnique,
@@ -18,10 +20,12 @@ vi.mock("@stagecraft/db", () => ({
 }));
 
 const mockCreateRepo = vi.fn();
+const mockDeleteRepo = vi.fn();
 const mockPushFiles = vi.fn();
 const mockFindGithubAppInstallation = vi.fn();
 vi.mock("@/lib/integrations/github", () => ({
   createRepo: mockCreateRepo,
+  deleteRepo: mockDeleteRepo,
   pushFiles: mockPushFiles,
   findGithubAppInstallation: mockFindGithubAppInstallation,
 }));
@@ -35,10 +39,14 @@ vi.mock("@/lib/integrations/netlify", () => ({
 
 const mockCreateVercelProject = vi.fn();
 const mockSetVercelEnvVars = vi.fn();
-vi.mock("@/lib/integrations/vercel", () => ({
-  createProject: mockCreateVercelProject,
-  setEnvVars: mockSetVercelEnvVars,
-}));
+vi.mock("@/lib/integrations/vercel", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/integrations/vercel")>();
+  return {
+    ...actual,
+    createProject: mockCreateVercelProject,
+    setEnvVars: mockSetVercelEnvVars,
+  };
+});
 
 const mockReadTemplateFiles = vi.fn().mockResolvedValue([]);
 vi.mock("@/lib/template-reader", () => ({

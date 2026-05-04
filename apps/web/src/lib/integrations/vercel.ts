@@ -17,6 +17,20 @@ import { prisma } from "@stagecraft/db";
 
 const VERCEL_API = "https://api.vercel.com";
 
+const VERCEL_GITHUB_APP_INSTALL_URL =
+  "https://github.com/apps/vercel/installations/new";
+
+export class VercelGitHubAppNotInstalledError extends Error {
+  readonly installUrl = VERCEL_GITHUB_APP_INSTALL_URL;
+  constructor() {
+    super(
+      "Vercel requires its GitHub App to be installed before it can link a repository. " +
+        "Install it, then try again.",
+    );
+    this.name = "VercelGitHubAppNotInstalledError";
+  }
+}
+
 interface VercelTokenInfo {
   /** Vercel user id (`user.id`); used as IntegrationAccount.providerAccountId */
   userId: string;
@@ -134,8 +148,15 @@ export async function createProject(
 ): Promise<VercelProjectResult> {
   const token = await getVercelToken(options.userId);
 
-  const data = (await vercelApi(token, "/v9/projects", {
+  const url = new URL(`${VERCEL_API}/v9/projects`);
+  if (options.teamId) url.searchParams.set("teamId", options.teamId);
+
+  const res = await fetch(url.toString(), {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       name: options.name,
       framework: options.framework ?? "nextjs",
@@ -144,8 +165,24 @@ export async function createProject(
         repo: options.repo.repo,
       },
     }),
-    teamId: options.teamId,
-  })) as {
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 400) {
+      try {
+        const parsed = JSON.parse(body) as { error?: { action?: string } };
+        if (parsed.error?.action === "Install GitHub App") {
+          throw new VercelGitHubAppNotInstalledError();
+        }
+      } catch (e) {
+        if (e instanceof VercelGitHubAppNotInstalledError) throw e;
+      }
+    }
+    throw new Error(`Vercel API error (${res.status}): ${body}`);
+  }
+
+  const data = (await res.json()) as {
     id: string;
     name: string;
     accountId?: string;

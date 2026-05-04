@@ -28,6 +28,7 @@ export default function CreateSitePage() {
   const [siteName, setSiteName] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [error, setError] = useState("");
+  const [installUrl, setInstallUrl] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [progressIndex, setProgressIndex] = useState(0);
 
@@ -49,6 +50,7 @@ export default function CreateSitePage() {
 
   async function handleCreateFromScratch() {
     setError("");
+    setInstallUrl(null);
     setIsCreating(true);
     setMode("creating");
 
@@ -63,6 +65,7 @@ export default function CreateSitePage() {
 
       if (!res.ok) {
         setError(data.error ?? "Failed to create site");
+        if (data.installUrl) setInstallUrl(data.installUrl);
         setMode("scratch");
         setIsCreating(false);
         return;
@@ -123,7 +126,20 @@ export default function CreateSitePage() {
 
       {error && (
         <div style={{ padding: "0.75rem", background: "var(--color-error-bg)", borderRadius: "var(--radius-sm)", marginBottom: "1rem" }}>
-          {error}
+          <p style={{ margin: 0 }}>{error}</p>
+          {installUrl && (
+            <p style={{ margin: "0.5rem 0 0" }}>
+              <a
+                href={installUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontWeight: 600 }}
+              >
+                Install Vercel&rsquo;s GitHub App
+              </a>
+              , then try again.
+            </p>
+          )}
         </div>
       )}
 

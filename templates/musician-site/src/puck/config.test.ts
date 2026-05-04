@@ -94,35 +94,46 @@ describe("puckConfig", () => {
   });
 
   describe("Image", () => {
-    it("renders a placeholder when src is empty (editor-time empty state)", () => {
-      const html = render("Image", { src: "", alt: "", width: 800, height: 600, caption: "" });
-      expect(html).toContain("No image source set");
-      expect(html).not.toContain("<img");
+    const sampleImage = {
+      id: "abc1234567890def",
+      alt: "stage shot",
+      width: 1200,
+      height: 800,
+      placeholderDataUri: "data:image/webp;base64,AAAA",
+      contentSlug: "uploads",
+      originalExt: "jpg" as const,
+    };
+
+    it("uses a custom field for image picking (no raw text inputs for src/alt/width/height)", () => {
+      const fields = puckConfig.components.Image.fields ?? {};
+      const fieldKeys = Object.keys(fields).sort();
+      expect(fieldKeys).toEqual(["caption", "image"].sort());
+      // The image field is a custom Puck field — its render function is the
+      // ImagePickerField wrapper. Don't test the editor-side render here
+      // (it imports client-only React), but assert the type so a regression
+      // back to text fields would fail.
+      const imageField = fields.image as { type?: string } | undefined;
+      expect(imageField?.type).toBe("custom");
     });
 
-    it("renders <figure><img> with width/height/alt when src is set", () => {
-      const html = render("Image", {
-        src: "/uploads/foo.webp",
-        alt: "stage shot",
-        width: 1200,
-        height: 800,
-        caption: "",
-      });
-      expect(html).toContain("<figure");
-      expect(html).toContain('src="/uploads/foo.webp"');
+    it("renders an empty-state placeholder when image is null", () => {
+      const html = render("Image", { image: null, caption: "" });
+      expect(html).toContain("No image picked yet");
+      expect(html).not.toContain("<picture");
+    });
+
+    it("renders the public <Image> (a <picture>) when image is set", () => {
+      const html = render("Image", { image: sampleImage, caption: "" });
+      expect(html).toContain("<picture");
+      // The public Image component emits avif + webp <source> tags pointing
+      // at /images/<slug>/<id>/<width>.<ext>
+      expect(html).toMatch(/srcSet="\/images\/uploads\/abc1234567890def\/[0-9]+\.webp/);
       expect(html).toContain('alt="stage shot"');
-      expect(html).toContain('width="1200"');
-      expect(html).toContain('height="800"');
-      expect(html).toContain('loading="lazy"');
     });
 
     it("renders <figcaption> only when caption is non-empty", () => {
-      const without = render("Image", {
-        src: "/x.webp", alt: "x", width: 800, height: 600, caption: "",
-      });
-      const withCaption = render("Image", {
-        src: "/x.webp", alt: "x", width: 800, height: 600, caption: "Live at the venue",
-      });
+      const without = render("Image", { image: sampleImage, caption: "" });
+      const withCaption = render("Image", { image: sampleImage, caption: "Live at the venue" });
       expect(without).not.toContain("<figcaption");
       expect(withCaption).toContain("<figcaption");
       expect(withCaption).toContain("Live at the venue");

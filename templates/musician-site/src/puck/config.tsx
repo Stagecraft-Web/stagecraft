@@ -1,5 +1,10 @@
 import type { Config } from "@measured/puck";
 
+import { Image as PublicImage } from "@/components/Image";
+import type { ImageMetadata } from "@/lib/image-types";
+
+import { ImagePickerField } from "./ImagePickerField";
+
 export const HEADING_LEVELS = ["h1", "h2", "h3"] as const;
 export type HeadingLevel = (typeof HEADING_LEVELS)[number];
 
@@ -59,10 +64,8 @@ export type BlockProps = {
   RichText: { text: string };
   Button: { text: string; href: string; variant: ButtonVariant };
   Image: {
-    src: string;
-    alt: string;
-    width: number;
-    height: number;
+    /** Full ImageMetadata returned by /api/upload-image, or null when not yet picked. */
+    image: ImageMetadata | null;
     caption: string;
   };
   Spacer: { size: SpacerSize };
@@ -147,15 +150,20 @@ export const puckConfig: Config<BlockProps> = {
     },
     Image: {
       fields: {
-        src: { type: "text" },
-        alt: { type: "text" },
-        width: { type: "number" },
-        height: { type: "number" },
+        image: {
+          type: "custom",
+          render: ({ value, onChange }) => (
+            <ImagePickerField
+              value={(value as ImageMetadata | null) ?? null}
+              onChange={(next) => onChange(next as ImageMetadata | null)}
+            />
+          ),
+        },
         caption: { type: "text" },
       },
-      defaultProps: { src: "", alt: "", width: 800, height: 600, caption: "" },
-      render: ({ src, alt, width, height, caption }) => {
-        if (!src) {
+      defaultProps: { image: null, caption: "" },
+      render: ({ image, caption }) => {
+        if (!image) {
           return (
             <div
               style={{
@@ -167,22 +175,13 @@ export const puckConfig: Config<BlockProps> = {
                 fontStyle: "italic",
               }}
             >
-              No image source set
+              No image picked yet
             </div>
           );
         }
         return (
           <figure style={{ maxWidth: "48rem", margin: "0 auto", padding: "1rem" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt={alt}
-              width={width}
-              height={height}
-              loading="lazy"
-              decoding="async"
-              style={{ width: "100%", height: "auto", display: "block" }}
-            />
+            <PublicImage image={image} />
             {caption ? (
               <figcaption
                 style={{

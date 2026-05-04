@@ -86,3 +86,39 @@ jobs:
       - run: npm run test
 
       - run: npm run build
+
+  # Verifies the production Neon DB has every committed migration applied.
+  # Runs only on push to main (i.e. after a PR merges) — not on PRs, where
+  # the new migration would always be reported pending and create false
+  # noise. When this fails, run `npm run db:migrate:prod` locally against
+  # the direct (unpooled) Neon URL.
+  #
+  # Skipped when the PRODUCTION_DATABASE_URL secret is unset (e.g. on forks).
+  db-migrations-applied:
+    name: DB migrations applied to production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run db:generate
+
+      - name: Verify no pending migrations on production
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        working-directory: packages/db
+        run: |
+          if [ -z "$PRODUCTION_DATABASE_URL" ]; then
+            echo "::warning::PRODUCTION_DATABASE_URL secret not set; skipping migration check."
+            exit 0
+          fi
+          # `prisma migrate status` exits 1 when there are pending or failed
+          # migrations, 0 when the DB is fully in sync with prisma/migrations.
+          DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate status

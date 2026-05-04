@@ -17,7 +17,8 @@
     "db:seed": "npm run seed --workspace=@stagecraft/db",
     "db:studio": "npm run studio --workspace=@stagecraft/db",
     "db:psql": "bash scripts/db-psql.sh",
-    "db:psql:prod": "bash scripts/db-psql.sh NEON_DATABASE_URL"
+    "db:psql:prod": "bash scripts/db-psql.sh NEON_DATABASE_URL",
+    "db:migrate:prod": "bash scripts/db-migrate-prod.sh"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

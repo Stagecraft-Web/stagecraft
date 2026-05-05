@@ -113,6 +113,23 @@
 }
 
 /* ============================================================
+   Animations
+   ============================================================ */
+
+/* First-deploy progress bar on /sites/[siteId]. Fills the inner bar
+   from 0 → 95% width via transform. Asymptotes at 95% — only flips to
+   100% when the deploy provider says ready. Mirrors the artist-side
+   editor's bar in templates/musician-site/src/app/globals.css. */
+@keyframes stagecraftFirstDeployProgress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.95);
+  }
+}
+
+/* ============================================================
    Base Styles
    ============================================================ */
 body {

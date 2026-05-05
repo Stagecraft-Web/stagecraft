@@ -292,6 +292,11 @@ export default function SiteDetailPage() {
         {isDeployError && `First deploy failed${deploy?.errorMessage ? `: ${deploy.errorMessage}` : "."} Check the deploy logs.`}
         {isReady && !needsRepoLink && "Your site is live!"}
         {isArchived && "This site is archived. The GitHub repo is read-only."}
+        {(isCreating || isBuilding) && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <FirstDeployProgressBar />
+          </div>
+        )}
       </div>
 
       {/* GitHub App publishing — connect / suspended states */}
@@ -544,5 +549,47 @@ export default function SiteDetailPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+/**
+ * Progress bar shown while a site is creating or its first build is
+ * queued/building on Vercel/Netlify. Pure CSS animation that fills 0→95%
+ * over the typical first-deploy duration; asymptote at 95% means we only
+ * declare "Live" when the provider state actually flips to ready (in
+ * which case this component unmounts and the "Your site is live!" copy
+ * renders instead).
+ *
+ * Single bar across the whole creating → queued → building arc so the
+ * artist sees one continuous indicator, not three. Slight mismatch
+ * between bar progress and actual phase is acceptable — the goal is
+ * "this is happening, not stuck", not frame-accurate timing.
+ */
+const FIRST_DEPLOY_PROGRESS_MS = 90_000;
+
+function FirstDeployProgressBar() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "block",
+        width: "100%",
+        height: "0.375rem",
+        background: "var(--color-surface-raised)",
+        borderRadius: "var(--radius-sm)",
+        overflow: "hidden",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          background: "var(--color-brand)",
+          transformOrigin: "left",
+          animation: `stagecraftFirstDeployProgress ${FIRST_DEPLOY_PROGRESS_MS}ms ease-out forwards`,
+        }}
+      />
+    </span>
   );
 }

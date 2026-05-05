@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { puckConfig } from "@/puck/config";
 import type { PageData } from "@/lib/content";
-import { parseDeployedSha } from "@/lib/deployed-sha";
+import type { DeployState } from "@/lib/deploy-status";
 
 type Props = {
   initialData: PageData;
@@ -16,36 +16,51 @@ type Props = {
 
 /**
  * Publish lifecycle:
- *   idle → publishing → published(commitSha) → live(commitSha)
- *                              ↘ stalled (poll timeout, build still running)
+ *   idle → publishing → queued → building → live
+ *                                    ↘ stalled (poll timeout, build still running)
  *   any → error(message)
  *
  * "publishing" = the /api/publish round-trip (broker → GitHub commit).
- * "published" = commit on disk on the artist's repo, deploy now in flight.
- * "live"      = the public site is now serving the new commit (matched via
- *               polling for the `stagecraft-deployed-sha` meta tag).
- * "stalled"   = poll timed out at ~90s; build may still be running, but
- *               we stop polling so we don't spin forever.
+ * "queued"     = commit on disk on the artist's repo, deploy not yet started.
+ * "building"   = deploy actively building on Vercel/Netlify.
+ * "live"       = the public site now serves the new commit (provider state=ready).
+ * "stalled"    = poll timed out at ~90s; build may still be running, but we
+ *                stop polling so we don't spin forever.
+ *
+ * Provider state comes from `GET /api/publish-status`, which proxies to the
+ * platform's broker (`POST /api/broker/deploy-status`) which calls
+ * Vercel/Netlify directly. Real signal — no time-based dead reckoning for
+ * the *transitions* (the visible bar fill within the building state is
+ * still time-based; neither provider exposes granular progress).
  */
 type PublishState =
   | { status: "idle" }
   | { status: "publishing" }
-  | { status: "published"; commitSha: string }
-  | { status: "live"; commitSha: string }
-  | { status: "stalled"; commitSha: string }
+  | { status: "queued"; publishedAt: number }
+  | { status: "building"; publishedAt: number }
+  | { status: "live" }
+  | { status: "stalled"; publishedAt: number }
   | { status: "error"; message: string };
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 90_000;
 
 // Expected end-to-end build time (roughly the median observed for a
-// Next.js musician-site template on Vercel/Netlify). The progress bar
-// in the "Building…" pill animates from 0 → 95% over this window. We
-// asymptote at 95% so we never claim "done" until the public site
-// actually serves the new commit (state → "live"). If the build runs
-// longer, the bar holds at 95% until POLL_TIMEOUT_MS, then transitions
-// to "stalled".
+// Next.js musician-site template on Vercel/Netlify). Used for the
+// progress bar fill animation while in the "building" state. Asymptote
+// at 95% — we only claim "Live" when the provider says ready.
 const EXPECTED_BUILD_MS = 60_000;
+
+type DeployStatusBody = {
+  ok: true;
+  deploy: {
+    id: string | null;
+    state: DeployState;
+    url: string | null;
+    errorMessage?: string | null;
+    createdAt: string | null;
+  };
+};
 
 export function Editor({ initialData, pageSlug, email }: Props) {
   const [publishState, setPublishState] = useState<PublishState>({ status: "idle" });
@@ -68,22 +83,18 @@ export function Editor({ initialData, pageSlug, email }: Props) {
             (body && "error" in body && body.error) ||
             `Publish failed (HTTP ${res.status})`;
           setPublishState({ status: "error", message });
-          // Re-throw so Puck sees an error too (it has its own subtle
-          // visual feedback via console + error boundary).
           throw new Error(message);
         }
         if (body && body.ok && body.commitSha) {
           // Production: real commit, deploy will follow. Polling kicks in
           // via the useEffect below.
-          setPublishState({ status: "published", commitSha: body.commitSha });
+          setPublishState({ status: "queued", publishedAt: Date.now() });
         } else {
           // Dev fallback (no STAGECRAFT_PLATFORM_URL configured): publish
           // wrote JSON to local disk, no deploy, nothing to poll for.
-          setPublishState({ status: "live", commitSha: "dev" });
+          setPublishState({ status: "live" });
         }
       } catch (cause) {
-        // Already set to error above for HTTP failures; this catches
-        // network/parse errors that happen before we got a response.
         setPublishState((current) =>
           current.status === "error"
             ? current
@@ -97,31 +108,51 @@ export function Editor({ initialData, pageSlug, email }: Props) {
     [pageSlug],
   );
 
-  // Poll the public site for the matching `stagecraft-deployed-sha` meta
-  // tag. Bypass any CDN cache with a per-request `?_t=` parameter — the
-  // root page is SSR/ISR'd, so a query param defeats whatever caching
-  // layer Vercel/Netlify put in front of it.
+  // While we're waiting on a deploy (queued or building), poll the
+  // platform's broker via /api/publish-status for real provider state.
+  // Stale-deploy guard: ignore any deploy whose createdAt predates the
+  // moment we hit publish, since that's a build kicked off by something
+  // earlier (or another author) and isn't the one we care about.
   useEffect(() => {
-    if (publishState.status !== "published") return;
-    const targetSha = publishState.commitSha;
+    if (publishState.status !== "queued" && publishState.status !== "building") return;
+    const publishedAt = publishState.publishedAt;
     let cancelled = false;
     const start = Date.now();
 
-    async function tick() {
+    async function tick(): Promise<boolean> {
       try {
-        const res = await fetch(`/?_publishCheck=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch("/api/publish-status", { cache: "no-store" });
         if (!res.ok) return false;
-        const html = await res.text();
-        const liveSha = parseDeployedSha(html);
-        if (liveSha && liveSha === targetSha) {
-          if (!cancelled) {
-            setPublishState({ status: "live", commitSha: targetSha });
-          }
+        const body = (await res.json()) as DeployStatusBody | { ok: false };
+        if (!("deploy" in body)) return false;
+        const { deploy } = body;
+        if (cancelled) return true;
+
+        const deployTime = deploy.createdAt ? Date.parse(deploy.createdAt) : 0;
+        // Allow a 30s grace window — Vercel sometimes records createdAt
+        // slightly before our publish (clock skew, queue ordering).
+        const isOurs = !deploy.createdAt || deployTime >= publishedAt - 30_000;
+
+        if (deploy.state === "ready" && isOurs) {
+          setPublishState({ status: "live" });
           return true;
         }
+        if (deploy.state === "error" && isOurs) {
+          setPublishState({
+            status: "error",
+            message: deploy.errorMessage ?? "Build failed on the deploy provider",
+          });
+          return true;
+        }
+        if (deploy.state === "building" && isOurs) {
+          setPublishState((current) =>
+            current.status === "building" ? current : { status: "building", publishedAt },
+          );
+        }
+        // queued / unknown / pre-publish deploys: keep polling.
         return false;
       } catch {
-        return false; // transient failure; keep trying
+        return false; // transient — try again next tick
       }
     }
 
@@ -137,13 +168,13 @@ export function Editor({ initialData, pageSlug, email }: Props) {
       if (Date.now() - start > POLL_TIMEOUT_MS) {
         clearInterval(interval);
         if (!cancelled) {
-          setPublishState({ status: "stalled", commitSha: targetSha });
+          setPublishState({ status: "stalled", publishedAt });
         }
       }
     }, POLL_INTERVAL_MS);
 
-    // First check immediately so a fast deploy doesn't have to wait
-    // for the first interval tick.
+    // First check immediately so a fast deploy doesn't wait for the first
+    // interval tick before we discover it.
     void tick();
 
     return () => {
@@ -171,8 +202,6 @@ export function Editor({ initialData, pageSlug, email }: Props) {
 }
 
 function PublishStatusPill({ state }: { state: PublishState }) {
-  // Common pill base style. Each branch picks color via CSS variables —
-  // no raw hex (CLAUDE.md §7).
   const base = {
     display: "inline-flex" as const,
     alignItems: "center",
@@ -200,7 +229,7 @@ function PublishStatusPill({ state }: { state: PublishState }) {
           <Spinner /> Publishing…
         </span>
       );
-    case "published":
+    case "queued":
       return (
         <span
           role="status"
@@ -209,7 +238,21 @@ function PublishStatusPill({ state }: { state: PublishState }) {
             background: "var(--color-surface-raised)",
             color: "var(--color-text-muted)",
           }}
-          title={`Commit ${state.commitSha.slice(0, 7)} pushed; waiting for deploy (~${EXPECTED_BUILD_MS / 1000}s typical)`}
+          title="Build queued"
+        >
+          <Spinner /> Queued…
+        </span>
+      );
+    case "building":
+      return (
+        <span
+          role="status"
+          style={{
+            ...base,
+            background: "var(--color-surface-raised)",
+            color: "var(--color-text-muted)",
+          }}
+          title={`Building (~${EXPECTED_BUILD_MS / 1000}s typical)`}
         >
           Building… <ProgressBar />
         </span>
@@ -220,17 +263,9 @@ function PublishStatusPill({ state }: { state: PublishState }) {
           role="status"
           style={{
             ...base,
-            // Subtle success treatment; site CSS doesn't have a green
-            // semantic token yet, so use the action color (matches the
-            // primary button so it reads as "good, done").
             background: "var(--color-surface-raised)",
             color: "var(--color-text)",
           }}
-          title={
-            state.commitSha === "dev"
-              ? "Saved locally (dev mode)"
-              : `Live: commit ${state.commitSha.slice(0, 7)}`
-          }
         >
           <Dot /> Live
         </span>
@@ -244,7 +279,7 @@ function PublishStatusPill({ state }: { state: PublishState }) {
             background: "var(--color-surface-raised)",
             color: "var(--color-text-muted)",
           }}
-          title={`Commit ${state.commitSha.slice(0, 7)} — build still running`}
+          title="Build still running — refresh to check status"
         >
           Still building…
         </span>
@@ -334,8 +369,6 @@ function UserMenu({ email }: { email: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Click-outside to close. The dropdown floats over the canvas, so users
-  // expect it to dismiss on any click off the menu.
   useEffect(() => {
     if (!isOpen) return;
     function handle(e: MouseEvent) {

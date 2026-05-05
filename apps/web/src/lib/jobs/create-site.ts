@@ -8,6 +8,7 @@ import type { BlueprintType } from "@stagecraft/shared";
 import { generateBrokerSecret } from "@/lib/broker-secret";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
+import { getResendCredentials } from "@/lib/integrations/resend";
 import {
   createProject as createVercelProject,
   setEnvVars as setVercelEnvVars,
@@ -268,7 +269,20 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       });
     }
 
-    // 4. Provision the deploy project on the chosen target. Both branches
+    // 4. Look up the artist's connected Resend credentials so the new
+    //    site can send magic-link emails directly from the artist's
+    //    own Resend account. POST /api/sites already gates /create on
+    //    this being connected, so getResendCredentials returning null
+    //    here would be a race (artist disconnected between request and
+    //    job invocation) — fail fast.
+    const resend = await getResendCredentials(userId);
+    if (!resend) {
+      throw new Error(
+        "Resend account not connected — connect Resend at /settings before creating a site",
+      );
+    }
+
+    // 5. Provision the deploy project on the chosen target. Both branches
     //    create the project linked to the GitHub repo and set the same
     //    runtime env vars; only the IDs they return differ.
     const envVars: Record<string, string> = {
@@ -280,6 +294,8 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       // the namespaced name on Vercel too so the artist template stays
       // single-codepath.
       STAGECRAFT_SITE_ID: siteId,
+      RESEND_API_KEY: resend.apiKey,
+      MAGIC_LINK_FROM: resend.fromAddress,
       ...(brokerSecret ? { STAGECRAFT_BROKER_SECRET: brokerSecret.plaintext } : {}),
     };
 
@@ -303,7 +319,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
             envVars,
           });
 
-    // 5. Update site with target-specific metadata and mark active.
+    // 6. Update site with target-specific metadata and mark active.
     await prisma.site.update({
       where: { id: siteId },
       data: {

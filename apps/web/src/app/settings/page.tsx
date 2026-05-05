@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
 
+import { ConnectResend } from "./ConnectResend";
 import { ConnectVercel } from "./ConnectVercel";
 
 export default async function SettingsPage({
@@ -23,9 +24,14 @@ export default async function SettingsPage({
   const github = integrations.find((i: { provider: string }) => i.provider === "github");
   const netlify = integrations.find((i: { provider: string }) => i.provider === "netlify");
   const vercel = integrations.find((i: { provider: string }) => i.provider === "vercel");
+  const resend = integrations.find((i: { provider: string }) => i.provider === "resend");
   const vercelUsername =
     vercel?.metadata && typeof vercel.metadata === "object" && vercel.metadata !== null
       ? (vercel.metadata as { username?: string }).username ?? null
+      : null;
+  const resendFromAddress =
+    resend?.metadata && typeof resend.metadata === "object" && resend.metadata !== null
+      ? (resend.metadata as { fromAddress?: string }).fromAddress ?? null
       : null;
 
   return (
@@ -39,6 +45,8 @@ export default async function SettingsPage({
           {params.success === "netlify_connected" && "Netlify connected successfully."}
           {params.success === "vercel_connected" && "Vercel connected successfully."}
           {params.success === "vercel_disconnected" && "Vercel disconnected."}
+          {params.success === "resend_connected" && "Resend connected successfully."}
+          {params.success === "resend_disconnected" && "Resend disconnected."}
         </div>
       )}
 
@@ -51,7 +59,7 @@ export default async function SettingsPage({
       <section style={{ marginTop: 32 }}>
         <h2>Integrations</h2>
         <p style={{ color: "#555", fontSize: 14 }}>
-          GitHub is required (the platform commits to your repo). For deploys, connect either Vercel or Netlify — Vercel is recommended for new sites because its API auto-resolves repo linking; Netlify needs manual GitHub-App setup per repo.
+          GitHub is required (the platform commits to your repo). For deploys, connect either Vercel or Netlify — Vercel is recommended for new sites because its API auto-resolves repo linking; Netlify needs manual GitHub-App setup per repo. Resend is required for magic-link sign-in on artist sites.
         </p>
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
@@ -70,7 +78,7 @@ export default async function SettingsPage({
           <ConnectVercel connectedUsername={vercelUsername} />
         </div>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3>Netlify</h3>
           {netlify ? (
             <p>
@@ -79,6 +87,11 @@ export default async function SettingsPage({
           ) : (
             <a href="/api/integrations/netlify">Connect Netlify</a>
           )}
+        </div>
+
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
+          <h3>Resend <span style={{ fontSize: 12, color: "#666", fontWeight: 400 }}>(required for magic-link sign-in)</span></h3>
+          <ConnectResend connectedFromAddress={resendFromAddress} />
         </div>
 
         {githubAppInstallUrl && (

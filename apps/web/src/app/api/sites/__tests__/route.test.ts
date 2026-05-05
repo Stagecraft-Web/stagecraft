@@ -39,6 +39,7 @@ beforeEach(() => {
   prismaMock.integrationAccount.findMany.mockResolvedValue([
     { provider: "github" },
     { provider: "netlify" },
+    { provider: "resend" },
   ]);
   prismaMock.site.findUnique.mockResolvedValue(null); // slug not taken
   prismaMock.site.create.mockResolvedValue({ id: "site-1", name: "Sarah Chen" });
@@ -74,6 +75,7 @@ describe("POST /api/sites", () => {
   it("400 when GitHub is missing", async () => {
     prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
       { provider: "netlify" },
+      { provider: "resend" },
     ]);
     const res = await POST(buildRequest({ name: "Sarah Chen" }));
     expect(res.status).toBe(400);
@@ -85,6 +87,7 @@ describe("POST /api/sites", () => {
   it("400 when neither Vercel nor Netlify is connected", async () => {
     prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
       { provider: "github" },
+      { provider: "resend" },
     ]);
     const res = await POST(buildRequest({ name: "Sarah Chen" }));
     expect(res.status).toBe(400);
@@ -93,10 +96,23 @@ describe("POST /api/sites", () => {
     });
   });
 
-  it("201 when GitHub + Vercel are connected (no Netlify required)", async () => {
+  it("400 when Resend is missing (required for magic-link sign-in)", async () => {
     prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
       { provider: "github" },
       { provider: "vercel" },
+    ]);
+    const res = await POST(buildRequest({ name: "Sarah Chen" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("Resend"),
+    });
+  });
+
+  it("201 when GitHub + Vercel + Resend are connected (no Netlify required)", async () => {
+    prismaMock.integrationAccount.findMany.mockResolvedValueOnce([
+      { provider: "github" },
+      { provider: "vercel" },
+      { provider: "resend" },
     ]);
     handleCreateSiteMock.mockResolvedValue({ success: true, data: { deployTarget: "vercel" } });
     prismaMock.site.findUnique

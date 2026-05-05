@@ -87,7 +87,7 @@ Single allowed email per site, gated by middleware. Magic-link flow:
 | --- | --- | --- |
 | `MAGIC_LINK_SIGNING_SECRET` | yes | Random string, ≥32 bytes. Used to sign JWTs (HS256). Rotate forces re-login. |
 | `ADMIN_EMAIL` | yes | Single allowed email. Anything else gets the same "check your email" response (no enumeration). |
-| `STAGECRAFT_PLATFORM_URL` + `STAGECRAFT_SITE_ID` + `STAGECRAFT_BROKER_SECRET` | prod | Provisioned automatically by `/create`. The template POSTs to `$STAGECRAFT_PLATFORM_URL/api/broker/send-email` so the platform's shared Resend account sends the email — artists never need their own `RESEND_API_KEY`. Without these, magic links log to the dev server console. |
+| `RESEND_API_KEY` + `MAGIC_LINK_FROM` | prod | Provisioned automatically by `/create` from the artist's own Resend account (connected at `/settings` on the platform). Each artist site uses its owner's account end-to-end — the platform never sees recipient addresses. Without these, magic links log to the dev server console. |
 
 **Cookie:** `mc_session`, HttpOnly, SameSite=Lax, 7-day max age. `Secure` flag set in production.
 
@@ -95,7 +95,7 @@ Middleware (`src/middleware.ts`) gates `/admin/*` and `/api/save`. `/admin/login
 
 **Server-side session access:** `getSession()` from `@/lib/auth` reads the cookie and verifies it. Use it in Server Components and route handlers.
 
-**Local setup:** copy `.env.example` to `.env.local` and fill in `MAGIC_LINK_SIGNING_SECRET` + `ADMIN_EMAIL`. With the `STAGECRAFT_*` broker vars unset, magic links log to the dev server console. In dev only, the request handler also emits a `console.warn` when `ADMIN_EMAIL` is missing or the submitted email doesn't match — production stays silent to prevent enumeration.
+**Local setup:** copy `.env.example` to `.env.local` and fill in `MAGIC_LINK_SIGNING_SECRET` + `ADMIN_EMAIL`. With `RESEND_API_KEY` / `MAGIC_LINK_FROM` unset, magic links log to the dev server console. In dev only, the request handler also emits a `console.warn` when `ADMIN_EMAIL` is missing or the submitted email doesn't match — production stays silent to prevent enumeration.
 
 **Logging out:** the editor header shows the signed-in email and a Sign out button that POSTs to `/api/auth/logout`. The endpoint is POST-only by design — a GET logout would be a CSRF foot-gun (any external `<img src>` could log everyone out).
 

@@ -48,6 +48,7 @@ describe("POST /api/integrations/resend/preview", () => {
 
   it("returns only `verified` domains (filters out pending/failed)", async () => {
     validateMock.mockResolvedValue({
+      restricted: false,
       domains: [
         { id: "1", name: "ok.com", status: "verified" },
         { id: "2", name: "pending.com", status: "pending" },
@@ -57,16 +58,27 @@ describe("POST /api/integrations/resend/preview", () => {
     });
     const res = await POST(buildRequest({ token: "re_good" }));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; verifiedDomains: string[] };
-    expect(body).toEqual({ ok: true, verifiedDomains: ["ok.com", "good.org"] });
+    const body = (await res.json()) as { ok: boolean; verifiedDomains: string[]; restricted: boolean };
+    expect(body).toEqual({ ok: true, verifiedDomains: ["ok.com", "good.org"], restricted: false });
   });
 
   it("returns empty list when no verified domains exist", async () => {
     validateMock.mockResolvedValue({
+      restricted: false,
       domains: [{ id: "1", name: "p.com", status: "pending" }],
     });
     const res = await POST(buildRequest({ token: "re_x" }));
-    const body = (await res.json()) as { verifiedDomains: string[] };
+    const body = (await res.json()) as { verifiedDomains: string[]; restricted: boolean };
+    expect(body.verifiedDomains).toEqual([]);
+    expect(body.restricted).toBe(false);
+  });
+
+  it("surfaces restricted=true when Resend key is send-only", async () => {
+    validateMock.mockResolvedValue({ restricted: true, domains: [] });
+    const res = await POST(buildRequest({ token: "re_send_only" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { restricted: boolean; verifiedDomains: string[] };
+    expect(body.restricted).toBe(true);
     expect(body.verifiedDomains).toEqual([]);
   });
 });

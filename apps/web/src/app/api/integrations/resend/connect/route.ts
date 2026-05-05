@@ -60,17 +60,31 @@ export async function POST(req: NextRequest) {
   // Require the from-address's domain to be either:
   //   (a) one of the artist's verified Resend domains, or
   //   (b) `resend.dev` — Resend's pre-verified sandbox sender, available
-  //       to every account. We accept this so artists without a
-  //       custom domain can still ship working magic-link auth on day
-  //       one (deliverability is worse and emails come from
-  //       `onboarding@resend.dev`, but it unblocks them).
+  //       to every account (including send-only API keys). We accept this
+  //       so artists who haven't verified a custom domain can still ship
+  //       working magic-link auth on day one — emails come from
+  //       `onboarding@resend.dev` (looks generic, hurts deliverability),
+  //       but it unblocks them.
   // Catching this here avoids shipping a site whose first login attempt
   // fails with Resend's "domain not verified" error.
+  //
+  // When the key is restricted (send-only), we can't verify domain
+  // membership at all, so only the sandbox sender is accepted — anything
+  // else would silently fail at first send.
   const fromDomain = fromAddress.split("@")[1] ?? "";
   const isResendSandbox = fromDomain === "resend.dev";
   const hasVerifiedDomain = info.domains.some(
     (d) => d.status === "verified" && d.name.toLowerCase() === fromDomain,
   );
+  if (info.restricted && !isResendSandbox) {
+    return NextResponse.json(
+      {
+        error:
+          "This API key is restricted to sending only — we can't verify your custom domains. Use `onboarding@resend.dev` as the sender, or generate a Full-access key at resend.com/api-keys to enable a custom domain.",
+      },
+      { status: 400 },
+    );
+  }
   if (!hasVerifiedDomain && !isResendSandbox) {
     const verified = info.domains
       .filter((d) => d.status === "verified")

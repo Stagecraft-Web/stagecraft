@@ -99,7 +99,7 @@ describe("getResendCredentials", () => {
   it("returns null when row exists but accessToken is missing", async () => {
     prismaMock.integrationAccount.findUnique.mockResolvedValue({
       accessToken: null,
-      metadata: { fromAddress: "noreply@x.com" },
+      metadata: { fromAddress: "noreply@x.com", adminEmail: "a@x.com" },
     });
     expect(await getResendCredentials("user-1")).toBeNull();
   });
@@ -107,17 +107,29 @@ describe("getResendCredentials", () => {
   it("returns null when fromAddress is missing from metadata", async () => {
     prismaMock.integrationAccount.findUnique.mockResolvedValue({
       accessToken: "re_x",
-      metadata: {},
+      metadata: { adminEmail: "a@x.com" },
     });
     expect(await getResendCredentials("user-1")).toBeNull();
   });
 
-  it("returns {apiKey, fromAddress} when both present", async () => {
+  it("returns null when adminEmail is missing from metadata", async () => {
     prismaMock.integrationAccount.findUnique.mockResolvedValue({
       accessToken: "re_x",
-      metadata: { fromAddress: "noreply@artist.com" },
+      metadata: { fromAddress: "noreply@x.com" },
+    });
+    expect(await getResendCredentials("user-1")).toBeNull();
+  });
+
+  it("returns {apiKey, fromAddress, adminEmail} when all present", async () => {
+    prismaMock.integrationAccount.findUnique.mockResolvedValue({
+      accessToken: "re_x",
+      metadata: { fromAddress: "noreply@artist.com", adminEmail: "owner@artist.com" },
     });
     const result = await getResendCredentials("user-1");
-    expect(result).toEqual({ apiKey: "re_x", fromAddress: "noreply@artist.com" });
+    expect(result).toEqual({
+      apiKey: "re_x",
+      fromAddress: "noreply@artist.com",
+      adminEmail: "owner@artist.com",
+    });
   });
 });

@@ -212,11 +212,6 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
   const siteId = ctx.job.siteId;
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.email) {
-      throw new Error("User has no email on file — required for ADMIN_EMAIL on the artist site");
-    }
-
     const deployTarget = await pickDeployTarget(userId);
 
     // 1. Create GitHub repo
@@ -287,7 +282,12 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     //    runtime env vars; only the IDs they return differ.
     const envVars: Record<string, string> = {
       MAGIC_LINK_SIGNING_SECRET: randomBytes(32).toString("hex"),
-      ADMIN_EMAIL: user.email,
+      // ADMIN_EMAIL = the email the artist verified at /settings → Connect
+      // Resend (round-tripped a code through their Resend account, so we
+      // know it actually receives mail). Not sourced from the Stagecraft
+      // user.email — that decoupling lets the artist sign in to the
+      // platform with one email and the artist site with another.
+      ADMIN_EMAIL: resend.adminEmail,
       STAGECRAFT_PLATFORM_URL: getPlatformUrl(),
       // STAGECRAFT_SITE_ID, not SITE_ID — Netlify reserves the latter
       // (auto-injects its own Netlify-side site id into Functions). Use

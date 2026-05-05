@@ -112,6 +112,16 @@ describe("POST /api/integrations/resend/connect", () => {
     );
   });
 
+  it("accepts onboarding@resend.dev as a fallback sender (Resend's sandbox; no verified domain required)", async () => {
+    validateMock.mockResolvedValue({ domains: [] });
+    const res = await POST(
+      buildRequest({ token: "re_good", fromAddress: "onboarding@resend.dev" }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; fromAddress: string };
+    expect(body.fromAddress).toBe("onboarding@resend.dev");
+  });
+
   it("matches verified-domain check case-insensitively", async () => {
     validateMock.mockResolvedValue({
       domains: [{ id: "1", name: "STAGECRAFT.website", status: "verified" }],

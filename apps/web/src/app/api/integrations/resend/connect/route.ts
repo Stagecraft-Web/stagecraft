@@ -57,21 +57,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Require the from-address's domain to be verified on the artist's
-  // Resend account. Resend would reject the first send with the same
-  // signal, but catching it here avoids creating a site that ships
-  // with broken auth.
+  // Require the from-address's domain to be either:
+  //   (a) one of the artist's verified Resend domains, or
+  //   (b) `resend.dev` — Resend's pre-verified sandbox sender, available
+  //       to every account. We accept this so artists without a
+  //       custom domain can still ship working magic-link auth on day
+  //       one (deliverability is worse and emails come from
+  //       `onboarding@resend.dev`, but it unblocks them).
+  // Catching this here avoids shipping a site whose first login attempt
+  // fails with Resend's "domain not verified" error.
   const fromDomain = fromAddress.split("@")[1] ?? "";
+  const isResendSandbox = fromDomain === "resend.dev";
   const hasVerifiedDomain = info.domains.some(
     (d) => d.status === "verified" && d.name.toLowerCase() === fromDomain,
   );
-  if (!hasVerifiedDomain) {
+  if (!hasVerifiedDomain && !isResendSandbox) {
     const verified = info.domains
       .filter((d) => d.status === "verified")
       .map((d) => d.name);
     const hint = verified.length
       ? `Verified domains on this Resend account: ${verified.join(", ")}.`
-      : "No verified domains on this Resend account yet — add one at resend.com/domains and verify the DNS records.";
+      : "No verified domains on this Resend account yet — use `onboarding@resend.dev` to ship now, or add a custom domain at resend.com/domains.";
     return NextResponse.json(
       {
         error: `Sender address @${fromDomain} isn't on a verified Resend domain. ${hint}`,

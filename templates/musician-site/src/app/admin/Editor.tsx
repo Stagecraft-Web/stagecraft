@@ -38,6 +38,15 @@ type PublishState =
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 90_000;
 
+// Expected end-to-end build time (roughly the median observed for a
+// Next.js musician-site template on Vercel/Netlify). The progress bar
+// in the "Building…" pill animates from 0 → 95% over this window. We
+// asymptote at 95% so we never claim "done" until the public site
+// actually serves the new commit (state → "live"). If the build runs
+// longer, the bar holds at 95% until POLL_TIMEOUT_MS, then transitions
+// to "stalled".
+const EXPECTED_BUILD_MS = 60_000;
+
 export function Editor({ initialData, pageSlug, email }: Props) {
   const [publishState, setPublishState] = useState<PublishState>({ status: "idle" });
 
@@ -200,9 +209,9 @@ function PublishStatusPill({ state }: { state: PublishState }) {
             background: "var(--color-surface-raised)",
             color: "var(--color-text-muted)",
           }}
-          title={`Commit ${state.commitSha.slice(0, 7)} pushed; waiting for deploy`}
+          title={`Commit ${state.commitSha.slice(0, 7)} pushed; waiting for deploy (~${EXPECTED_BUILD_MS / 1000}s typical)`}
         >
-          <Spinner /> Building…
+          Building… <ProgressBar />
         </span>
       );
     case "live":
@@ -255,6 +264,38 @@ function PublishStatusPill({ state }: { state: PublishState }) {
         </span>
       );
   }
+}
+
+function ProgressBar() {
+  // Pure CSS animation — `transform: scaleX` is GPU-composited and
+  // doesn't trigger layout, so it stays smooth even while Puck does its
+  // own work in the editor. `forwards` keeps the bar at 95% after the
+  // animation completes, so a slow build still shows "almost done".
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: "3rem",
+        height: "0.25rem",
+        background: "var(--color-border)",
+        borderRadius: "var(--radius-sm)",
+        overflow: "hidden",
+        verticalAlign: "middle",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          background: "var(--color-text-muted)",
+          transformOrigin: "left",
+          animation: `stagecraftPublishProgress ${EXPECTED_BUILD_MS}ms ease-out forwards`,
+        }}
+      />
+    </span>
+  );
 }
 
 function Spinner() {

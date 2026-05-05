@@ -50,6 +50,11 @@ vi.mock("@/lib/integrations/vercel", async (importOriginal) => {
   };
 });
 
+const mockGetResendCredentials = vi.fn();
+vi.mock("@/lib/integrations/resend", () => ({
+  getResendCredentials: mockGetResendCredentials,
+}));
+
 const mockReadTemplateFiles = vi.fn().mockResolvedValue([]);
 vi.mock("@/lib/template-reader", () => ({
   readTemplateFiles: mockReadTemplateFiles,
@@ -119,6 +124,10 @@ beforeEach(() => {
   mockSetNetlifyEnvVars.mockResolvedValue(undefined);
   mockSetVercelEnvVars.mockResolvedValue(undefined);
   mockTriggerVercelDeployment.mockResolvedValue({ deploymentId: "dpl_test" });
+  mockGetResendCredentials.mockResolvedValue({
+    apiKey: "re_test",
+    fromAddress: "noreply@example.com",
+  });
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
   // Default: Netlify's GitHub App is installed on the artist's account
@@ -226,6 +235,8 @@ describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
       ADMIN_EMAIL: "artist@example.com",
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
+      RESEND_API_KEY: "re_test",
+      MAGIC_LINK_FROM: "noreply@example.com",
     });
   });
 
@@ -350,6 +361,8 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
       ADMIN_EMAIL: "artist@example.com",
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
+      RESEND_API_KEY: "re_test",
+      MAGIC_LINK_FROM: "noreply@example.com",
     });
   });
 
@@ -449,6 +462,34 @@ describe("handleCreateSite — broker secret upfront provisioning", () => {
     const updateCalls = mockSiteUpdate.mock.calls;
     const brokerUpdate = updateCalls.find(([arg]) => arg.data?.brokerSecretHash);
     expect(brokerUpdate).toBeUndefined();
+  });
+});
+
+describe("handleCreateSite — per-artist Resend provisioning", () => {
+  it("provisions RESEND_API_KEY + MAGIC_LINK_FROM from artist's connected Resend account", async () => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockGetResendCredentials.mockResolvedValue({
+      apiKey: "re_artist_specific",
+      fromAddress: "noreply@artist.com",
+    });
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(true);
+    const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
+    expect(envVarsCall.vars.RESEND_API_KEY).toBe("re_artist_specific");
+    expect(envVarsCall.vars.MAGIC_LINK_FROM).toBe("noreply@artist.com");
+  });
+
+  it("fails the job when Resend isn't connected (the route gate is the primary check; this defends against a race)", async () => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockGetResendCredentials.mockResolvedValue(null);
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Resend");
+    expect(mockSetVercelEnvVars).not.toHaveBeenCalled();
   });
 });
 

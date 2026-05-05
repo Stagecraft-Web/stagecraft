@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   const hasGithub = integrations.some((i: { provider: string }) => i.provider === "github");
   const hasNetlify = integrations.some((i: { provider: string }) => i.provider === "netlify");
   const hasVercel = integrations.some((i: { provider: string }) => i.provider === "vercel");
+  const hasResend = integrations.some((i: { provider: string }) => i.provider === "resend");
 
   if (!hasGithub) {
     return NextResponse.json(
@@ -52,6 +53,12 @@ export async function POST(req: NextRequest) {
   if (!hasNetlify && !hasVercel) {
     return NextResponse.json(
       { error: "A deploy target must be connected (Vercel or Netlify) before creating a site" },
+      { status: 400 }
+    );
+  }
+  if (!hasResend) {
+    return NextResponse.json(
+      { error: "Resend must be connected (for magic-link sign-in on artist sites) before creating a site" },
       { status: 400 }
     );
   }

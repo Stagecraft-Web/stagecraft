@@ -6,8 +6,21 @@ import Button from "@/components/Button";
 export default async function DashboardPage() {
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/login");
+  }
+
+  // First-time-setup gate: until the artist has connected Resend (and
+  // verified an email through it), they can't usefully /create a site
+  // — the artist site's magic-link sign-in needs a real Resend account.
+  // /onboarding is the only path that doesn't redirect here.
+  const resend = await prisma.integrationAccount.findUnique({
+    where: {
+      userId_provider: { userId: session.user.id, provider: "resend" },
+    },
+  });
+  if (!resend) {
+    redirect("/onboarding");
   }
 
   const sites = await prisma.site.findMany({

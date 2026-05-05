@@ -127,7 +127,6 @@ beforeEach(() => {
   mockGetResendCredentials.mockResolvedValue({
     apiKey: "re_test",
     fromAddress: "noreply@example.com",
-    adminEmail: "artist@example.com",
   });
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
@@ -459,12 +458,11 @@ describe("handleCreateSite — broker secret upfront provisioning", () => {
 });
 
 describe("handleCreateSite — per-artist Resend provisioning", () => {
-  it("provisions RESEND_API_KEY + MAGIC_LINK_FROM + ADMIN_EMAIL from artist's connected Resend account", async () => {
+  it("provisions RESEND_API_KEY + MAGIC_LINK_FROM from artist's connected Resend account", async () => {
     mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
     mockGetResendCredentials.mockResolvedValue({
       apiKey: "re_artist_specific",
       fromAddress: "noreply@artist.com",
-      adminEmail: "owner@artist.com",
     });
 
     const result = await handleCreateSite(makeContext());
@@ -473,27 +471,28 @@ describe("handleCreateSite — per-artist Resend provisioning", () => {
     const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
     expect(envVarsCall.vars.RESEND_API_KEY).toBe("re_artist_specific");
     expect(envVarsCall.vars.MAGIC_LINK_FROM).toBe("noreply@artist.com");
-    expect(envVarsCall.vars.ADMIN_EMAIL).toBe("owner@artist.com");
   });
 
-  it("ADMIN_EMAIL comes from Resend integration, NOT from the Stagecraft user", async () => {
+  it("ADMIN_EMAIL comes from User.email (set by Resend connect)", async () => {
     mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
-    // Stagecraft user.email is "artist@example.com" (default mock); the
-    // Resend integration has a different adminEmail. The site should
-    // get the Resend value — that's the address the platform has
-    // proven receives mail through Resend.
-    mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "artist@example.com" });
-    mockGetResendCredentials.mockResolvedValue({
-      apiKey: "re_x",
-      fromAddress: "noreply@artist.com",
-      adminEmail: "different-admin@elsewhere.com",
-    });
+    mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "verified-via-resend@artist.com" });
 
     const result = await handleCreateSite(makeContext());
 
     expect(result.success).toBe(true);
     const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
-    expect(envVarsCall.vars.ADMIN_EMAIL).toBe("different-admin@elsewhere.com");
+    expect(envVarsCall.vars.ADMIN_EMAIL).toBe("verified-via-resend@artist.com");
+  });
+
+  it("fails the job when User.email is missing (Resend never connected)", async () => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockUserFindUnique.mockResolvedValue({ id: "user-1", email: null });
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("verified email");
+    expect(mockCreateRepo).not.toHaveBeenCalled();
   });
 
   it("fails the job when Resend isn't connected (the route gate is the primary check; this defends against a race)", async () => {

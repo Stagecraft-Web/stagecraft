@@ -123,24 +123,36 @@ export async function POST(req: NextRequest) {
 
   const adminEmail = verification.adminEmail;
 
-  await prisma.integrationAccount.upsert({
-    where: {
-      userId_provider: { userId: session.user.id, provider: "resend" },
-    },
-    update: {
-      accessToken: token,
-      providerAccountId: adminEmail,
-      metadata: { fromAddress, adminEmail },
-      updatedAt: new Date(),
-    },
-    create: {
-      userId: session.user.id,
-      provider: "resend",
-      providerAccountId: adminEmail,
-      accessToken: token,
-      metadata: { fromAddress, adminEmail },
-    },
-  });
+  // Persist Resend integration AND set the platform user's email-of-record
+  // to the verified address. After this, User.email is the single source
+  // of truth for the artist's identity — used as ADMIN_EMAIL on every
+  // site they create. Decoupling from the GitHub-OAuth-derived email
+  // means the artist can sign up to Stagecraft via GitHub but get
+  // magic-link mail at any address they control through Resend.
+  await prisma.$transaction([
+    prisma.integrationAccount.upsert({
+      where: {
+        userId_provider: { userId: session.user.id, provider: "resend" },
+      },
+      update: {
+        accessToken: token,
+        providerAccountId: adminEmail,
+        metadata: { fromAddress },
+        updatedAt: new Date(),
+      },
+      create: {
+        userId: session.user.id,
+        provider: "resend",
+        providerAccountId: adminEmail,
+        accessToken: token,
+        metadata: { fromAddress },
+      },
+    }),
+    prisma.user.update({
+      where: { id: session.user.id },
+      data: { email: adminEmail },
+    }),
+  ]);
 
   return NextResponse.json({ ok: true, fromAddress, adminEmail });
 }

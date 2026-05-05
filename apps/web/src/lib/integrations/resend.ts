@@ -62,31 +62,27 @@ export async function validateResendToken(token: string): Promise<ResendTokenInf
 export interface ResendCredentials {
   apiKey: string;
   fromAddress: string;
-  /**
-   * The single email address that magic-link sign-in is allowed for on
-   * the artist's musician sites. Verified at Resend-connect time
-   * (round-tripped a code) so the platform knows this address actually
-   * receives mail through the artist's Resend account.
-   */
-  adminEmail: string;
 }
 
 /**
  * Look up the artist's connected Resend credentials for `userId`. Used
  * by `handleCreateSite` to provision env vars on the new artist site.
  * Returns null when the artist hasn't connected Resend.
+ *
+ * The verified admin email lives on `User.email` — the Resend connect
+ * flow writes it there as part of the same transaction, so callers
+ * read it from the User row, not from this struct.
  */
 export async function getResendCredentials(userId: string): Promise<ResendCredentials | null> {
   const integration = await prisma.integrationAccount.findUnique({
     where: { userId_provider: { userId, provider: "resend" } },
   });
   if (!integration?.accessToken) return null;
-  const meta = (integration.metadata as { fromAddress?: string; adminEmail?: string } | null) ?? null;
-  if (!meta?.fromAddress || !meta?.adminEmail) return null;
+  const meta = (integration.metadata as { fromAddress?: string } | null) ?? null;
+  if (!meta?.fromAddress) return null;
   return {
     apiKey: integration.accessToken,
     fromAddress: meta.fromAddress,
-    adminEmail: meta.adminEmail,
   };
 }
 

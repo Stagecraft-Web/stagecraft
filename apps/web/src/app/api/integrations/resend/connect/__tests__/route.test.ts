@@ -8,6 +8,13 @@ const { authMock, prismaMock, validateMock } = vi.hoisted(() => ({
       upsert: vi.fn(),
       deleteMany: vi.fn(),
     },
+    user: {
+      update: vi.fn(),
+    },
+    // The route uses prisma.$transaction([upsert, user.update]); we
+    // mock it to just resolve all the queries, and assert the
+    // individual mocks were called with the right args.
+    $transaction: vi.fn(async (queries: unknown[]) => Promise.all(queries)),
   },
   validateMock: vi.fn(),
 }));
@@ -33,6 +40,7 @@ beforeEach(() => {
   authMock.mockReset();
   prismaMock.integrationAccount.upsert.mockReset();
   prismaMock.integrationAccount.deleteMany.mockReset();
+  prismaMock.user.update.mockReset();
   validateMock.mockReset();
 
   process.env = {
@@ -42,6 +50,7 @@ beforeEach(() => {
   authMock.mockResolvedValue({ user: { id: "user-1" } });
   prismaMock.integrationAccount.upsert.mockResolvedValue({});
   prismaMock.integrationAccount.deleteMany.mockResolvedValue({ count: 1 });
+  prismaMock.user.update.mockResolvedValue({ id: "user-1", email: "x@x.com" });
 });
 
 afterEach(() => {
@@ -199,7 +208,7 @@ describe("POST /api/integrations/resend/connect", () => {
     });
   });
 
-  it("200 + persists fromAddress + adminEmail when everything checks out", async () => {
+  it("200 + persists IntegrationAccount AND writes verified email to User.email when everything checks out", async () => {
     validateMock.mockResolvedValue({
       restricted: false,
       domains: [{ id: "1", name: "stagecraft.website", status: "verified" }],
@@ -228,13 +237,14 @@ describe("POST /api/integrations/resend/connect", () => {
         create: expect.objectContaining({
           accessToken: "re_good",
           providerAccountId: "artist@example.com",
-          metadata: {
-            fromAddress: "noreply@stagecraft.website",
-            adminEmail: "artist@example.com",
-          },
+          metadata: { fromAddress: "noreply@stagecraft.website" },
         }),
       }),
     );
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { email: "artist@example.com" },
+    });
   });
 
   it("200 + persists when sandbox sender + restricted key + valid code", async () => {

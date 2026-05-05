@@ -6,6 +6,13 @@ type ConnectResendProps = {
   /** When provided, shows the connected state + Disconnect. */
   connectedFromAddress?: string | null;
   connectedAdminEmail?: string | null;
+  /**
+   * Where to send the artist after a successful connect. Defaults to
+   * the settings page's own success-banner route; the /onboarding flow
+   * overrides to "/dashboard" so the first-time setup hands the artist
+   * to the dashboard instead of looping back to /settings.
+   */
+  successRedirect?: string;
 };
 
 const RESEND_SANDBOX_FROM = "onboarding@resend.dev";
@@ -25,6 +32,7 @@ type Phase = "key" | "sender" | "verify";
 export function ConnectResend({
   connectedFromAddress,
   connectedAdminEmail,
+  successRedirect = "/settings?success=resend_connected",
 }: ConnectResendProps) {
   const [phase, setPhase] = useState<Phase>("key");
   const [token, setToken] = useState("");
@@ -136,7 +144,7 @@ export function ConnectResend({
         setPending(false);
         return;
       }
-      window.location.assign("/settings?success=resend_connected");
+      window.location.assign(successRedirect);
     } catch {
       setError("Network error connecting to Resend");
       setPending(false);

@@ -62,6 +62,13 @@ export async function validateResendToken(token: string): Promise<ResendTokenInf
 export interface ResendCredentials {
   apiKey: string;
   fromAddress: string;
+  /**
+   * The single email address that magic-link sign-in is allowed for on
+   * the artist's musician sites. Verified at Resend-connect time
+   * (round-tripped a code) so the platform knows this address actually
+   * receives mail through the artist's Resend account.
+   */
+  adminEmail: string;
 }
 
 /**
@@ -74,7 +81,43 @@ export async function getResendCredentials(userId: string): Promise<ResendCreden
     where: { userId_provider: { userId, provider: "resend" } },
   });
   if (!integration?.accessToken) return null;
-  const meta = (integration.metadata as { fromAddress?: string } | null) ?? null;
-  if (!meta?.fromAddress) return null;
-  return { apiKey: integration.accessToken, fromAddress: meta.fromAddress };
+  const meta = (integration.metadata as { fromAddress?: string; adminEmail?: string } | null) ?? null;
+  if (!meta?.fromAddress || !meta?.adminEmail) return null;
+  return {
+    apiKey: integration.accessToken,
+    fromAddress: meta.fromAddress,
+    adminEmail: meta.adminEmail,
+  };
+}
+
+/**
+ * Send a transactional email via Resend. Used at /settings → Connect
+ * Resend to send the verification code to the artist's chosen admin
+ * email; the artist site itself sends magic-link emails directly via
+ * `resend` SDK from its template code.
+ */
+export async function sendResendEmail(args: {
+  apiKey: string;
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+}): Promise<void> {
+  const res = await fetch(`${RESEND_API}/emails`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: args.from,
+      to: args.to,
+      subject: args.subject,
+      text: args.text,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Resend send failed (${res.status}): ${body}`);
+  }
 }

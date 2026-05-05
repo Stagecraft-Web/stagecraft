@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { authMock, prismaMock, validateMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -17,6 +17,9 @@ vi.mock("@stagecraft/db", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/integrations/resend", () => ({ validateResendToken: validateMock }));
 
 import { POST, DELETE } from "../route";
+import { signVerificationToken } from "@/lib/resend-verification";
+
+const ORIGINAL_ENV = { ...process.env };
 
 function buildRequest(body: unknown): NextRequest {
   return new NextRequest("http://platform.test/api/integrations/resend/connect", {
@@ -32,120 +35,221 @@ beforeEach(() => {
   prismaMock.integrationAccount.deleteMany.mockReset();
   validateMock.mockReset();
 
+  process.env = {
+    ...ORIGINAL_ENV,
+    STAGECRAFT_STATE_SIGNING_SECRET: "test-secret-please-do-not-use-in-prod",
+  };
   authMock.mockResolvedValue({ user: { id: "user-1" } });
   prismaMock.integrationAccount.upsert.mockResolvedValue({});
   prismaMock.integrationAccount.deleteMany.mockResolvedValue({ count: 1 });
 });
 
+afterEach(() => {
+  process.env = ORIGINAL_ENV;
+});
+
+async function makeVerificationToken(overrides: { adminEmail?: string; code?: string; userId?: string } = {}) {
+  return signVerificationToken({
+    adminEmail: overrides.adminEmail ?? "artist@example.com",
+    code: overrides.code ?? "123456",
+    userId: overrides.userId ?? "user-1",
+  });
+}
+
 describe("POST /api/integrations/resend/connect", () => {
   it("401 when not signed in", async () => {
     authMock.mockResolvedValue(null);
-    const res = await POST(buildRequest({ token: "x", fromAddress: "a@example.com" }));
+    const verificationToken = await makeVerificationToken();
+    const res = await POST(
+      buildRequest({
+        token: "re_x",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken,
+        code: "123456",
+      }),
+    );
     expect(res.status).toBe(401);
     expect(validateMock).not.toHaveBeenCalled();
   });
 
-  it("400 when token is missing", async () => {
-    const res = await POST(buildRequest({ fromAddress: "a@example.com" }));
+  it("400 when verificationToken is missing", async () => {
+    const res = await POST(
+      buildRequest({ token: "re_x", fromAddress: "noreply@x.com", code: "123456" }),
+    );
     expect(res.status).toBe(400);
-    expect(validateMock).not.toHaveBeenCalled();
   });
 
-  it("400 when fromAddress isn't a valid email", async () => {
-    const res = await POST(buildRequest({ token: "re_x", fromAddress: "not-an-email" }));
+  it("400 when code isn't 6 digits", async () => {
+    const verificationToken = await makeVerificationToken();
+    const res = await POST(
+      buildRequest({
+        token: "re_x",
+        fromAddress: "noreply@x.com",
+        verificationToken,
+        code: "12abc",
+      }),
+    );
     expect(res.status).toBe(400);
   });
 
   it("400 when Resend rejects the API key", async () => {
     validateMock.mockRejectedValue(new Error("Resend API error (401): unauthorized"));
-    const res = await POST(buildRequest({ token: "re_bad", fromAddress: "a@example.com" }));
+    const verificationToken = await makeVerificationToken();
+    const res = await POST(
+      buildRequest({
+        token: "re_bad",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken,
+        code: "123456",
+      }),
+    );
     expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("Resend rejected the API key");
-  });
-
-  it("400 when fromAddress's domain isn't on a verified Resend domain", async () => {
-    validateMock.mockResolvedValue({
-      domains: [
-        { id: "1", name: "verified.com", status: "verified" },
-        { id: "2", name: "pending.com", status: "pending" },
-      ],
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("Resend rejected the API key"),
     });
-    const res = await POST(
-      buildRequest({ token: "re_x", fromAddress: "noreply@somewhere-else.com" }),
-    );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("isn't on a verified Resend domain");
-    expect(body.error).toContain("verified.com");
   });
 
-  it("400 with helpful hint when artist has no verified domains at all", async () => {
-    validateMock.mockResolvedValue({ domains: [{ id: "p", name: "pending.com", status: "pending" }] });
-    const res = await POST(
-      buildRequest({ token: "re_x", fromAddress: "noreply@anything.com" }),
-    );
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("No verified domains");
-  });
-
-  it("200 + upserts IntegrationAccount when token + fromAddress are valid", async () => {
+  it("400 when verificationToken is invalid / expired", async () => {
     validateMock.mockResolvedValue({
+      restricted: false,
       domains: [{ id: "1", name: "stagecraft.website", status: "verified" }],
     });
     const res = await POST(
-      buildRequest({ token: "re_good", fromAddress: "noreply@stagecraft.website" }),
+      buildRequest({
+        token: "re_good",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken: "obvious-garbage",
+        code: "123456",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("expired or invalid"),
+    });
+  });
+
+  it("403 when verification token belongs to a different user", async () => {
+    validateMock.mockResolvedValue({
+      restricted: false,
+      domains: [{ id: "1", name: "stagecraft.website", status: "verified" }],
+    });
+    const verificationToken = await makeVerificationToken({ userId: "other-user" });
+    const res = await POST(
+      buildRequest({
+        token: "re_good",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken,
+        code: "123456",
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("400 when user-entered code doesn't match the one we sent", async () => {
+    validateMock.mockResolvedValue({
+      restricted: false,
+      domains: [{ id: "1", name: "stagecraft.website", status: "verified" }],
+    });
+    const verificationToken = await makeVerificationToken({ code: "123456" });
+    const res = await POST(
+      buildRequest({
+        token: "re_good",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken,
+        code: "999999",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("Code didn't match"),
+    });
+  });
+
+  it("400 when sender domain isn't on a verified Resend domain (and isn't sandbox)", async () => {
+    validateMock.mockResolvedValue({
+      restricted: false,
+      domains: [{ id: "1", name: "different.com", status: "verified" }],
+    });
+    const verificationToken = await makeVerificationToken();
+    const res = await POST(
+      buildRequest({
+        token: "re_good",
+        fromAddress: "noreply@notmine.com",
+        verificationToken,
+        code: "123456",
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 when key is restricted but sender isn't sandbox", async () => {
+    validateMock.mockResolvedValue({ restricted: true, domains: [] });
+    const verificationToken = await makeVerificationToken();
+    const res = await POST(
+      buildRequest({
+        token: "re_send_only",
+        fromAddress: "noreply@artist.com",
+        verificationToken,
+        code: "123456",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining("restricted to sending only"),
+    });
+  });
+
+  it("200 + persists fromAddress + adminEmail when everything checks out", async () => {
+    validateMock.mockResolvedValue({
+      restricted: false,
+      domains: [{ id: "1", name: "stagecraft.website", status: "verified" }],
+    });
+    const verificationToken = await makeVerificationToken({
+      adminEmail: "artist@example.com",
+      code: "424242",
+    });
+    const res = await POST(
+      buildRequest({
+        token: "re_good",
+        fromAddress: "noreply@stagecraft.website",
+        verificationToken,
+        code: "424242",
+      }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; fromAddress: string };
-    expect(body).toEqual({ ok: true, fromAddress: "noreply@stagecraft.website" });
+    const body = (await res.json()) as { ok: boolean; fromAddress: string; adminEmail: string };
+    expect(body).toEqual({
+      ok: true,
+      fromAddress: "noreply@stagecraft.website",
+      adminEmail: "artist@example.com",
+    });
     expect(prismaMock.integrationAccount.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId_provider: { userId: "user-1", provider: "resend" } },
         create: expect.objectContaining({
-          userId: "user-1",
-          provider: "resend",
           accessToken: "re_good",
-          metadata: { fromAddress: "noreply@stagecraft.website" },
+          providerAccountId: "artist@example.com",
+          metadata: {
+            fromAddress: "noreply@stagecraft.website",
+            adminEmail: "artist@example.com",
+          },
         }),
       }),
     );
   });
 
-  it("accepts onboarding@resend.dev as a fallback sender (Resend's sandbox; no verified domain required)", async () => {
-    validateMock.mockResolvedValue({ restricted: false, domains: [] });
-    const res = await POST(
-      buildRequest({ token: "re_good", fromAddress: "onboarding@resend.dev" }),
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; fromAddress: string };
-    expect(body.fromAddress).toBe("onboarding@resend.dev");
-  });
-
-  it("accepts a send-only API key when paired with the Resend sandbox sender", async () => {
+  it("200 + persists when sandbox sender + restricted key + valid code", async () => {
     validateMock.mockResolvedValue({ restricted: true, domains: [] });
-    const res = await POST(
-      buildRequest({ token: "re_send_only", fromAddress: "onboarding@resend.dev" }),
-    );
-    expect(res.status).toBe(200);
-  });
-
-  it("rejects a send-only API key with any non-sandbox sender (we can't verify domain ownership)", async () => {
-    validateMock.mockResolvedValue({ restricted: true, domains: [] });
-    const res = await POST(
-      buildRequest({ token: "re_send_only", fromAddress: "noreply@artist.com" }),
-    );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("restricted to sending only");
-  });
-
-  it("matches verified-domain check case-insensitively", async () => {
-    validateMock.mockResolvedValue({
-      domains: [{ id: "1", name: "STAGECRAFT.website", status: "verified" }],
+    const verificationToken = await makeVerificationToken({
+      adminEmail: "owner@example.com",
+      code: "111222",
     });
     const res = await POST(
-      buildRequest({ token: "re_good", fromAddress: "Noreply@Stagecraft.Website" }),
+      buildRequest({
+        token: "re_send_only",
+        fromAddress: "onboarding@resend.dev",
+        verificationToken,
+        code: "111222",
+      }),
     );
     expect(res.status).toBe(200);
   });

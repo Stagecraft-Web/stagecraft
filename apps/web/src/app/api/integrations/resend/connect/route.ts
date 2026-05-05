@@ -5,14 +5,23 @@ import { prisma } from "@stagecraft/db";
 
 import { auth } from "@/lib/auth";
 import { validateResendToken } from "@/lib/integrations/resend";
+import { verifyVerificationToken } from "@/lib/resend-verification";
 
 /**
- * Connect a Resend account so the artist's musician sites can send
- * magic-link auth emails using the artist's *own* Resend account — no
- * shared platform-side key. Validates the token by listing domains
- * (also confirms the chosen `fromAddress` lives under one of the
- * artist's verified domains, so misconfigurations are caught at
- * connect time instead of at first login attempt).
+ * Step 2 of the Resend connect flow. Step 1 (POST /verify-send) sent a
+ * one-time code to the chosen admin email and returned a signed
+ * `verificationToken`. Here we:
+ *
+ *   1. Re-validate the API key (defense — request body is client-controlled).
+ *   2. Re-check the chosen sender against the artist's verified Resend
+ *      domains (or accept the `resend.dev` sandbox sender as a fallback).
+ *   3. Verify the JWT + match the user-entered code against what we
+ *      embedded at /verify-send. This proves the artist actually
+ *      receives mail at adminEmail through the configured Resend setup
+ *      (no silent sandbox-drop on first sign-in).
+ *   4. Persist `IntegrationAccount{provider:"resend"}` with both
+ *      fromAddress and adminEmail in metadata. handleCreateSite reads
+ *      adminEmail to provision ADMIN_EMAIL on each new artist site.
  */
 const connectSchema = z.object({
   token: z.string().trim().min(1, "API key is required"),
@@ -21,6 +30,8 @@ const connectSchema = z.object({
     .trim()
     .toLowerCase()
     .email("Sender address must be a valid email"),
+  verificationToken: z.string().min(1, "Verification token is required"),
+  code: z.string().trim().regex(/^\d{6}$/, "Code must be 6 digits"),
 });
 
 export async function POST(req: NextRequest) {
@@ -44,7 +55,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { token, fromAddress } = parsed.data;
+  const { token, fromAddress, verificationToken, code } = parsed.data;
 
   let info;
   try {
@@ -57,20 +68,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Require the from-address's domain to be either:
-  //   (a) one of the artist's verified Resend domains, or
-  //   (b) `resend.dev` — Resend's pre-verified sandbox sender, available
-  //       to every account (including send-only API keys). We accept this
-  //       so artists who haven't verified a custom domain can still ship
-  //       working magic-link auth on day one — emails come from
-  //       `onboarding@resend.dev` (looks generic, hurts deliverability),
-  //       but it unblocks them.
-  // Catching this here avoids shipping a site whose first login attempt
-  // fails with Resend's "domain not verified" error.
-  //
-  // When the key is restricted (send-only), we can't verify domain
-  // membership at all, so only the sandbox sender is accepted — anything
-  // else would silently fail at first send.
+  // Sender domain check — see comment in verify-send route for context.
   const fromDomain = fromAddress.split("@")[1] ?? "";
   const isResendSandbox = fromDomain === "resend.dev";
   const hasVerifiedDomain = info.domains.some(
@@ -100,26 +98,51 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const verification = await verifyVerificationToken(verificationToken);
+  if (!verification) {
+    return NextResponse.json(
+      {
+        error:
+          "Verification link expired or invalid — request a new code.",
+      },
+      { status: 400 },
+    );
+  }
+  if (verification.userId !== session.user.id) {
+    return NextResponse.json(
+      { error: "Verification token belongs to a different user." },
+      { status: 403 },
+    );
+  }
+  if (verification.code !== code) {
+    return NextResponse.json(
+      { error: "Code didn't match — check the email and try again." },
+      { status: 400 },
+    );
+  }
+
+  const adminEmail = verification.adminEmail;
+
   await prisma.integrationAccount.upsert({
     where: {
       userId_provider: { userId: session.user.id, provider: "resend" },
     },
     update: {
       accessToken: token,
-      providerAccountId: fromAddress,
-      metadata: { fromAddress },
+      providerAccountId: adminEmail,
+      metadata: { fromAddress, adminEmail },
       updatedAt: new Date(),
     },
     create: {
       userId: session.user.id,
       provider: "resend",
-      providerAccountId: fromAddress,
+      providerAccountId: adminEmail,
       accessToken: token,
-      metadata: { fromAddress },
+      metadata: { fromAddress, adminEmail },
     },
   });
 
-  return NextResponse.json({ ok: true, fromAddress });
+  return NextResponse.json({ ok: true, fromAddress, adminEmail });
 }
 
 export async function DELETE() {

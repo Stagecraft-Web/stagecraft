@@ -12,6 +12,36 @@ import { prisma } from "@stagecraft/db";
 
 const RESEND_API = "https://api.resend.com";
 
+/**
+ * Resend's pre-verified sandbox sender — works on every account,
+ * including send-only API keys, but only delivers to the email used
+ * to register that Resend account. We use this for everything for
+ * now: stagecraft-internal verification codes AND artist-site
+ * magic-link emails (which always go to ADMIN_EMAIL = User.email =
+ * Resend account email, so sandbox always reaches them).
+ *
+ * Future: per-site override to use a custom domain when the artist
+ * has verified one on their Resend account AND hooked it up to the
+ * Stagecraft site.
+ */
+export const RESEND_SANDBOX_FROM = "onboarding@resend.dev";
+
+/**
+ * Custom error thrown by sendResendEmail when Resend rejects with the
+ * specific 403 it returns when sending to a non-account email via the
+ * sandbox sender (its only-deliver-to-account-email constraint). The
+ * caller surfaces this as a tailored UX message instead of leaking
+ * the raw Resend body.
+ */
+export class ResendRecipientNotAllowedError extends Error {
+  constructor(public readonly recipient: string) {
+    super(
+      `Resend's sandbox sender can only deliver to the email you signed up with — ${recipient} doesn't match.`,
+    );
+    this.name = "ResendRecipientNotAllowedError";
+  }
+}
+
 export interface ResendDomain {
   id: string;
   name: string;
@@ -61,7 +91,6 @@ export async function validateResendToken(token: string): Promise<ResendTokenInf
 
 export interface ResendCredentials {
   apiKey: string;
-  fromAddress: string;
 }
 
 /**
@@ -69,21 +98,17 @@ export interface ResendCredentials {
  * by `handleCreateSite` to provision env vars on the new artist site.
  * Returns null when the artist hasn't connected Resend.
  *
- * The verified admin email lives on `User.email` — the Resend connect
- * flow writes it there as part of the same transaction, so callers
- * read it from the User row, not from this struct.
+ * The verified admin email lives on `User.email` (the Resend connect
+ * flow writes it there); the sender is hardcoded to RESEND_SANDBOX_FROM
+ * for every send right now. Both decoupled from this struct so it
+ * stays minimal.
  */
 export async function getResendCredentials(userId: string): Promise<ResendCredentials | null> {
   const integration = await prisma.integrationAccount.findUnique({
     where: { userId_provider: { userId, provider: "resend" } },
   });
   if (!integration?.accessToken) return null;
-  const meta = (integration.metadata as { fromAddress?: string } | null) ?? null;
-  if (!meta?.fromAddress) return null;
-  return {
-    apiKey: integration.accessToken,
-    fromAddress: meta.fromAddress,
-  };
+  return { apiKey: integration.accessToken };
 }
 
 /**
@@ -114,6 +139,23 @@ export async function sendResendEmail(args: {
   });
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 403) {
+      // Resend's "only deliver to your account email" guard — body
+      // looks like {"name":"validation_error","message":"You can only
+      // send testing emails to your own email address (X)..."}. Throw
+      // the typed error so callers can show a specific UX message.
+      try {
+        const parsed = JSON.parse(body) as { name?: string; message?: string };
+        if (
+          parsed.name === "validation_error" &&
+          parsed.message?.includes("only send testing emails")
+        ) {
+          throw new ResendRecipientNotAllowedError(args.to);
+        }
+      } catch (e) {
+        if (e instanceof ResendRecipientNotAllowedError) throw e;
+      }
+    }
     throw new Error(`Resend send failed (${res.status}): ${body}`);
   }
 }

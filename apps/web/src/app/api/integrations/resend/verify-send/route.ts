@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
-import { sendResendEmail, validateResendToken } from "@/lib/integrations/resend";
+import {
+  RESEND_SANDBOX_FROM,
+  ResendRecipientNotAllowedError,
+  sendResendEmail,
+  validateResendToken,
+} from "@/lib/integrations/resend";
 import {
   generateVerificationCode,
   signVerificationToken,
@@ -10,13 +15,11 @@ import {
 
 /**
  * Step 1 of the Resend connect flow: send a one-time verification code
- * to the artist's chosen admin email, using their own Resend account.
- *
- * Why: that artist site's `ADMIN_EMAIL` env var = magic-link recipient,
- * and we need to *prove* the artist can actually receive mail at that
- * address through the Resend setup they're configuring. Without this,
- * a user could pick the sandbox sender + a non-Resend-account email,
- * and every magic-link would get silently dropped by Resend's sandbox.
+ * to the artist's claimed Resend account email, using `onboarding@resend.dev`
+ * (Resend's sandbox sender). Sandbox only delivers to the email
+ * registered with the Resend account — so successful delivery is also
+ * proof that the address the artist typed IS their Resend account
+ * email. Doubles as identity verification + reachability proof.
  *
  * Returns a signed verification token containing the code (HS256, 10
  * min TTL); client echoes it back at /connect along with what the user
@@ -24,16 +27,11 @@ import {
  */
 const sendSchema = z.object({
   token: z.string().trim().min(1, "API key is required"),
-  fromAddress: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email("Sender address must be a valid email"),
   adminEmail: z
     .string()
     .trim()
     .toLowerCase()
-    .email("Admin email must be a valid email"),
+    .email("Email must be a valid email"),
 });
 
 export async function POST(req: NextRequest) {
@@ -57,10 +55,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { token, fromAddress, adminEmail } = parsed.data;
+  const { token, adminEmail } = parsed.data;
 
-  // Validate the API key first (cheap; surfaces "wrong key" before we
-  // try to send). Tolerates restricted (send-only) keys.
   try {
     await validateResendToken(token);
   } catch (cause) {
@@ -76,15 +72,25 @@ export async function POST(req: NextRequest) {
   try {
     await sendResendEmail({
       apiKey: token,
-      from: fromAddress,
+      from: RESEND_SANDBOX_FROM,
       to: adminEmail,
-      subject: "Stagecraft: confirm your admin email",
+      subject: "Stagecraft: confirm your email",
       text:
         `Your Stagecraft verification code is: ${code}\n\n` +
         "Enter this in the Stagecraft Connect Resend form to finish wiring up your account.\n\n" +
         "If you didn't initiate this, you can ignore this email — the code expires in 10 minutes.",
     });
   } catch (cause) {
+    if (cause instanceof ResendRecipientNotAllowedError) {
+      return NextResponse.json(
+        {
+          error:
+            `${adminEmail} isn't the email you used to sign up for Resend. Check your Resend account at resend.com — your sign-up email is the only address Stagecraft can deliver to right now.`,
+          code: "recipient-not-allowed",
+        },
+        { status: 400 },
+      );
+    }
     const message = cause instanceof Error ? cause.message : String(cause);
     return NextResponse.json(
       { error: `Couldn't send the verification email: ${message}` },

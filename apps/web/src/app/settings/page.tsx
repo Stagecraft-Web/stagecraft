@@ -29,14 +29,10 @@ export default async function SettingsPage({
     vercel?.metadata && typeof vercel.metadata === "object" && vercel.metadata !== null
       ? (vercel.metadata as { username?: string }).username ?? null
       : null;
-  const resendFromAddress =
-    resend?.metadata && typeof resend.metadata === "object" && resend.metadata !== null
-      ? (resend.metadata as { fromAddress?: string }).fromAddress ?? null
-      : null;
-  const resendAdminEmail =
-    resend?.metadata && typeof resend.metadata === "object" && resend.metadata !== null
-      ? (resend.metadata as { adminEmail?: string }).adminEmail ?? null
-      : null;
+  // Connected admin email = providerAccountId on the Resend
+  // IntegrationAccount (set during /connect to the verified address).
+  // Mirrors User.email; shown as the connected-state indicator.
+  const resendAdminEmail = resend?.providerAccountId ?? null;
 
   return (
     <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "system-ui" }}>
@@ -95,10 +91,7 @@ export default async function SettingsPage({
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
           <h3>Resend <span style={{ fontSize: 12, color: "#666", fontWeight: 400 }}>(required for magic-link sign-in)</span></h3>
-          <ConnectResend
-            connectedFromAddress={resendFromAddress}
-            connectedAdminEmail={resendAdminEmail}
-          />
+          <ConnectResend connectedAdminEmail={resendAdminEmail} />
         </div>
 
         {githubAppInstallUrl && (

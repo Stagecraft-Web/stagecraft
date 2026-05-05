@@ -8,7 +8,7 @@ import type { BlueprintType } from "@stagecraft/shared";
 import { generateBrokerSecret } from "@/lib/broker-secret";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
-import { getResendCredentials } from "@/lib/integrations/resend";
+import { getResendCredentials, RESEND_SANDBOX_FROM } from "@/lib/integrations/resend";
 import {
   createProject as createVercelProject,
   setEnvVars as setVercelEnvVars,
@@ -305,7 +305,13 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       // single-codepath.
       STAGECRAFT_SITE_ID: siteId,
       RESEND_API_KEY: resend.apiKey,
-      MAGIC_LINK_FROM: resend.fromAddress,
+      // Always sandbox sender for now — works on every Resend account
+      // (including send-only keys), and ADMIN_EMAIL is the artist's
+      // Resend account email so sandbox always reaches it. Per-site
+      // custom-domain sender is a future setting that fires only when
+      // the artist has both verified the domain on Resend AND hooked
+      // it up to the Stagecraft site.
+      MAGIC_LINK_FROM: RESEND_SANDBOX_FROM,
       ...(brokerSecret ? { STAGECRAFT_BROKER_SECRET: brokerSecret.plaintext } : {}),
     };
 

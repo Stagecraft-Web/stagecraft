@@ -53,6 +53,7 @@ vi.mock("@/lib/integrations/vercel", async (importOriginal) => {
 const mockGetResendCredentials = vi.fn();
 vi.mock("@/lib/integrations/resend", () => ({
   getResendCredentials: mockGetResendCredentials,
+  RESEND_SANDBOX_FROM: "onboarding@resend.dev",
 }));
 
 const mockReadTemplateFiles = vi.fn().mockResolvedValue([]);
@@ -124,10 +125,7 @@ beforeEach(() => {
   mockSetNetlifyEnvVars.mockResolvedValue(undefined);
   mockSetVercelEnvVars.mockResolvedValue(undefined);
   mockTriggerVercelDeployment.mockResolvedValue({ deploymentId: "dpl_test" });
-  mockGetResendCredentials.mockResolvedValue({
-    apiKey: "re_test",
-    fromAddress: "noreply@example.com",
-  });
+  mockGetResendCredentials.mockResolvedValue({ apiKey: "re_test" });
   mockCreateRepo.mockResolvedValue(REPO_RESULT);
   mockPushFiles.mockResolvedValue({ commitSha: "abc123" });
   // Default: Netlify's GitHub App is installed on the artist's account
@@ -228,7 +226,7 @@ describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
       RESEND_API_KEY: "re_test",
-      MAGIC_LINK_FROM: "noreply@example.com",
+      MAGIC_LINK_FROM: "onboarding@resend.dev",
     });
   });
 
@@ -354,7 +352,7 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
       STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
       RESEND_API_KEY: "re_test",
-      MAGIC_LINK_FROM: "noreply@example.com",
+      MAGIC_LINK_FROM: "onboarding@resend.dev",
     });
   });
 
@@ -458,19 +456,16 @@ describe("handleCreateSite — broker secret upfront provisioning", () => {
 });
 
 describe("handleCreateSite — per-artist Resend provisioning", () => {
-  it("provisions RESEND_API_KEY + MAGIC_LINK_FROM from artist's connected Resend account", async () => {
+  it("provisions RESEND_API_KEY from artist's Resend account; MAGIC_LINK_FROM is always the sandbox sender", async () => {
     mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
-    mockGetResendCredentials.mockResolvedValue({
-      apiKey: "re_artist_specific",
-      fromAddress: "noreply@artist.com",
-    });
+    mockGetResendCredentials.mockResolvedValue({ apiKey: "re_artist_specific" });
 
     const result = await handleCreateSite(makeContext());
 
     expect(result.success).toBe(true);
     const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
     expect(envVarsCall.vars.RESEND_API_KEY).toBe("re_artist_specific");
-    expect(envVarsCall.vars.MAGIC_LINK_FROM).toBe("noreply@artist.com");
+    expect(envVarsCall.vars.MAGIC_LINK_FROM).toBe("onboarding@resend.dev");
   });
 
   it("ADMIN_EMAIL comes from User.email (set by Resend connect)", async () => {

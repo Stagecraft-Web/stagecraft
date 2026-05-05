@@ -3,8 +3,7 @@
 import { useState } from "react";
 
 type ConnectResendProps = {
-  /** When provided, shows the connected state + Disconnect. */
-  connectedFromAddress?: string | null;
+  /** When set, shows the connected state + Disconnect button. */
   connectedAdminEmail?: string | null;
   /**
    * Where to send the artist after a successful connect. Defaults to
@@ -15,84 +14,35 @@ type ConnectResendProps = {
   successRedirect?: string;
 };
 
-const RESEND_SANDBOX_FROM = "onboarding@resend.dev";
-
-type Phase = "key" | "sender" | "verify";
+type Phase = "key" | "verify";
 
 /**
- * Three-phase connect flow:
- *   1. Paste API key → preview verified domains.
- *   2. Pick sender + enter admin email → /verify-send fires a code.
- *   3. Enter code → /connect persists the integration.
+ * Two-phase form, intentionally minimal:
+ *   1. Paste API key + Resend account email → /verify-send fires a code
+ *      via the Resend sandbox sender (which only delivers to the
+ *      account-registered email — successful delivery doubles as proof
+ *      the address is correct).
+ *   2. Enter code → /connect persists the integration and writes the
+ *      verified email to User.email (single source of truth for the
+ *      artist's identity across the platform + their artist sites).
  *
- * The third step proves the artist actually receives mail at the
- * configured admin address through the configured Resend setup, so the
- * sandbox-sender silent-drop trap can't catch them on first sign-in.
+ * No sender-picker UI: Stagecraft always sends from
+ * `onboarding@resend.dev` for now. ADMIN_EMAIL = User.email = Resend
+ * account email, so sandbox always reaches the recipient. Custom-
+ * domain senders come later as a per-site setting.
  */
 export function ConnectResend({
-  connectedFromAddress,
   connectedAdminEmail,
   successRedirect = "/settings?success=resend_connected",
 }: ConnectResendProps) {
   const [phase, setPhase] = useState<Phase>("key");
   const [token, setToken] = useState("");
-  const [verifiedDomains, setVerifiedDomains] = useState<string[] | null>(null);
-  const [restricted, setRestricted] = useState(false);
-  const [fromAddress, setFromAddress] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [verificationToken, setVerificationToken] = useState("");
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [pendingDisconnect, setPendingDisconnect] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function resetToKey() {
-    setPhase("key");
-    setVerifiedDomains(null);
-    setRestricted(false);
-    setFromAddress("");
-    setAdminEmail("");
-    setVerificationToken("");
-    setCode("");
-    setError(null);
-  }
-
-  async function handleLookupDomains() {
-    if (!token.trim()) return;
-    setPending(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/integrations/resend/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        verifiedDomains?: string[];
-        restricted?: boolean;
-      };
-      if (!res.ok) {
-        setError(data.error ?? "Failed to look up Resend domains");
-        setPending(false);
-        return;
-      }
-      const domains = data.verifiedDomains ?? [];
-      const isRestricted = data.restricted ?? false;
-      setVerifiedDomains(domains);
-      setRestricted(isRestricted);
-      setFromAddress(
-        isRestricted || domains.length === 0
-          ? RESEND_SANDBOX_FROM
-          : `noreply@${domains[0]}`,
-      );
-      setPhase("sender");
-      setPending(false);
-    } catch {
-      setError("Network error looking up Resend domains");
-      setPending(false);
-    }
-  }
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -104,7 +54,6 @@ export function ConnectResend({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: token.trim(),
-          fromAddress: fromAddress.trim(),
           adminEmail: adminEmail.trim(),
         }),
       });
@@ -133,7 +82,6 @@ export function ConnectResend({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: token.trim(),
-          fromAddress: fromAddress.trim(),
           verificationToken,
           code: code.trim(),
         }),
@@ -172,17 +120,11 @@ export function ConnectResend({
     }
   }
 
-  if (connectedFromAddress) {
+  if (connectedAdminEmail) {
     return (
       <div>
         <p>
-          Sending magic-link emails from <strong>{connectedFromAddress}</strong>
-          {connectedAdminEmail && (
-            <>
-              {" "}
-              to <strong>{connectedAdminEmail}</strong>
-            </>
-          )}
+          Magic-link emails for your artist sites go to <strong>{connectedAdminEmail}</strong>.
         </p>
         <button
           type="button"
@@ -199,8 +141,6 @@ export function ConnectResend({
     );
   }
 
-  const noVerifiedDomainOptions = restricted || (verifiedDomains?.length ?? 0) === 0;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <p style={{ color: "#555", fontSize: 14, marginTop: 0 }}>
@@ -208,130 +148,55 @@ export function ConnectResend({
         <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer">
           resend.com/api-keys
         </a>
-        . Each artist site you create gets its own copy of the key —
-        Stagecraft never sends mail on your behalf.
+        . The default &ldquo;Sending access&rdquo; key Resend gives you at signup is fine.
       </p>
 
-      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>Resend API key</span>
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => {
-            setToken(e.target.value);
-            if (phase !== "key") resetToKey();
-          }}
-          onBlur={() => {
-            if (phase === "key") handleLookupDomains();
-          }}
-          placeholder="re_…"
-          required
-          autoComplete="off"
-          spellCheck={false}
-          disabled={phase !== "key" || pending}
-          style={{ padding: 8, fontFamily: "monospace" }}
-        />
-        {pending && phase === "key" && (
-          <span style={{ fontSize: 12, color: "#666" }}>Checking key…</span>
-        )}
-      </label>
-
-      {phase !== "key" && (
+      {phase === "key" && (
         <form onSubmit={handleSendCode} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Sender</span>
-            {!noVerifiedDomainOptions && verifiedDomains && verifiedDomains.length > 0 ? (
-              <>
-                <select
-                  value={fromAddress.startsWith("noreply@") ? fromAddress.slice("noreply@".length) : "__custom__"}
-                  onChange={(e) => {
-                    if (e.target.value === RESEND_SANDBOX_FROM) {
-                      setFromAddress(RESEND_SANDBOX_FROM);
-                    } else if (e.target.value === "__custom__") {
-                      // keep current
-                    } else {
-                      setFromAddress(`noreply@${e.target.value}`);
-                    }
-                  }}
-                  disabled={phase === "verify" || pending}
-                  style={{ padding: 8, fontFamily: "monospace" }}
-                >
-                  {verifiedDomains.map((d) => (
-                    <option key={d} value={d}>
-                      noreply@{d}
-                    </option>
-                  ))}
-                  <option value={RESEND_SANDBOX_FROM}>{RESEND_SANDBOX_FROM} (sandbox)</option>
-                </select>
-                <input
-                  type="email"
-                  value={fromAddress}
-                  onChange={(e) => setFromAddress(e.target.value)}
-                  placeholder="custom-prefix@your-verified-domain.com"
-                  required
-                  disabled={phase === "verify" || pending}
-                  style={{ padding: 8, fontFamily: "monospace", marginTop: 4 }}
-                />
-              </>
-            ) : (
-              <>
-                <input
-                  type="email"
-                  value={fromAddress}
-                  onChange={(e) => setFromAddress(e.target.value)}
-                  placeholder={RESEND_SANDBOX_FROM}
-                  required
-                  readOnly={restricted}
-                  disabled={phase === "verify" || pending}
-                  style={{ padding: 8, fontFamily: "monospace" }}
-                />
-                {restricted ? (
-                  <span style={{ fontSize: 12, color: "#92400e" }}>
-                    Resend gave you a <strong>send-only</strong> API key (the default at signup). It can send via
-                    Resend&rsquo;s sandbox sender <code>{RESEND_SANDBOX_FROM}</code> right away. To send from your own domain, generate a
-                    Full-access key at{" "}
-                    <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer">resend.com/api-keys</a>{" "}
-                    and verify a domain at{" "}
-                    <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer">resend.com/domains</a>.
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 12, color: "#92400e" }}>
-                    No verified domains on this Resend account yet — defaulting to Resend&rsquo;s sandbox sender.
-                    This works immediately, but emails come from a generic Resend address.
-                    Verify a domain at{" "}
-                    <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer">resend.com/domains</a>{" "}
-                    to send from your own address.
-                  </span>
-                )}
-              </>
-            )}
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Resend API key</span>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => {
+                setToken(e.target.value);
+                setError(null);
+              }}
+              placeholder="re_…"
+              required
+              autoComplete="off"
+              spellCheck={false}
+              disabled={pending}
+              style={{ padding: 8, fontFamily: "monospace" }}
+            />
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Admin email</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Your Resend account email</span>
             <input
               type="email"
               value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              placeholder="you@example.com"
+              onChange={(e) => {
+                setAdminEmail(e.target.value);
+                setError(null);
+              }}
+              placeholder="the email you signed up to Resend with"
               required
-              disabled={phase === "verify" || pending}
+              disabled={pending}
               style={{ padding: 8, fontFamily: "monospace" }}
             />
             <span style={{ fontSize: 12, color: "#666" }}>
-              Where magic-link sign-in emails go for every artist site you create. We&rsquo;ll send a one-time code here to verify it&rsquo;s reachable.
+              Used as the admin sign-in for every artist site you create. We&rsquo;ll send a one-time code here through your Resend account to confirm it&rsquo;s reachable — Resend&rsquo;s sandbox sender only delivers to your own account email, so this also confirms the address is right.
             </span>
           </label>
 
-          {phase === "sender" && (
-            <button
-              type="submit"
-              disabled={pending || !fromAddress.trim() || !adminEmail.trim()}
-              style={{ marginTop: 4 }}
-            >
-              {pending ? "Sending code…" : "Send verification code"}
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={pending || !token.trim() || !adminEmail.trim()}
+            style={{ marginTop: 4 }}
+          >
+            {pending ? "Sending code…" : "Send verification code"}
+          </button>
         </form>
       )}
 
@@ -348,20 +213,21 @@ export function ConnectResend({
               autoComplete="one-time-code"
               inputMode="numeric"
               pattern="\d{6}"
+              autoFocus
               style={{ padding: 8, fontFamily: "monospace", letterSpacing: 4, fontSize: 18 }}
             />
             <span style={{ fontSize: 12, color: "#666" }}>
-              Check <strong>{adminEmail}</strong> for the 6-digit code (expires in 10 min). Didn&rsquo;t arrive?{" "}
+              Check <strong>{adminEmail}</strong> for the 6-digit code (expires in 10 min). Wrong inbox?{" "}
               <button
                 type="button"
                 onClick={() => {
-                  setPhase("sender");
+                  setPhase("key");
                   setCode("");
                   setError(null);
                 }}
                 style={{ background: "none", border: "none", color: "#0070f3", padding: 0, cursor: "pointer" }}
               >
-                Change email and resend
+                Go back and change email
               </button>
             </span>
           </label>

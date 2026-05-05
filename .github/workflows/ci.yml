@@ -87,11 +87,20 @@ jobs:
 
       - run: npm run build
 
-  # Verifies the production Neon DB has every committed migration applied.
-  # Runs only on push to main (i.e. after a PR merges) — not on PRs, where
-  # the new migration would always be reported pending and create false
-  # noise. When this fails, run `npm run db:migrate:prod` locally against
-  # the direct (unpooled) Neon URL.
+  # Apply any pending Prisma migrations to the production Neon DB after
+  # a PR merges to main. Runs only on push-to-main (not on PRs, where the
+  # new migration always shows pending and would force a manual step).
+  #
+  # Why apply, not verify: a merged PR with a migration triggers two
+  # parallel deploys — this job, and Netlify's build. If we only verified
+  # here, prod would throw P2022 on the new column until someone ran
+  # `npm run db:migrate:prod` locally. `migrate deploy` is idempotent —
+  # a no-op when there's nothing pending — so it's safe to run every push.
+  #
+  # Race window: Netlify's build (~90s) is much slower than this job
+  # (~10s with cached node_modules), so the migration usually lands well
+  # before the new code goes live. Not bulletproof — for stricter
+  # ordering, run the migration as part of the Netlify build itself.
   #
   # Skipped when the PRODUCTION_DATABASE_URL secret is unset (e.g. on forks).
   db-migrations-applied:
@@ -110,15 +119,14 @@ jobs:
 
       - run: npm run db:generate
 
-      - name: Verify no pending migrations on production
+      - name: Apply pending migrations to production
         env:
           PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         working-directory: packages/db
         run: |
           if [ -z "$PRODUCTION_DATABASE_URL" ]; then
-            echo "::warning::PRODUCTION_DATABASE_URL secret not set; skipping migration check."
+            echo "::warning::PRODUCTION_DATABASE_URL secret not set; skipping migration apply."
             exit 0
           fi
-          # `prisma migrate status` exits 1 when there are pending or failed
-          # migrations, 0 when the DB is fully in sync with prisma/migrations.
-          DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate status
+          # Idempotent: no-op when no pending migrations.
+          DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate deploy

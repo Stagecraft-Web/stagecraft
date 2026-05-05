@@ -58,9 +58,29 @@ describe("validateResendToken", () => {
     expect(info.domains).toEqual([]);
   });
 
-  it("throws on a 401 from Resend", async () => {
-    mockFetch(() => ({ status: 401, body: { name: "validation_error" } }));
+  it("throws on a 401 from Resend that isn't a restricted-key signal", async () => {
+    mockFetch(() => ({ status: 401, body: { name: "validation_error", message: "invalid api key" } }));
     await expect(validateResendToken("bad")).rejects.toThrow(/Resend API error \(401\)/);
+  });
+
+  it("returns {restricted:true, domains:[]} when the key is send-only (Resend's signup default)", async () => {
+    mockFetch(() => ({
+      status: 401,
+      body: {
+        statusCode: 401,
+        message: "This API key is restricted to only send emails",
+        name: "restricted_api_key",
+      },
+    }));
+    const info = await validateResendToken("re_send_only");
+    expect(info.restricted).toBe(true);
+    expect(info.domains).toEqual([]);
+  });
+
+  it("returns {restricted:false} on a successful /domains call", async () => {
+    mockFetch(() => ({ status: 200, body: { data: [] } }));
+    const info = await validateResendToken("re_full");
+    expect(info.restricted).toBe(false);
   });
 
   it("throws on 500 errors", async () => {

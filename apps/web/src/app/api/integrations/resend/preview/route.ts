@@ -54,5 +54,12 @@ export async function POST(req: NextRequest) {
     .filter((d) => d.status === "verified")
     .map((d) => d.name);
 
-  return NextResponse.json({ ok: true, verifiedDomains });
+  return NextResponse.json({
+    ok: true,
+    verifiedDomains,
+    // True when the artist's key is send-only (no /domains read access).
+    // The connect form uses this to force the Resend sandbox sender and
+    // explain why the dropdown is empty.
+    restricted: info.restricted,
+  });
 }

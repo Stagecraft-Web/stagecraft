@@ -18,6 +18,7 @@ const RESEND_SANDBOX_FROM = "onboarding@resend.dev";
 export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
   const [token, setToken] = useState("");
   const [verifiedDomains, setVerifiedDomains] = useState<string[] | null>(null);
+  const [restricted, setRestricted] = useState(false);
   const [fromAddress, setFromAddress] = useState("");
   const [pendingPreview, setPendingPreview] = useState(false);
   const [pendingConnect, setPendingConnect] = useState(false);
@@ -34,17 +35,28 @@ export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim() }),
       });
-      const data = (await res.json()) as { error?: string; verifiedDomains?: string[] };
+      const data = (await res.json()) as {
+        error?: string;
+        verifiedDomains?: string[];
+        restricted?: boolean;
+      };
       if (!res.ok) {
         setError(data.error ?? "Failed to look up Resend domains");
         setVerifiedDomains(null);
+        setRestricted(false);
         setPendingPreview(false);
         return;
       }
       const domains = data.verifiedDomains ?? [];
+      const isRestricted = data.restricted ?? false;
       setVerifiedDomains(domains);
+      setRestricted(isRestricted);
+      // When the key is restricted (send-only), force the sandbox sender
+      // — we can't verify any other domain belongs to this account.
       setFromAddress(
-        domains.length > 0 ? `noreply@${domains[0]}` : RESEND_SANDBOX_FROM,
+        isRestricted || domains.length === 0
+          ? RESEND_SANDBOX_FROM
+          : `noreply@${domains[0]}`,
       );
       setPendingPreview(false);
     } catch {
@@ -123,6 +135,7 @@ export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
 
   const showSenderStep = verifiedDomains !== null;
   const usingSandbox = fromAddress === RESEND_SANDBOX_FROM || verifiedDomains?.length === 0;
+  const noVerifiedDomainOptions = restricted || (verifiedDomains?.length ?? 0) === 0;
 
   return (
     <form onSubmit={handleConnect} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -142,6 +155,7 @@ export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
           onChange={(e) => {
             setToken(e.target.value);
             setVerifiedDomains(null);
+            setRestricted(false);
             setFromAddress("");
             setError(null);
           }}
@@ -161,7 +175,7 @@ export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
         <>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Sender</span>
-            {verifiedDomains && verifiedDomains.length > 0 ? (
+            {!noVerifiedDomainOptions && verifiedDomains && verifiedDomains.length > 0 ? (
               <>
                 <select
                   value={fromAddress.startsWith("noreply@") ? fromAddress.slice("noreply@".length) : "__custom__"}
@@ -201,17 +215,30 @@ export function ConnectResend({ connectedFromAddress }: ConnectResendProps) {
                   placeholder={RESEND_SANDBOX_FROM}
                   style={{ padding: 8, fontFamily: "monospace" }}
                   required
+                  readOnly={restricted}
                 />
-                <span style={{ fontSize: 12, color: "#92400e" }}>
-                  No verified domains on this Resend account yet — defaulting to Resend&rsquo;s sandbox sender.
-                  This works immediately, but emails come from <code>{RESEND_SANDBOX_FROM}</code> (looks generic, hurts deliverability).
-                  Verify a domain at{" "}
-                  <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer">resend.com/domains</a>{" "}
-                  to send from your own address.
-                </span>
+                {restricted ? (
+                  <span style={{ fontSize: 12, color: "#92400e" }}>
+                    Resend gave you a <strong>send-only</strong> API key (the default at signup). It can send via
+                    Resend&rsquo;s sandbox sender <code>{RESEND_SANDBOX_FROM}</code> right away — works immediately
+                    but emails come from a generic Resend address. To send from your own domain, generate a
+                    Full-access key at{" "}
+                    <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer">resend.com/api-keys</a>{" "}
+                    and verify a domain at{" "}
+                    <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer">resend.com/domains</a>.
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#92400e" }}>
+                    No verified domains on this Resend account yet — defaulting to Resend&rsquo;s sandbox sender.
+                    This works immediately, but emails come from <code>{RESEND_SANDBOX_FROM}</code> (looks generic, hurts deliverability).
+                    Verify a domain at{" "}
+                    <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer">resend.com/domains</a>{" "}
+                    to send from your own address.
+                  </span>
+                )}
               </>
             )}
-            {usingSandbox && verifiedDomains && verifiedDomains.length > 0 && (
+            {usingSandbox && !noVerifiedDomainOptions && verifiedDomains && verifiedDomains.length > 0 && (
               <span style={{ fontSize: 12, color: "#92400e" }}>
                 Heads up: <code>{RESEND_SANDBOX_FROM}</code> works but is a shared Resend sender. Pick one of your verified domains for branded emails.
               </span>

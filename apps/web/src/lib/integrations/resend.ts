@@ -20,12 +20,22 @@ export interface ResendDomain {
 
 export interface ResendTokenInfo {
   domains: ResendDomain[];
+  /**
+   * True when the API key is restricted to sending only — Resend hands
+   * these out by default at signup ("Sending access" keys), and they
+   * can't list domains. The artist can still send via Resend's sandbox
+   * sender (`onboarding@resend.dev`) without giving us a full-access
+   * key. Domains is always [] when restricted.
+   */
+  restricted: boolean;
 }
 
 /**
  * Validate a Resend API key by listing domains. Returns the list (status
- * included) so the UI can suggest verified sender addresses. Throws on
- * any non-2xx response.
+ * included) so the UI can suggest verified sender addresses. Returns
+ * `restricted: true` (not throwing) when the key is send-only —
+ * the connect flow handles that by forcing the Resend sandbox sender.
+ * Throws on any other non-2xx response.
  */
 export async function validateResendToken(token: string): Promise<ResendTokenInfo> {
   const res = await fetch(`${RESEND_API}/domains`, {
@@ -33,10 +43,20 @@ export async function validateResendToken(token: string): Promise<ResendTokenInf
   });
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 401) {
+      try {
+        const parsed = JSON.parse(body) as { name?: string };
+        if (parsed.name === "restricted_api_key") {
+          return { domains: [], restricted: true };
+        }
+      } catch {
+        // fall through to generic error
+      }
+    }
     throw new Error(`Resend API error (${res.status}): ${body}`);
   }
   const json = (await res.json()) as { data?: ResendDomain[] };
-  return { domains: json.data ?? [] };
+  return { domains: json.data ?? [], restricted: false };
 }
 
 export interface ResendCredentials {

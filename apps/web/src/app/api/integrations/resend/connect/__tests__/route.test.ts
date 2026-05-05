@@ -113,13 +113,31 @@ describe("POST /api/integrations/resend/connect", () => {
   });
 
   it("accepts onboarding@resend.dev as a fallback sender (Resend's sandbox; no verified domain required)", async () => {
-    validateMock.mockResolvedValue({ domains: [] });
+    validateMock.mockResolvedValue({ restricted: false, domains: [] });
     const res = await POST(
       buildRequest({ token: "re_good", fromAddress: "onboarding@resend.dev" }),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; fromAddress: string };
     expect(body.fromAddress).toBe("onboarding@resend.dev");
+  });
+
+  it("accepts a send-only API key when paired with the Resend sandbox sender", async () => {
+    validateMock.mockResolvedValue({ restricted: true, domains: [] });
+    const res = await POST(
+      buildRequest({ token: "re_send_only", fromAddress: "onboarding@resend.dev" }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a send-only API key with any non-sandbox sender (we can't verify domain ownership)", async () => {
+    validateMock.mockResolvedValue({ restricted: true, domains: [] });
+    const res = await POST(
+      buildRequest({ token: "re_send_only", fromAddress: "noreply@artist.com" }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("restricted to sending only");
   });
 
   it("matches verified-domain check case-insensitively", async () => {

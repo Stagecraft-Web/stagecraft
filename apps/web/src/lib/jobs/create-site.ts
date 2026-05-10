@@ -380,7 +380,21 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
         select: { githubRepoOwner: true, githubRepoName: true },
       });
       if (site?.githubRepoOwner && site.githubRepoName) {
-        await deleteRepo(userId, site.githubRepoOwner, site.githubRepoName);
+        // Best-effort GH cleanup. If GitHub itself is rejecting requests
+        // we still want to free up the Stagecraft slug — the user gets
+        // an actionable next step (install Vercel App, retry) rather
+        // than a half-rolled-back state that blocks new attempts on the
+        // same name. Log + continue.
+        try {
+          await deleteRepo(userId, site.githubRepoOwner, site.githubRepoName);
+        } catch (cleanupCause) {
+          console.warn("[create-site] deleteRepo during Vercel-app rollback failed; continuing", {
+            siteId,
+            owner: site.githubRepoOwner,
+            name: site.githubRepoName,
+            error: cleanupCause instanceof Error ? cleanupCause.message : String(cleanupCause),
+          });
+        }
       }
       await prisma.site.delete({ where: { id: siteId } });
 

@@ -204,6 +204,65 @@ describe("createProject", () => {
       }),
     ).rejects.toThrow(/Vercel API error \(400\)/);
   });
+
+  it("throws VercelGitHubAppNotInstalledError on the structured 400 with action='Install GitHub App'", async () => {
+    // Real-world reproduction: Vercel returns this exact shape when the
+    // user's GitHub account doesn't have Vercel's GitHub App installed
+    // yet. The error gives us the install URL upfront — `/create` then
+    // rolls back and surfaces a clickable CTA instead of a JSON dump.
+    mockFetch(() => ({
+      status: 400,
+      body: {
+        error: {
+          code: "bad_request",
+          message:
+            "To link a GitHub repository, you need to install the GitHub integration first.",
+          action: "Install GitHub App",
+          link: "https://github.com/apps/vercel",
+          repo: "jclaw/sarah-chen-music",
+        },
+      },
+    }));
+
+    const { VercelGitHubAppNotInstalledError } = await import("../vercel");
+    let caught: unknown = null;
+    try {
+      await createProject({
+        userId: "user-1",
+        name: "sarah-chen-music",
+        repo: { repo: "jclaw/sarah-chen-music" },
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(VercelGitHubAppNotInstalledError);
+    expect((caught as InstanceType<typeof VercelGitHubAppNotInstalledError>).installUrl).toBe(
+      "https://github.com/apps/vercel/installations/new",
+    );
+  });
+
+  it("falls through to generic Vercel API error on a 400 without the install-app action", async () => {
+    // Other 400s (e.g. duplicate project name) should NOT be coerced
+    // into the install-app error — we'd lose the real failure cause and
+    // the user would get a misleading CTA.
+    mockFetch(() => ({
+      status: 400,
+      body: { error: { code: "name_taken", message: "Project name is already in use" } },
+    }));
+    const { VercelGitHubAppNotInstalledError } = await import("../vercel");
+    let caught: unknown = null;
+    try {
+      await createProject({
+        userId: "user-1",
+        name: "existing",
+        repo: { repo: "jclaw/existing" },
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeInstanceOf(VercelGitHubAppNotInstalledError);
+    expect((caught as Error).message).toMatch(/Vercel API error \(400\)/);
+  });
 });
 
 describe("setEnvVars", () => {

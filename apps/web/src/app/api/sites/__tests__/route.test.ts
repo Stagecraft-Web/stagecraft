@@ -209,4 +209,37 @@ describe("POST /api/sites", () => {
     expect(body.jobResult.success).toBe(false);
     expect(body.jobResult.message).toBe("Netlify quota exceeded");
   });
+
+  it("returns 400 + installUrl when handleCreateSite reports vercel_github_app_missing", async () => {
+    // The /create UI keys off failureCategory + installUrl in the
+    // response to render a clickable "Install Vercel's GitHub App"
+    // CTA instead of the raw error JSON.
+    handleCreateSiteMock.mockResolvedValue({
+      success: false,
+      message:
+        "Vercel can't link this repo until you install Vercel's GitHub App on your GitHub account.",
+      failureCategory: "vercel_github_app_missing",
+      data: { installUrl: "https://github.com/apps/vercel/installations/new" },
+    });
+
+    const res = await POST(buildRequest({ name: "Sarah Chen" }));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      error: string;
+      failureCategory: string;
+      installUrl: string;
+    };
+    expect(body.failureCategory).toBe("vercel_github_app_missing");
+    expect(body.installUrl).toBe("https://github.com/apps/vercel/installations/new");
+
+    // Job row still gets recorded as failed for the audit trail, even
+    // though the site row itself was rolled back inside handleCreateSite.
+    expect(prismaMock.siteJob.update).toHaveBeenCalledWith({
+      where: { id: "job-1" },
+      data: expect.objectContaining({
+        status: "failed",
+        failureCategory: "vercel_github_app_missing",
+      }),
+    });
+  });
 });

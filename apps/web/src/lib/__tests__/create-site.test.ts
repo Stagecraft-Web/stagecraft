@@ -421,6 +421,83 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
   });
 });
 
+describe("handleCreateSite — Vercel GitHub App not installed (rollback)", () => {
+  beforeEach(() => {
+    mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
+    mockSiteFindUnique.mockResolvedValue({
+      githubRepoOwner: "jclaw",
+      githubRepoName: "sarah-chen-music",
+    });
+  });
+
+  it("deletes the GitHub repo + Site row + returns vercel_github_app_missing with installUrl", async () => {
+    const { VercelGitHubAppNotInstalledError } = await import("@/lib/integrations/vercel");
+    mockCreateVercelProject.mockRejectedValueOnce(new VercelGitHubAppNotInstalledError());
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.failureCategory).toBe("vercel_github_app_missing");
+    expect(result.data).toMatchObject({
+      installUrl: "https://github.com/apps/vercel/installations/new",
+    });
+    expect(mockDeleteRepo).toHaveBeenCalledWith("user-1", "jclaw", "sarah-chen-music");
+    expect(mockSiteDelete).toHaveBeenCalledWith({ where: { id: "site-1" } });
+    // The repo+site got rolled back, so we should NOT have called the
+    // generic "mark site as error" branch (which would leave a row).
+    expect(mockSiteUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "error" } }),
+    );
+  });
+
+  it("still deletes the Site row when deleteRepo throws (best-effort GH cleanup)", async () => {
+    // Real-world: GitHub may rate-limit, OAuth scope may have been
+    // revoked between createRepo and the rollback. The Stagecraft slug
+    // must still free up so the artist can retry on the same name.
+    const { VercelGitHubAppNotInstalledError } = await import("@/lib/integrations/vercel");
+    mockCreateVercelProject.mockRejectedValueOnce(new VercelGitHubAppNotInstalledError());
+    mockDeleteRepo.mockRejectedValueOnce(new Error("GitHub API error (403)"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.failureCategory).toBe("vercel_github_app_missing");
+    expect(mockSiteDelete).toHaveBeenCalledWith({ where: { id: "site-1" } });
+  });
+
+  it("skips deleteRepo when no githubRepo is on file yet (Vercel failed before repo creation finished)", async () => {
+    mockSiteFindUnique.mockResolvedValueOnce({
+      githubRepoOwner: null,
+      githubRepoName: null,
+    });
+    const { VercelGitHubAppNotInstalledError } = await import("@/lib/integrations/vercel");
+    mockCreateVercelProject.mockRejectedValueOnce(new VercelGitHubAppNotInstalledError());
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(mockDeleteRepo).not.toHaveBeenCalled();
+    expect(mockSiteDelete).toHaveBeenCalledWith({ where: { id: "site-1" } });
+  });
+
+  it("falls through to generic 'error' status for non-Vercel-app failures", async () => {
+    mockCreateVercelProject.mockRejectedValueOnce(new Error("Vercel quota exceeded"));
+
+    const result = await handleCreateSite(makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.failureCategory).not.toBe("vercel_github_app_missing");
+    expect(mockSiteUpdate).toHaveBeenCalledWith({
+      where: { id: "site-1" },
+      data: { status: "error" },
+    });
+    // No rollback for unknown errors — the row is preserved so the user
+    // can see what failed and the platform retains the audit trail.
+    expect(mockSiteDelete).not.toHaveBeenCalled();
+    expect(mockDeleteRepo).not.toHaveBeenCalled();
+  });
+});
+
 describe("handleCreateSite — broker secret upfront provisioning", () => {
   it("when stagecraft-bot installation is found, generates broker secret + bakes it into env vars + stores hash on Site", async () => {
     mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);

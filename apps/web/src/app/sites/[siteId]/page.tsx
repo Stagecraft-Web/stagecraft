@@ -276,9 +276,16 @@ export default function SiteDetailPage() {
   // render anything useful and the success banner would be misleading.
   // Don't treat "not yet fetched" as building — that causes a flash of
   // the building banner on every page load for sites that are already live.
-  const isBuilding = isActive && deployFetched && (deploy?.state === "queued" || deploy?.state === "building");
-  const isDeployError = isActive && deploy?.state === "error";
-  const isReady = isActive && (deploy?.state === "ready" || (!deployFetched && site.productionUrl));
+  // While we haven't heard back from the deploy provider yet, treat the
+  // site as "building" rather than "ready". Right after /create finishes,
+  // Site.productionUrl is set immediately but the first build hasn't
+  // started — assuming ready in that window would flash "Your site is
+  // live!" for a beat before the first poll lands. The flash is wrong
+  // ~100% of the time on freshly-created sites, so default the other
+  // way; once deployFetched flips true the real state takes over.
+  const isBuilding = isActive && (!deployFetched || deploy?.state === "queued" || deploy?.state === "building");
+  const isDeployError = isActive && deployFetched && deploy?.state === "error";
+  const isReady = isActive && deployFetched && deploy?.state === "ready";
 
   const statusBg = isCreating || isBuilding
     ? "var(--color-warning-bg)"

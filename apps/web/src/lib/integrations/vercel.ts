@@ -104,6 +104,11 @@ async function vercelApi(
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        "Your Vercel connection has expired — reconnect Vercel at /settings and try again",
+      );
+    }
     const body = await res.text();
     throw new Error(`Vercel API error (${res.status}): ${body}`);
   }

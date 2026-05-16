@@ -146,8 +146,13 @@ export async function POST(req: NextRequest) {
   const finalSite = await prisma.site.findUnique({ where: { id: site.id } });
 
   return NextResponse.json(
-    { site: finalSite, jobId: job.id, jobResult: result },
-    { status: result.success ? 201 : 500 }
+    {
+      site: finalSite,
+      jobId: job.id,
+      jobResult: result,
+      ...(result.success ? {} : { error: result.message }),
+    },
+    { status: result.success ? 201 : 500 },
   );
 }
 

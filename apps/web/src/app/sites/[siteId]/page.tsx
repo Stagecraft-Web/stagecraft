@@ -217,7 +217,11 @@ export default function SiteDetailPage() {
     setIsConnecting(true);
     try {
       const res = await fetch(`/api/sites/${siteId}/install-url`);
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json()) as { url?: string; connected?: boolean; error?: string };
+      if (res.ok && data.connected) {
+        window.location.reload();
+        return;
+      }
       if (res.ok && data.url) {
         window.location.href = data.url;
         return;

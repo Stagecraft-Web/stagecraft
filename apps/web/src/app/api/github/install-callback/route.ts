@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { generateBrokerSecret } from "@/lib/broker-secret";
 import { listInstallationRepos } from "@/lib/github-app-install";
 import { GitHubAppMisconfiguredError } from "@/lib/github-app-token";
+import { getPublicPlatformUrl } from "@/lib/platform-url";
 import {
   setEnvVars as setNetlifyEnvVars,
   triggerBuild as triggerNetlifyBuild,
@@ -245,12 +246,21 @@ export async function GET(request: Request) {
     name = repos[0].name;
   }
 
-  // Canonical platform URL for the env-var block. Don't use url.origin —
-  // Netlify's edge → Lambda routing can hand the function a deploy-permalink
-  // Host (`<deploy-id>--<site>.netlify.app`) instead of the custom domain,
-  // which would tell the artist to point STAGECRAFT_PLATFORM_URL at a
-  // preview that won't exist after the next deploy.
-  const platformUrl = (process.env.AUTH_URL ?? url.origin).replace(/\/$/, "");
+  // Canonical platform URL for the artist-site env vars. Reads
+  // STAGECRAFT_PUBLIC_URL first (lets dev installs point at prod's
+  // broker), falling back to AUTH_URL (which IS the public URL in
+  // production). Don't use url.origin — Netlify's edge → Lambda routing
+  // can hand the function a deploy-permalink Host
+  // (`<deploy-id>--<site>.netlify.app`) instead of the custom domain.
+  let platformUrl: string;
+  try {
+    platformUrl = getPublicPlatformUrl();
+  } catch {
+    // Last-resort fallback when neither env var is set (e.g. local
+    // smoke without .op.env). Prefer the request origin over crashing
+    // the install callback.
+    platformUrl = url.origin.replace(/\/$/, "");
+  }
 
   const { plaintext, hash } = generateBrokerSecret();
 

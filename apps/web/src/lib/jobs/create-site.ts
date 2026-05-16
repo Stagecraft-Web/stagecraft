@@ -16,6 +16,7 @@ import {
   triggerDeployment as triggerVercelDeployment,
   VercelGitHubAppNotInstalledError,
 } from "@/lib/integrations/vercel";
+import { getPublicPlatformUrl } from "@/lib/platform-url";
 import { readTemplateFiles } from "@/lib/template-reader";
 
 const TEMPLATE_DIR = path.resolve(process.cwd(), "../../templates/musician-site");
@@ -24,14 +25,6 @@ interface CreateSitePayload {
   name: string;
   slug: string;
   blueprintType: BlueprintType;
-}
-
-function getPlatformUrl(): string {
-  const value = process.env.AUTH_URL;
-  if (!value) {
-    throw new Error("AUTH_URL is not set on the platform");
-  }
-  return value.replace(/\/$/, "");
 }
 
 /**
@@ -306,7 +299,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       // in to Stagecraft, the artist site's /admin, and the inbox that
       // receives magic-link emails.
       ADMIN_EMAIL: user.email,
-      STAGECRAFT_PLATFORM_URL: getPlatformUrl(),
+      STAGECRAFT_PLATFORM_URL: getPublicPlatformUrl(),
       // STAGECRAFT_SITE_ID, not SITE_ID — Netlify reserves the latter
       // (auto-injects its own Netlify-side site id into Functions). Use
       // the namespaced name on Vercel too so the artist template stays

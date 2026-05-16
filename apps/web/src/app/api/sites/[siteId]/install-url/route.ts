@@ -10,6 +10,7 @@ import {
   GitHubAppMisconfiguredError,
 } from "@/lib/github-app-token";
 import { buildInstallUrl } from "@/lib/install-url";
+import { getPlatformPublicUrl } from "@/lib/platform-url";
 import {
   setEnvVars as setVercelEnvVars,
   triggerDeployment as triggerVercelDeployment,
@@ -61,7 +62,7 @@ export async function GET(
           });
 
           // Push broker secret to the deploy target.
-          const platformUrl = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
+          const platformUrl = getPlatformPublicUrl();
           const envVars: Record<string, string> = {
             STAGECRAFT_PLATFORM_URL: platformUrl,
             STAGECRAFT_SITE_ID: site.id,

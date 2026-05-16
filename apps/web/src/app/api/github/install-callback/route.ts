@@ -14,6 +14,7 @@ import {
   setEnvVars as setVercelEnvVars,
   triggerDeployment as triggerVercelDeployment,
 } from "@/lib/integrations/vercel";
+import { getPlatformPublicUrl } from "@/lib/platform-url";
 import { verifyInstallState } from "@/lib/state-signing";
 
 const searchSchema = z.object({
@@ -245,12 +246,16 @@ export async function GET(request: Request) {
     name = repos[0].name;
   }
 
-  // Canonical platform URL for the env-var block. Don't use url.origin —
-  // Netlify's edge → Lambda routing can hand the function a deploy-permalink
-  // Host (`<deploy-id>--<site>.netlify.app`) instead of the custom domain,
-  // which would tell the artist to point STAGECRAFT_PLATFORM_URL at a
-  // preview that won't exist after the next deploy.
-  const platformUrl = (process.env.AUTH_URL ?? url.origin).replace(/\/$/, "");
+  // Canonical platform URL for the env-var block. Use STAGECRAFT_PUBLIC_URL
+  // (falling back to AUTH_URL) — not url.origin, since Netlify's edge → Lambda
+  // routing can hand the function a deploy-permalink Host
+  // (`<deploy-id>--<site>.netlify.app`) instead of the custom domain.
+  let platformUrl: string;
+  try {
+    platformUrl = getPlatformPublicUrl();
+  } catch {
+    platformUrl = url.origin.replace(/\/$/, "");
+  }
 
   const { plaintext, hash } = generateBrokerSecret();
 

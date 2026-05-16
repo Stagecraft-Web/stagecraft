@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { handleCreateSite } from "@/lib/jobs/create-site";
+import { assertPlatformPublicUrlReachable } from "@/lib/platform-url";
 import { slugify } from "@/lib/slugify";
 import { prisma } from "@stagecraft/db";
 import type { JobContext } from "@stagecraft/queue";
@@ -29,6 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Site name must be between 2 and 60 characters" },
       { status: 400 }
+    );
+  }
+
+  try {
+    assertPlatformPublicUrlReachable();
+  } catch (cause) {
+    return NextResponse.json(
+      { error: cause instanceof Error ? cause.message : String(cause) },
+      { status: 400 },
     );
   }
 

@@ -6,6 +6,7 @@ import type { JobContext, JobResult } from "@stagecraft/queue";
 import type { BlueprintType } from "@stagecraft/shared";
 
 import { generateBrokerSecret } from "@/lib/broker-secret";
+import { getPlatformPublicUrl } from "@/lib/platform-url";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { findAppInstallationForOwner } from "@/lib/github-app-token";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
@@ -24,14 +25,6 @@ interface CreateSitePayload {
   name: string;
   slug: string;
   blueprintType: BlueprintType;
-}
-
-function getPlatformUrl(): string {
-  const value = process.env.AUTH_URL;
-  if (!value) {
-    throw new Error("AUTH_URL is not set on the platform");
-  }
-  return value.replace(/\/$/, "");
 }
 
 /**
@@ -306,7 +299,7 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
       // in to Stagecraft, the artist site's /admin, and the inbox that
       // receives magic-link emails.
       ADMIN_EMAIL: user.email,
-      STAGECRAFT_PLATFORM_URL: getPlatformUrl(),
+      STAGECRAFT_PLATFORM_URL: getPlatformPublicUrl(),
       // STAGECRAFT_SITE_ID, not SITE_ID — Netlify reserves the latter
       // (auto-injects its own Netlify-side site id into Functions). Use
       // the namespaced name on Vercel too so the artist template stays

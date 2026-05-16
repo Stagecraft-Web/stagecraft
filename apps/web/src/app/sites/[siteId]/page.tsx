@@ -84,6 +84,7 @@ export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [deploy, setDeploy] = useState<DeployStatus | null>(null);
+  const [deployFetched, setDeployFetched] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -154,7 +155,10 @@ export default function SiteDetailPage() {
         const res = await fetch(`/api/sites/${siteId}/deploy-status`);
         if (!res.ok) return;
         const data = (await res.json()) as { deploy?: DeployStatus };
-        if (active && data.deploy) setDeploy(data.deploy);
+        if (active && data.deploy) {
+          setDeploy(data.deploy);
+          setDeployFetched(true);
+        }
       } catch {
         // Transient errors don't block the UI; the next tick retries.
       }
@@ -266,9 +270,11 @@ export default function SiteDetailPage() {
   // Treat the first-build state the same as platform-side "creating":
   // until the deploy target says "ready", the production URL won't
   // render anything useful and the success banner would be misleading.
-  const isBuilding = isActive && (deploy?.state === "queued" || deploy?.state === "building" || (deploy === null && site.productionUrl));
+  // Don't treat "not yet fetched" as building — that causes a flash of
+  // the building banner on every page load for sites that are already live.
+  const isBuilding = isActive && deployFetched && (deploy?.state === "queued" || deploy?.state === "building");
   const isDeployError = isActive && deploy?.state === "error";
-  const isReady = isActive && deploy?.state === "ready";
+  const isReady = isActive && (deploy?.state === "ready" || (!deployFetched && site.productionUrl));
 
   const statusBg = isCreating || isBuilding
     ? "var(--color-warning-bg)"
@@ -294,7 +300,7 @@ export default function SiteDetailPage() {
         {isArchived && "This site is archived. The GitHub repo is read-only."}
         {(isCreating || isBuilding) && (
           <div style={{ marginTop: "0.5rem" }}>
-            <FirstDeployProgressBar />
+            <FirstDeployProgress phase={isCreating ? "creating" : deploy?.state === "queued" ? "queued" : "building"} />
           </div>
         )}
       </div>
@@ -552,44 +558,65 @@ export default function SiteDetailPage() {
   );
 }
 
-/**
- * Progress bar shown while a site is creating or its first build is
- * queued/building on Vercel/Netlify. Pure CSS animation that fills 0→95%
- * over the typical first-deploy duration; asymptote at 95% means we only
- * declare "Live" when the provider state actually flips to ready (in
- * which case this component unmounts and the "Your site is live!" copy
- * renders instead).
- *
- * Single bar across the whole creating → queued → building arc so the
- * artist sees one continuous indicator, not three. Slight mismatch
- * between bar progress and actual phase is acceptable — the goal is
- * "this is happening, not stuck", not frame-accurate timing.
- */
-const FIRST_DEPLOY_PROGRESS_MS = 90_000;
+const DEPLOY_PHASES = [
+  { key: "creating", label: "Setting up", pct: 25 },
+  { key: "queued", label: "Build queued", pct: 40 },
+  { key: "building", label: "Building", pct: 80 },
+] as const;
 
-function FirstDeployProgressBar() {
+function FirstDeployProgress({ phase }: { phase: "creating" | "queued" | "building" }) {
+  const activeIndex = DEPLOY_PHASES.findIndex((p) => p.key === phase);
+  const activePct = DEPLOY_PHASES[activeIndex]?.pct ?? 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div
+        aria-hidden
+        style={{
+          width: "100%",
+          height: "0.375rem",
+          background: "var(--color-surface-raised)",
+          borderRadius: "var(--radius-sm)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${activePct}%`,
+            height: "100%",
+            background: "var(--color-brand)",
+            borderRadius: "var(--radius-sm)",
+            transition: "width 600ms ease",
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: "1rem", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+        {DEPLOY_PHASES.map((p, i) => (
+          <span key={p.key} style={{ opacity: i <= activeIndex ? 1 : 0.4, fontWeight: i === activeIndex ? 600 : 400 }}>
+            {i === activeIndex && <Spinner />}
+            {i < activeIndex ? "✓ " : ""}{p.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Spinner() {
   return (
     <span
       aria-hidden
       style={{
-        display: "block",
-        width: "100%",
-        height: "0.375rem",
-        background: "var(--color-surface-raised)",
-        borderRadius: "var(--radius-sm)",
-        overflow: "hidden",
+        display: "inline-block",
+        width: "0.75em",
+        height: "0.75em",
+        border: "2px solid var(--color-text-muted)",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        animation: "stagecraftSpin 0.8s linear infinite",
+        verticalAlign: "middle",
+        marginRight: "0.25em",
       }}
-    >
-      <span
-        style={{
-          display: "block",
-          width: "100%",
-          height: "100%",
-          background: "var(--color-brand)",
-          transformOrigin: "left",
-          animation: `stagecraftFirstDeployProgress ${FIRST_DEPLOY_PROGRESS_MS}ms ease-out forwards`,
-        }}
-      />
-    </span>
+    />
   );
 }

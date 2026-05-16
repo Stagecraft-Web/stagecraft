@@ -78,9 +78,14 @@ describe("validateVercelToken", () => {
     expect(result.userId).toBe("u-old");
   });
 
-  it("throws on a 401 from Vercel", async () => {
+  it("throws a reconnect-prompt error on 401 from Vercel (so the UI can route users back to /settings)", async () => {
     mockFetch(() => ({ status: 401, body: { error: { code: "forbidden" } } }));
-    await expect(validateVercelToken("bad-token")).rejects.toThrow(/Vercel API error \(401\)/);
+    await expect(validateVercelToken("bad-token")).rejects.toThrow(/Vercel connection has expired/);
+  });
+
+  it("treats 403 the same as 401 (also a reconnect prompt)", async () => {
+    mockFetch(() => ({ status: 403, body: { error: { code: "forbidden" } } }));
+    await expect(validateVercelToken("bad-token")).rejects.toThrow(/Vercel connection has expired/);
   });
 
   it("throws when /v2/user returns no user id at all", async () => {

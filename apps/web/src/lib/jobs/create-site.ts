@@ -7,6 +7,7 @@ import type { BlueprintType } from "@stagecraft/shared";
 
 import { generateBrokerSecret } from "@/lib/broker-secret";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
+import { findAppInstallationForOwner } from "@/lib/github-app-token";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
 import { getResendCredentials, RESEND_SANDBOX_FROM } from "@/lib/integrations/resend";
 import {
@@ -258,11 +259,18 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     //    installed), the existing install-callback flow is the safety
     //    net: the artist clicks "Connect repo" later, the callback
     //    generates + provisions the secret, and triggers a redeploy.
-    const stagecraftInstallationId = await findGithubAppInstallation(
+    let stagecraftInstallationId = await findGithubAppInstallation(
       userId,
       "stagecraft-bot",
       repo.owner,
     );
+    if (stagecraftInstallationId === null) {
+      try {
+        stagecraftInstallationId = await findAppInstallationForOwner(repo.owner);
+      } catch {
+        // App credentials not configured — skip.
+      }
+    }
     const brokerSecret = stagecraftInstallationId !== null ? generateBrokerSecret() : null;
     if (brokerSecret) {
       await prisma.site.update({

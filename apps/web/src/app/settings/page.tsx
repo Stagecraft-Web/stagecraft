@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
 
+import { ConnectNetlify } from "./ConnectNetlify";
 import { ConnectResend } from "./ConnectResend";
 import { ConnectVercel } from "./ConnectVercel";
 
@@ -29,6 +30,10 @@ export default async function SettingsPage({
     vercel?.metadata && typeof vercel.metadata === "object" && vercel.metadata !== null
       ? (vercel.metadata as { username?: string }).username ?? null
       : null;
+  const netlifyEmail =
+    netlify?.metadata && typeof netlify.metadata === "object" && netlify.metadata !== null
+      ? (netlify.metadata as { email?: string }).email ?? netlify.providerAccountId
+      : netlify?.providerAccountId ?? null;
   // Connected admin email = providerAccountId on the Resend
   // IntegrationAccount (set during /connect to the verified address).
   // Mirrors User.email; shown as the connected-state indicator.
@@ -43,6 +48,7 @@ export default async function SettingsPage({
         <div style={{ padding: 12, background: "#d4edda", borderRadius: 4, marginBottom: 16 }}>
           {params.success === "github_connected" && "GitHub connected successfully."}
           {params.success === "netlify_connected" && "Netlify connected successfully."}
+          {params.success === "netlify_disconnected" && "Netlify disconnected."}
           {params.success === "vercel_connected" && "Vercel connected successfully."}
           {params.success === "vercel_disconnected" && "Vercel disconnected."}
           {params.success === "resend_connected" && "Resend connected successfully."}
@@ -80,13 +86,7 @@ export default async function SettingsPage({
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3>Netlify</h3>
-          {netlify ? (
-            <p>
-              Connected as <strong>{(netlify.metadata as { email?: string })?.email ?? netlify.providerAccountId}</strong>
-            </p>
-          ) : (
-            <a href="/api/integrations/netlify">Connect Netlify</a>
-          )}
+          <ConnectNetlify connectedEmail={netlifyEmail} />
         </div>
 
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>

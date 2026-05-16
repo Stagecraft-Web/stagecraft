@@ -55,6 +55,11 @@ async function netlifyApi(token: string, path: string, options?: RequestInit) {
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        "Your Netlify connection has expired — reconnect Netlify at /settings and try again",
+      );
+    }
     const body = await res.text();
     throw new Error(`Netlify API error (${res.status}): ${body}`);
   }

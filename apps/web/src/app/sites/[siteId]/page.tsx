@@ -84,6 +84,7 @@ export default function SiteDetailPage() {
   const { siteId } = useParams<{ siteId: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [deploy, setDeploy] = useState<DeployStatus | null>(null);
+  const [deployFetched, setDeployFetched] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -154,7 +155,10 @@ export default function SiteDetailPage() {
         const res = await fetch(`/api/sites/${siteId}/deploy-status`);
         if (!res.ok) return;
         const data = (await res.json()) as { deploy?: DeployStatus };
-        if (active && data.deploy) setDeploy(data.deploy);
+        if (active && data.deploy) {
+          setDeploy(data.deploy);
+          setDeployFetched(true);
+        }
       } catch {
         // Transient errors don't block the UI; the next tick retries.
       }
@@ -213,7 +217,11 @@ export default function SiteDetailPage() {
     setIsConnecting(true);
     try {
       const res = await fetch(`/api/sites/${siteId}/install-url`);
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json()) as { url?: string; connected?: boolean; error?: string };
+      if (res.ok && data.connected) {
+        window.location.reload();
+        return;
+      }
       if (res.ok && data.url) {
         window.location.href = data.url;
         return;
@@ -266,9 +274,11 @@ export default function SiteDetailPage() {
   // Treat the first-build state the same as platform-side "creating":
   // until the deploy target says "ready", the production URL won't
   // render anything useful and the success banner would be misleading.
-  const isBuilding = isActive && (deploy?.state === "queued" || deploy?.state === "building" || (deploy === null && site.productionUrl));
+  // Don't treat "not yet fetched" as building — that causes a flash of
+  // the building banner on every page load for sites that are already live.
+  const isBuilding = isActive && deployFetched && (deploy?.state === "queued" || deploy?.state === "building");
   const isDeployError = isActive && deploy?.state === "error";
-  const isReady = isActive && deploy?.state === "ready";
+  const isReady = isActive && (deploy?.state === "ready" || (!deployFetched && site.productionUrl));
 
   const statusBg = isCreating || isBuilding
     ? "var(--color-warning-bg)"
@@ -292,6 +302,11 @@ export default function SiteDetailPage() {
         {isDeployError && `First deploy failed${deploy?.errorMessage ? `: ${deploy.errorMessage}` : "."} Check the deploy logs.`}
         {isReady && !needsRepoLink && "Your site is live!"}
         {isArchived && "This site is archived. The GitHub repo is read-only."}
+        {(isCreating || isBuilding) && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <FirstDeployProgress phase={isCreating ? "creating" : deploy?.state === "queued" ? "queued" : "building"} />
+          </div>
+        )}
       </div>
 
       {/* GitHub App publishing — connect / suspended states */}
@@ -544,5 +559,68 @@ export default function SiteDetailPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+const DEPLOY_PHASES = [
+  { key: "creating", label: "Setting up", pct: 25 },
+  { key: "queued", label: "Build queued", pct: 40 },
+  { key: "building", label: "Building", pct: 80 },
+] as const;
+
+function FirstDeployProgress({ phase }: { phase: "creating" | "queued" | "building" }) {
+  const activeIndex = DEPLOY_PHASES.findIndex((p) => p.key === phase);
+  const activePct = DEPLOY_PHASES[activeIndex]?.pct ?? 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div
+        aria-hidden
+        style={{
+          width: "100%",
+          height: "0.375rem",
+          background: "var(--color-surface-raised)",
+          borderRadius: "var(--radius-sm)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${activePct}%`,
+            height: "100%",
+            background: "var(--color-brand)",
+            borderRadius: "var(--radius-sm)",
+            transition: "width 600ms ease",
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: "1rem", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+        {DEPLOY_PHASES.map((p, i) => (
+          <span key={p.key} style={{ opacity: i <= activeIndex ? 1 : 0.4, fontWeight: i === activeIndex ? 600 : 400 }}>
+            {i === activeIndex && <Spinner />}
+            {i < activeIndex ? "✓ " : ""}{p.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: "0.75em",
+        height: "0.75em",
+        border: "2px solid var(--color-text-muted)",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        animation: "stagecraftSpin 0.8s linear infinite",
+        verticalAlign: "middle",
+        marginRight: "0.25em",
+      }}
+    />
   );
 }

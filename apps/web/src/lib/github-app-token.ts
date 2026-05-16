@@ -34,7 +34,16 @@ export class GitHubAppMisconfiguredError extends Error {
  * `@octokit/auth-app` v8+'s Web Crypto path.
  */
 export function normalizePrivateKey(raw: string): string {
-  let pem = raw.replace(/\\n/g, "\n");
+  let pem = raw;
+
+  // macOS `security find-generic-password -w` returns multi-line
+  // passwords as hex-encoded strings (since newlines can't display
+  // cleanly in single-line output). Detect and decode.
+  if (/^[0-9a-fA-F]+$/.test(pem) && pem.length % 2 === 0 && pem.startsWith("2d2d2d2d2d")) {
+    pem = Buffer.from(pem, "hex").toString("utf8");
+  }
+
+  pem = pem.replace(/\\n/g, "\n");
 
   if (!pem.includes("\n")) {
     const begin = pem.match(/-----BEGIN [A-Z0-9 ]+ KEY-----/);
@@ -55,6 +64,15 @@ export function normalizePrivateKey(raw: string): string {
   return keyObject.export({ type: "pkcs8", format: "pem" }) as string;
 }
 
+function getAppCredentials(): { appId: string; privateKey: string } {
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
+  if (!appId || !privateKeyRaw) {
+    throw new GitHubAppMisconfiguredError("GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY not set");
+  }
+  return { appId, privateKey: normalizePrivateKey(privateKeyRaw) };
+}
+
 /**
  * Mint a GitHub installation access token for the given installation id.
  * Returns the token + ISO expiry. Throws GitHubAppMisconfiguredError when
@@ -63,13 +81,7 @@ export function normalizePrivateKey(raw: string): string {
 export async function mintInstallationToken(
   installationId: number,
 ): Promise<InstallationToken> {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
-  if (!appId || !privateKeyRaw) {
-    throw new GitHubAppMisconfiguredError("GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY not set");
-  }
-
-  const privateKey = normalizePrivateKey(privateKeyRaw);
+  const { appId, privateKey } = getAppCredentials();
   const auth = createAppAuth({ appId, privateKey, installationId });
   const result = await auth({ type: "installation" });
 
@@ -77,4 +89,25 @@ export async function mintInstallationToken(
     token: result.token,
     expiresAt: result.expiresAt,
   };
+}
+
+/**
+ * Find an existing installation of this GitHub App on a given account
+ * using App-level JWT auth (not the user's OAuth token). Returns the
+ * installation id or null if not installed on that account.
+ */
+export async function findAppInstallationForOwner(
+  ownerLogin: string,
+): Promise<number | null> {
+  const { appId, privateKey } = getAppCredentials();
+  const auth = createAppAuth({ appId, privateKey });
+  const { token } = await auth({ type: "app" });
+
+  const res = await fetch(
+    `https://api.github.com/users/${encodeURIComponent(ownerLogin)}/installation`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } },
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { id: number };
+  return data.id;
 }

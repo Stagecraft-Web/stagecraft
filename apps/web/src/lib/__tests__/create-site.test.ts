@@ -116,7 +116,14 @@ const VERCEL_PROJECT_RESULT = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env = { ...ORIGINAL_ENV, AUTH_URL: "https://stagecraft.test" };
+  process.env = {
+    ...ORIGINAL_ENV,
+    AUTH_URL: "https://stagecraft.test",
+    // Override the artist-site broker URL away from the prod default
+    // so these tests don't depend on (or coincide with) the hardcoded
+    // production URL in platform-url.ts.
+    STAGECRAFT_PUBLIC_URL: "https://stagecraft.test",
+  };
   mockSiteUpdate.mockResolvedValue({});
   mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "artist@example.com" });
   mockIntegrationFindUnique.mockResolvedValue({ accessToken: "token" });

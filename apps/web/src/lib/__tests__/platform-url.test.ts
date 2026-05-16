@@ -15,39 +15,33 @@ afterEach(() => {
 });
 
 describe("getPublicPlatformUrl", () => {
-  it("returns STAGECRAFT_PUBLIC_URL when set", () => {
-    process.env.STAGECRAFT_PUBLIC_URL = "https://stagecraft.website";
-    process.env.AUTH_URL = "http://localhost:3000";
+  it("returns the hardcoded prod URL when STAGECRAFT_PUBLIC_URL is unset (dev default)", () => {
     expect(getPublicPlatformUrl()).toBe("https://stagecraft.website");
   });
 
-  it("falls back to AUTH_URL when STAGECRAFT_PUBLIC_URL is unset", () => {
-    process.env.AUTH_URL = "https://stagecraft.website";
-    expect(getPublicPlatformUrl()).toBe("https://stagecraft.website");
+  it("returns STAGECRAFT_PUBLIC_URL when explicitly set (override for staging/fork)", () => {
+    process.env.STAGECRAFT_PUBLIC_URL = "https://staging.stagecraft.website";
+    expect(getPublicPlatformUrl()).toBe("https://staging.stagecraft.website");
   });
 
-  it("strips trailing slash from STAGECRAFT_PUBLIC_URL", () => {
-    process.env.STAGECRAFT_PUBLIC_URL = "https://stagecraft.website/";
-    expect(getPublicPlatformUrl()).toBe("https://stagecraft.website");
+  it("strips trailing slash from STAGECRAFT_PUBLIC_URL override", () => {
+    process.env.STAGECRAFT_PUBLIC_URL = "https://staging.stagecraft.website/";
+    expect(getPublicPlatformUrl()).toBe("https://staging.stagecraft.website");
   });
 
-  it("strips trailing slash from AUTH_URL fallback too", () => {
-    process.env.AUTH_URL = "http://localhost:3000/";
-    expect(getPublicPlatformUrl()).toBe("http://localhost:3000");
-  });
-
-  it("throws when neither env var is set", () => {
-    expect(() => getPublicPlatformUrl()).toThrow(
-      /Neither STAGECRAFT_PUBLIC_URL nor AUTH_URL is set/,
-    );
-  });
-
-  it("treats empty STAGECRAFT_PUBLIC_URL as 'not set' and falls back to AUTH_URL", () => {
+  it("treats empty STAGECRAFT_PUBLIC_URL as 'not set' and falls back to the default", () => {
     // Real-world: .op.env can leave a var as `STAGECRAFT_PUBLIC_URL=`
-    // when the operator unset it. Falling back to AUTH_URL keeps dev
-    // working rather than throwing on an empty string.
+    // when the operator unset it. We want the prod default, not a blank.
     process.env.STAGECRAFT_PUBLIC_URL = "";
+    expect(getPublicPlatformUrl()).toBe("https://stagecraft.website");
+  });
+
+  it("ignores AUTH_URL entirely — we never want localhost leaking into artist sites", () => {
+    // Earlier iteration fell back to AUTH_URL when STAGECRAFT_PUBLIC_URL was
+    // unset, which made dev /create produce broken artist sites pointing at
+    // http://localhost:3000. The hardcoded default IS the correct dev
+    // behavior; AUTH_URL is irrelevant here.
     process.env.AUTH_URL = "http://localhost:3000";
-    expect(getPublicPlatformUrl()).toBe("http://localhost:3000");
+    expect(getPublicPlatformUrl()).toBe("https://stagecraft.website");
   });
 });

@@ -1,28 +1,30 @@
 /**
+ * The canonical public URL of the production Stagecraft platform.
+ * Hardcoded because it's invariant: every artist site brokers against
+ * this host, regardless of which environment the dashboard runs from.
+ * Override via `STAGECRAFT_PUBLIC_URL` only when you genuinely need to
+ * point artist sites elsewhere (preview environments, forks).
+ */
+const STAGECRAFT_PUBLIC_URL_DEFAULT = "https://stagecraft.website";
+
+/**
  * The public URL of the Stagecraft platform — what artist sites use to
  * call back to us via the broker.
  *
- * Reads `STAGECRAFT_PUBLIC_URL` first, falling back to `AUTH_URL`.
+ * Resolution order:
+ *   1. `STAGECRAFT_PUBLIC_URL` env var (override for staging/fork)
+ *   2. The hardcoded prod URL above
  *
- * Why two env vars: `AUTH_URL` must point at the platform's own host so
- * NextAuth + OAuth-redirect flows work. In dev that's
- * `http://localhost:3000`, which can't be reached from artist sites
- * deployed on Vercel/Netlify. Setting `STAGECRAFT_PUBLIC_URL=
- * https://stagecraft.website` in `.op.env` lets `/create` and the
- * install-callback provision artist sites that broker against prod
- * while everything else still runs against localhost.
- *
- * In production, leave `STAGECRAFT_PUBLIC_URL` unset and `AUTH_URL`
- * IS the public URL — nothing changes.
+ * Why not derive from `AUTH_URL`: `AUTH_URL` must point at the
+ * platform's own host so NextAuth + OAuth-redirect flows work. In dev
+ * that's `http://localhost:3000`, which can't be reached from artist
+ * sites deployed on Vercel/Netlify. Defaulting here means a local
+ * `/create` immediately produces artist sites that broker against
+ * prod — no extra env var to remember.
  */
 export function getPublicPlatformUrl(): string {
-  // Use `||` (not `??`) so an empty `STAGECRAFT_PUBLIC_URL=` line in
-  // .op.env doesn't shadow the AUTH_URL fallback.
-  const value = process.env.STAGECRAFT_PUBLIC_URL || process.env.AUTH_URL;
-  if (!value) {
-    throw new Error(
-      "Neither STAGECRAFT_PUBLIC_URL nor AUTH_URL is set on the platform",
-    );
-  }
+  // Use `||` (not `??`) so an empty `STAGECRAFT_PUBLIC_URL=` falls
+  // through to the default rather than blocking it.
+  const value = process.env.STAGECRAFT_PUBLIC_URL || STAGECRAFT_PUBLIC_URL_DEFAULT;
   return value.replace(/\/$/, "");
 }

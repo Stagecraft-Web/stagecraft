@@ -4,6 +4,7 @@ import type { Data } from "@measured/puck";
 
 import type { BlockProps } from "@/puck/config";
 
+import { contentDir, isNotFound, readJson, stringifyContent } from "./fs-helpers";
 import {
   appearanceSchema,
   DEFAULT_APPEARANCE,
@@ -21,15 +22,6 @@ import {
   type SiteConfig,
 } from "./site-config-types";
 
-/**
- * Resolve the content directory dynamically on every call so tests can
- * point each worker at its own tmpdir via `STAGECRAFT_CONTENT_DIR` and
- * avoid clobbering each other's on-disk state. Production sets neither
- * var and the default `<cwd>/src/content` is used.
- */
-function contentDir(): string {
-  return process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
-}
 function pagesDir(): string {
   return path.join(contentDir(), "pages");
 }
@@ -50,39 +42,6 @@ export function pageRepoPath(slug: string): string {
 // ---------------------------------------------------------------------------
 // Pages (Puck JSON files)
 // ---------------------------------------------------------------------------
-
-/**
- * Stringify content with the canonical formatting (2-space indent + trailing
- * newline) so re-saves produce minimal diffs.
- */
-export function stringifyContent(value: unknown): string {
-  return JSON.stringify(value, null, 2) + "\n";
-}
-
-async function readJson<T>(file: string): Promise<T | null> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(file, "utf-8");
-  } catch (cause) {
-    if (isNotFound(cause)) return null;
-    throw cause;
-  }
-  // A zero-byte file isn't a valid JSON payload but isn't worth crashing
-  // the public renderer over either — treat it the same as missing and
-  // let the caller fall back to its default. Persists across restarts of
-  // a half-failed write.
-  if (raw.trim().length === 0) return null;
-  return JSON.parse(raw) as T;
-}
-
-function isNotFound(cause: unknown): boolean {
-  return Boolean(
-    cause &&
-      typeof cause === "object" &&
-      "code" in cause &&
-      (cause as { code: string }).code === "ENOENT",
-  );
-}
 
 export async function readPage(slug: string): Promise<PageData> {
   pageSlugSchema.parse(slug);

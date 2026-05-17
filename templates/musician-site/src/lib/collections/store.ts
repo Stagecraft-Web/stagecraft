@@ -28,31 +28,26 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { stringifyContent } from "../content";
+import { contentDir, isNotFound, readJson, stringifyContent } from "../fs-helpers";
 
-import {
-  ORDER_FILE_NAME,
-  SINGLETON_ITEM_SLUG,
-  type CollectionDef,
-  type FieldDef,
-  type Item,
-  type ItemFile,
-} from "./types";
 import {
   buildItemFileSchema,
   collectionDefSchema,
   itemSlugSchema,
   orderFileSchema,
   slugSchema,
-} from "./zod";
+  ORDER_FILE_NAME,
+  SINGLETON_ITEM_SLUG,
+  type CollectionDef,
+  type FieldDef,
+  type FieldValue,
+  type Item,
+  type ItemFile,
+} from "./schema";
 
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
-
-function contentDir(): string {
-  return process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
-}
 
 function collectionsDir(): string {
   return path.join(contentDir(), "collections");
@@ -94,33 +89,6 @@ export function itemRepoPath(collectionSlug: string, itemSlug: string): string {
 
 export function orderRepoPath(collectionSlug: string): string {
   return `src/content/collections/${collectionSlug}/items/${ORDER_FILE_NAME}.json`;
-}
-
-// ---------------------------------------------------------------------------
-// JSON helpers (duplicated from content.ts intentionally — keeping the
-// collections module self-contained pending the PR-3 pages migration that
-// will fold both modules together)
-// ---------------------------------------------------------------------------
-
-async function readJson<T>(file: string): Promise<T | null> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(file, "utf-8");
-  } catch (cause) {
-    if (isNotFound(cause)) return null;
-    throw cause;
-  }
-  if (raw.trim().length === 0) return null;
-  return JSON.parse(raw) as T;
-}
-
-function isNotFound(cause: unknown): boolean {
-  return Boolean(
-    cause &&
-      typeof cause === "object" &&
-      "code" in cause &&
-      (cause as { code: string }).code === "ENOENT",
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +342,7 @@ function sortByField(
  * value types where sorting is meaningful are supported; others (image,
  * file, puckContent, etc.) return null and sort to the end.
  */
-function scalarSortKey(value: import("./types").FieldValue | undefined): string | number | null {
+function scalarSortKey(value: FieldValue | undefined): string | number | null {
   if (value === undefined) return null;
   switch (value.type) {
     case "text":

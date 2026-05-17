@@ -15,7 +15,6 @@ import {
   readPageOrNull,
   readSiteConfig,
   resolveRootPageSlug,
-  stringifyContent,
   writeAppearance,
   writeHeaderConfig,
   writePage,
@@ -90,13 +89,6 @@ async function createPage(slug: string, data: PageData) {
   createdSlugs.add(slug);
   await writePage(slug, data);
 }
-
-describe("stringifyContent", () => {
-  it("indents 2 spaces and ends with a newline", () => {
-    const out = stringifyContent({ a: 1 });
-    expect(out).toBe('{\n  "a": 1\n}\n');
-  });
-});
 
 describe("emptyPageData", () => {
   it("includes a heading and root props with the title", () => {

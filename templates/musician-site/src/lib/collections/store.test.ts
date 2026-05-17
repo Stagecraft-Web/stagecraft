@@ -26,6 +26,7 @@ import {
   writeSingleton,
 } from "./index";
 import type { CollectionDef, Item } from "./index";
+import { tourDateItem, tourDatesDef } from "./test-fixtures";
 
 let TMP_CONTENT_DIR: string;
 
@@ -42,53 +43,6 @@ beforeEach(async () => {
   // Wipe between tests so each one starts from a clean tree.
   await fs.rm(path.join(TMP_CONTENT_DIR, "collections"), { recursive: true, force: true });
 });
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
-function tourDatesDef(): CollectionDef {
-  return {
-    slug: "tour-dates",
-    singularName: "tour date",
-    pluralName: "tour dates",
-    fields: [
-      { id: "f_date", key: "date", type: "date", required: true },
-      { id: "f_venue", key: "venue", type: "text", required: true },
-      { id: "f_city", key: "city", type: "text", required: true },
-      {
-        id: "f_status",
-        key: "status",
-        type: "select",
-        required: true,
-        options: [
-          { id: "o1", value: "on_sale", label: "On sale" },
-          { id: "o2", value: "sold_out", label: "Sold out" },
-        ],
-      },
-    ],
-    slugSourceFieldId: "f_venue",
-    detailUrlPrefix: "/shows",
-    defaultSort: { mode: "fieldSort", fieldId: "f_date", direction: "asc" },
-    itemTemplate: null,
-    detailTemplate: null,
-    listTemplate: null,
-    isSingleton: false,
-  };
-}
-
-function tourDateItem(slug: string, date: string, venue: string, city: string): Item {
-  return {
-    id: `item_${slug}`,
-    slug,
-    values: {
-      f_date: { type: "date", value: date },
-      f_venue: { type: "text", value: venue },
-      f_city: { type: "text", value: city },
-      f_status: { type: "select", value: "on_sale" },
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Repo path helpers

@@ -19,7 +19,7 @@ import {
   getUrl,
   hasField,
 } from "./accessors";
-import type { Item } from "./types";
+import type { Item } from "./schema";
 import { asImageId } from "../image-types";
 
 function makeItem(values: Item["values"]): Item {

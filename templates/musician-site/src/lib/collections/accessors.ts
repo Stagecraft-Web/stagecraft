@@ -35,7 +35,7 @@ import type {
   FileRef,
   Item,
   TiptapJSON,
-} from "./types";
+} from "./schema";
 
 export class FieldAccessError extends Error {
   constructor(

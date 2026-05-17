@@ -69,14 +69,25 @@ src/
     config.tsx              Puck Config — blocks, root fields, render
     ImagePickerField.tsx    Custom field for image picking
   lib/
+    fs-helpers.ts           contentDir / readJson / isNotFound /
+                            stringifyContent — shared by every
+                            content-store layer
     content.ts              Read/write helpers for pages + singletons +
                             multi-page summary listings
     site-config-types.ts    Zod schemas for site / header / appearance
                             singletons and pages list contract
     collections/            ADR-009 Collection abstraction (foundation
-                            only — no UI yet). Types, dynamic Zod
-                            builder, item store, runtime-narrowing
-                            accessors. See ./collections/index.ts.
+                            only — no UI yet):
+                              schema.ts   Zod schemas as SSOT; TS types
+                                          inferred via z.infer
+                              store.ts    Filesystem layer (uses
+                                          fs-helpers)
+                              accessors.ts Runtime-narrowing field
+                                          accessors (getText, getImage,
+                                          ...)
+                              index.ts    Public API
+                              test-fixtures.ts  Shared fixtures
+                                          (tourDatesDef, tourDateItem)
     publish.ts              Multi-target publish flow (page,
                             site-config, header-config, appearance,
                             delete-page; plus collection-def,

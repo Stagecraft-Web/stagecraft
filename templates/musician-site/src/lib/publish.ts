@@ -7,7 +7,6 @@ import {
   HEADER_CONFIG_REPO_PATH,
   pageRepoPath,
   SITE_CONFIG_REPO_PATH,
-  stringifyContent,
 } from "./content";
 import {
   collectionDefRepoPath,
@@ -19,6 +18,7 @@ import {
   slugSchema,
   type CollectionDef,
 } from "./collections";
+import { stringifyContent } from "./fs-helpers";
 import { commitFiles, type FileToCommit } from "./git-commit";
 import {
   appearanceSchema,

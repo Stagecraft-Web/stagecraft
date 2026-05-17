@@ -303,26 +303,7 @@ describe("publish — multi-target API", () => {
 // Collection target kinds (ADR-009)
 // ---------------------------------------------------------------------------
 
-import type { CollectionDef } from "./collections";
-
-function tourDatesDef(): CollectionDef {
-  return {
-    slug: "tour-dates",
-    singularName: "tour date",
-    pluralName: "tour dates",
-    fields: [
-      { id: "f_date", key: "date", type: "date", required: true },
-      { id: "f_venue", key: "venue", type: "text", required: true },
-    ],
-    slugSourceFieldId: "f_venue",
-    detailUrlPrefix: "/shows",
-    defaultSort: { mode: "fieldSort", fieldId: "f_date", direction: "asc" },
-    itemTemplate: null,
-    detailTemplate: null,
-    listTemplate: null,
-    isSingleton: false,
-  };
-}
+import { tourDatesDef } from "./collections/test-fixtures";
 
 describe("publish — collection target kinds", () => {
   it("collection-def writes to <slug>/_collection.json in github mode", async () => {

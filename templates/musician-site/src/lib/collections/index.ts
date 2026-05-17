@@ -5,7 +5,6 @@
  * into the submodules directly so the surface stays curated.
  */
 
-export * from "./types";
-export * from "./zod";
+export * from "./schema";
 export * from "./store";
 export * from "./accessors";

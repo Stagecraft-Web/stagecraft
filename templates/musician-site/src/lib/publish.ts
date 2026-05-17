@@ -21,7 +21,26 @@ import {
 } from "./site-config-types";
 import { publishTokenResponseSchema } from "./publish-types";
 
-const CONTENT_DIR = path.join(process.cwd(), "src/content");
+/**
+ * Repo paths (`src/content/...`) are always written under the platform's
+ * content directory. Production: `<cwd>/src/content`. Tests can set
+ * `STAGECRAFT_CONTENT_DIR` to point each worker at its own tmpdir so the
+ * `npm run test` step doesn't race across files.
+ *
+ * Repo paths outside `src/content/` (none today, but kept open for future
+ * targets like static images) fall back to a plain `<cwd>/<path>` mapping.
+ */
+const REPO_CONTENT_PREFIX = "src/content/";
+
+function localPathForRepoPath(repoPath: string): string {
+  if (repoPath.startsWith(REPO_CONTENT_PREFIX)) {
+    const tail = repoPath.slice(REPO_CONTENT_PREFIX.length);
+    const root =
+      process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
+    return path.join(root, tail);
+  }
+  return path.join(process.cwd(), repoPath);
+}
 
 export class PublishError extends Error {
   constructor(
@@ -204,17 +223,14 @@ function summariseTargets(targets: PublishTarget[]): string {
 async function writeLocal(targets: PublishTarget[]): Promise<PublishResult> {
   const { writes, deletePaths } = planFiles(targets);
   for (const file of writes) {
-    const abs = path.join(process.cwd(), file.path);
+    const abs = localPathForRepoPath(file.path);
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, file.content, "utf-8");
   }
   for (const repoPath of deletePaths) {
-    const abs = path.join(process.cwd(), repoPath);
+    const abs = localPathForRepoPath(repoPath);
     await fs.rm(abs, { force: true });
   }
-  // Touch CONTENT_DIR so a watcher would notice the change even if we wrote
-  // only into config/.
-  await fs.stat(CONTENT_DIR).catch(() => undefined);
   return { commitSha: null, mode: "local" };
 }
 

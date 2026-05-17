@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getSessionMock } = vi.hoisted(() => ({ getSessionMock: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getSession: getSessionMock }));
@@ -15,12 +16,41 @@ import { GET, POST } from "./route";
 import { DELETE } from "./[slug]/route";
 
 const TEST_SLUG = "api-test-page";
-const TEST_FILE = path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}.json`);
 
-beforeEach(() => {
+// Worker-scoped tmpdir keeps these tests isolated from other test files that
+// touch the same on-disk paths. The seed page "home" matches what tests
+// expect to find by default.
+let TMP_CONTENT_DIR: string;
+let TMP_PAGES_DIR: string;
+let TEST_FILE: string;
+
+const HOME_FIXTURE = {
+  content: [],
+  root: { props: { title: "Home", isSplashPage: false, isFooterHidden: false } },
+};
+
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-pagesapi-"));
+  TMP_PAGES_DIR = path.join(TMP_CONTENT_DIR, "pages");
+  await fs.mkdir(TMP_PAGES_DIR, { recursive: true });
+  TEST_FILE = path.join(TMP_PAGES_DIR, `${TEST_SLUG}.json`);
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
+
+beforeEach(async () => {
   getSessionMock.mockReset();
   publishMock.mockReset();
   publishMock.mockResolvedValue({ commitSha: null, mode: "local" });
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
+  // Seed the tmpdir with a home page so tests that expect it pass.
+  await fs.writeFile(
+    path.join(TMP_PAGES_DIR, "home.json"),
+    JSON.stringify(HOME_FIXTURE, null, 2) + "\n",
+    "utf-8",
+  );
 });
 
 afterEach(async () => {

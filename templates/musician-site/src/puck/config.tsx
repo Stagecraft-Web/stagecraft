@@ -118,10 +118,6 @@ export type BlockProps = {
     col2: string;
     col3: string;
   };
-  CenteredBlock: {
-    text: string;
-    maxWidth: "narrow" | "regular";
-  };
   RichText: { text: string };
   Quote: { text: string; attribution: string };
   Button: { text: string; href: string; variant: ButtonVariant; isExternal: boolean };
@@ -137,7 +133,7 @@ export type BlockProps = {
 
 /**
  * Render `text` as paragraphs separated by blank lines. Shared between
- * Section / CenteredBlock / Column body fields so consistent typesetting
+ * Section / Column body fields so consistent typesetting
  * is one change away.
  */
 function renderParagraphs(text: string, key = "p"): ReactNode {
@@ -353,31 +349,6 @@ export const puckConfig: Config<BlockProps, { title: string; isSplashPage: boole
           </div>
         );
       },
-    },
-    CenteredBlock: {
-      fields: {
-        text: { type: "textarea" },
-        maxWidth: {
-          type: "select",
-          options: [
-            { label: "Narrow (~60ch)", value: "narrow" },
-            { label: "Regular", value: "regular" },
-          ],
-        },
-      },
-      defaultProps: { text: "Centered prose.", maxWidth: "narrow" },
-      render: ({ text, maxWidth }) => (
-        <div
-          style={{
-            maxWidth: maxWidth === "narrow" ? "var(--max-width-narrow)" : "var(--max-width-content)",
-            margin: "0 auto",
-            padding: "var(--space-6) var(--space-4)",
-            textAlign: "center",
-          }}
-        >
-          {renderParagraphs(text, "centered")}
-        </div>
-      ),
     },
     RichText: {
       fields: { text: { type: "textarea" } },

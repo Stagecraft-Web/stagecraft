@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { commitFilesMock } = vi.hoisted(() => ({ commitFilesMock: vi.fn() }));
 vi.mock("./git-commit", () => ({ commitFiles: commitFilesMock }));
@@ -13,9 +14,23 @@ import {
 } from "./site-config-types";
 
 const TEST_SLUG = "publish-test";
-const TEST_FILE = path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}.json`);
+
+// Each worker writes to its own tmpdir (resolved via STAGECRAFT_CONTENT_DIR)
+// so parallel test files can't clobber each other's site.json / page files
+// — see the matching pattern in content.test.ts.
+let TMP_CONTENT_DIR: string;
+let TEST_FILE: string;
 
 const ORIGINAL_ENV = { ...process.env };
+
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-publish-"));
+  TEST_FILE = path.join(TMP_CONTENT_DIR, "pages", `${TEST_SLUG}.json`);
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
 
 beforeEach(() => {
   commitFilesMock.mockReset();
@@ -23,6 +38,7 @@ beforeEach(() => {
   delete process.env.STAGECRAFT_PLATFORM_URL;
   delete process.env.STAGECRAFT_SITE_ID;
   delete process.env.STAGECRAFT_BROKER_SECRET;
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
 });
 
 afterEach(async () => {
@@ -182,15 +198,6 @@ describe("publishPage — broker + GitHub path", () => {
   });
 });
 
-const TEST_FILES_TO_CLEAN = [
-  path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}.json`),
-  path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}-2.json`),
-];
-
-afterEach(async () => {
-  await Promise.all(TEST_FILES_TO_CLEAN.map((f) => fs.rm(f, { force: true })));
-});
-
 describe("publish — multi-target API", () => {
   it("rejects empty target list", async () => {
     await expect(
@@ -199,27 +206,18 @@ describe("publish — multi-target API", () => {
   });
 
   it("dev fallback writes site-config to disk", async () => {
-    // Snapshot the existing site.json (if any) so the test doesn't leave
-    // the repo dirty. Restore the original on exit; if there was no
-    // original, remove the file we just wrote.
-    const sitePath = path.join(process.cwd(), "src/content/config/site.json");
-    const original = await fs.readFile(sitePath, "utf-8").catch(() => null);
-    try {
-      const cfg = { ...DEFAULT_SITE_CONFIG, artistName: "Multi-target Test" };
-      const out = await publish({
-        targets: [{ kind: "site-config", data: cfg }],
-        authorEmail: "a@e.com",
-      });
-      expect(out.mode).toBe("local");
-      const written = JSON.parse(await fs.readFile(sitePath, "utf-8"));
-      expect(written.artistName).toBe("Multi-target Test");
-    } finally {
-      if (original !== null) {
-        await fs.writeFile(sitePath, original, "utf-8");
-      } else {
-        await fs.rm(sitePath, { force: true });
-      }
-    }
+    // Writes into the worker-scoped tmpdir (see STAGECRAFT_CONTENT_DIR in
+    // beforeEach) so parallel test files can't clobber the on-disk state.
+    const sitePath = path.join(TMP_CONTENT_DIR, "config/site.json");
+    const cfg = { ...DEFAULT_SITE_CONFIG, artistName: "Multi-target Test" };
+    const out = await publish({
+      targets: [{ kind: "site-config", data: cfg }],
+      authorEmail: "a@e.com",
+    });
+    expect(out.mode).toBe("local");
+    const written = JSON.parse(await fs.readFile(sitePath, "utf-8"));
+    expect(written.artistName).toBe("Multi-target Test");
+    await fs.rm(sitePath, { force: true });
   });
 
   it("commits multiple targets in a single GitHub commit when configured", async () => {

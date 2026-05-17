@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   deletePage,
@@ -27,37 +28,62 @@ import {
   DEFAULT_SITE_CONFIG,
 } from "./site-config-types";
 
-const PAGES_DIR = path.join(process.cwd(), "src/content/pages");
-const CONFIG_DIR = path.join(process.cwd(), "src/content/config");
+/**
+ * Tests run against an isolated tmpdir (pointed at via STAGECRAFT_CONTENT_DIR)
+ * so parallel test files (e.g. publish.test.ts) can't race on the same
+ * `src/content/...` files. The seed mirrors the checked-in shape — home.json
+ * plus an empty config/ — so tests that assume "home exists" keep working.
+ */
+const HOME_FIXTURE: PageData = {
+  content: [
+    {
+      type: "Heading",
+      props: { id: "heading-1", text: "Welcome", level: "h1", textAlign: "center" },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  ],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  root: { props: { title: "Home", isSplashPage: false, isFooterHidden: false } } as any,
+};
 
-// Tests write into the same dirs the production code reads from. To keep them
-// from clobbering checked-in content (home.json, site.json, …), each test uses
-// a unique suffix and cleans up after itself.
-const SUFFIX = `__test_${process.pid}_${Date.now()}`;
+let TMP_CONTENT_DIR: string;
+let TMP_PAGES_DIR: string;
+
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-content-"));
+  TMP_PAGES_DIR = path.join(TMP_CONTENT_DIR, "pages");
+  await fs.mkdir(TMP_PAGES_DIR, { recursive: true });
+  await fs.writeFile(
+    path.join(TMP_PAGES_DIR, "home.json"),
+    JSON.stringify(HOME_FIXTURE, null, 2) + "\n",
+    "utf-8",
+  );
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
+});
 
 function testSlug(name: string): string {
-  // Slug must match /^[a-z0-9][a-z0-9-]*$/ — replace underscores from SUFFIX.
-  return `${name}${SUFFIX}`.replace(/[^a-z0-9-]/g, "-").toLowerCase();
+  // Slug must match /^[a-z0-9][a-z0-9-]*$/.
+  return `${name}-${Math.random().toString(36).slice(2, 8)}`.toLowerCase();
 }
-
-const TEST_SITE_FILE = path.join(CONFIG_DIR, `site${SUFFIX}.json`).replace(/[^a-z0-9/.-]/gi, "-");
-const TEST_HEADER_FILE = path.join(CONFIG_DIR, `header${SUFFIX}.json`).replace(/[^a-z0-9/.-]/gi, "-");
-const TEST_APPEARANCE_FILE = path.join(CONFIG_DIR, `appearance${SUFFIX}.json`).replace(/[^a-z0-9/.-]/gi, "-");
 
 const createdSlugs = new Set<string>();
 
 afterEach(async () => {
   await Promise.all(
     [...createdSlugs].map((slug) =>
-      fs.rm(path.join(PAGES_DIR, `${slug}.json`), { force: true }),
+      fs.rm(path.join(TMP_PAGES_DIR, `${slug}.json`), { force: true }),
     ),
   );
   createdSlugs.clear();
-  await Promise.all(
-    [TEST_SITE_FILE, TEST_HEADER_FILE, TEST_APPEARANCE_FILE].map((f) =>
-      fs.rm(f, { force: true }),
-    ),
-  );
+  // Clear any config singletons a test wrote so the next test starts clean.
+  await fs.rm(path.join(TMP_CONTENT_DIR, "config"), { recursive: true, force: true });
 });
 
 async function createPage(slug: string, data: PageData) {
@@ -201,58 +227,28 @@ describe("extractPageRootProps", () => {
 // Singletons
 // ---------------------------------------------------------------------------
 
-describe("singleton reads return the existing on-disk values, defaults otherwise", () => {
-  it("readSiteConfig returns DEFAULT when no site.json (would require deletion)", async () => {
-    // The repo checks in (or doesn't check in) site.json; we don't want to
-    // delete it. Just assert that read succeeds and matches the schema.
+describe("singleton reads return defaults when no file exists", () => {
+  it("readSiteConfig returns DEFAULT_SITE_CONFIG in a clean dir", async () => {
     const cfg = await readSiteConfig();
-    expect(cfg.artistName).toBeTypeOf("string");
+    expect(cfg.artistName).toBe(DEFAULT_SITE_CONFIG.artistName);
     expect(cfg.contactEmail).toMatch(/@/);
   });
 
-  it("readHeaderConfig parses successfully", async () => {
+  it("readHeaderConfig returns DEFAULT_HEADER_CONFIG", async () => {
     const cfg = await readHeaderConfig();
-    expect(cfg.headerMode).toBeTypeOf("string");
+    expect(cfg.headerMode).toBe(DEFAULT_HEADER_CONFIG.headerMode);
     expect(Array.isArray(cfg.items)).toBe(true);
   });
 
-  it("readAppearance parses successfully", async () => {
+  it("readAppearance returns DEFAULT_APPEARANCE", async () => {
     const cfg = await readAppearance();
-    expect(cfg.colors.primary).toBeTypeOf("string");
+    expect(cfg.colors.primary).toBe(DEFAULT_APPEARANCE.colors.primary);
   });
 });
 
 describe("write* + read* round-trip through disk", () => {
-  // These mutate the real config files. We snapshot the original on entry
-  // and restore on exit so the round-trip test doesn't leave behind a dirty
-  // working tree.
-  let originalSite: string | null = null;
-  let originalHeader: string | null = null;
-  let originalAppearance: string | null = null;
-
-  beforeEach(async () => {
-    const sitePath = path.join(CONFIG_DIR, "site.json");
-    const headerPath = path.join(CONFIG_DIR, "header.json");
-    const appearancePath = path.join(CONFIG_DIR, "appearance.json");
-    originalSite = await fs.readFile(sitePath, "utf-8").catch(() => null);
-    originalHeader = await fs.readFile(headerPath, "utf-8").catch(() => null);
-    originalAppearance = await fs
-      .readFile(appearancePath, "utf-8")
-      .catch(() => null);
-  });
-
-  afterEach(async () => {
-    const sitePath = path.join(CONFIG_DIR, "site.json");
-    const headerPath = path.join(CONFIG_DIR, "header.json");
-    const appearancePath = path.join(CONFIG_DIR, "appearance.json");
-    if (originalSite !== null) await fs.writeFile(sitePath, originalSite, "utf-8");
-    else await fs.rm(sitePath, { force: true });
-    if (originalHeader !== null) await fs.writeFile(headerPath, originalHeader, "utf-8");
-    else await fs.rm(headerPath, { force: true });
-    if (originalAppearance !== null)
-      await fs.writeFile(appearancePath, originalAppearance, "utf-8");
-    else await fs.rm(appearancePath, { force: true });
-  });
+  // afterEach (above) clears the tmpdir's config/ between tests so each
+  // round-trip starts from a clean slate.
 
   it("writeSiteConfig + readSiteConfig round-trip", async () => {
     const cfg = { ...DEFAULT_SITE_CONFIG, artistName: "Test Artist" };

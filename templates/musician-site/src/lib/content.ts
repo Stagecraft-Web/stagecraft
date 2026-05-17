@@ -21,9 +21,21 @@ import {
   type SiteConfig,
 } from "./site-config-types";
 
-const CONTENT_DIR = path.join(process.cwd(), "src/content");
-const PAGES_DIR = path.join(CONTENT_DIR, "pages");
-const CONFIG_DIR = path.join(CONTENT_DIR, "config");
+/**
+ * Resolve the content directory dynamically on every call so tests can
+ * point each worker at its own tmpdir via `STAGECRAFT_CONTENT_DIR` and
+ * avoid clobbering each other's on-disk state. Production sets neither
+ * var and the default `<cwd>/src/content` is used.
+ */
+function contentDir(): string {
+  return process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
+}
+function pagesDir(): string {
+  return path.join(contentDir(), "pages");
+}
+function configDir(): string {
+  return path.join(contentDir(), "config");
+}
 
 export type PageData = Data<BlockProps>;
 
@@ -74,7 +86,7 @@ function isNotFound(cause: unknown): boolean {
 
 export async function readPage(slug: string): Promise<PageData> {
   pageSlugSchema.parse(slug);
-  const file = path.join(PAGES_DIR, `${slug}.json`);
+  const file = path.join(pagesDir(), `${slug}.json`);
   const data = await readJson<PageData>(file);
   if (!data) {
     throw new PageNotFoundError(slug);
@@ -93,14 +105,14 @@ export async function readPageOrNull(slug: string): Promise<PageData | null> {
 
 export async function writePage(slug: string, data: PageData): Promise<void> {
   pageSlugSchema.parse(slug);
-  const file = path.join(PAGES_DIR, `${slug}.json`);
-  await fs.mkdir(PAGES_DIR, { recursive: true });
+  const file = path.join(pagesDir(), `${slug}.json`);
+  await fs.mkdir(pagesDir(), { recursive: true });
   await fs.writeFile(file, stringifyContent(data), "utf-8");
 }
 
 export async function deletePage(slug: string): Promise<void> {
   pageSlugSchema.parse(slug);
-  const file = path.join(PAGES_DIR, `${slug}.json`);
+  const file = path.join(pagesDir(), `${slug}.json`);
   try {
     await fs.unlink(file);
   } catch (cause) {
@@ -146,7 +158,7 @@ export function emptyPageData(title: string): PageData {
 
 export async function listPageSlugs(): Promise<string[]> {
   try {
-    const entries = await fs.readdir(PAGES_DIR, { withFileTypes: true });
+    const entries = await fs.readdir(pagesDir(), { withFileTypes: true });
     return entries
       .filter((e) => e.isFile() && e.name.endsWith(".json"))
       .map((e) => e.name.replace(/\.json$/, ""))
@@ -220,7 +232,7 @@ async function readSingleton<T>(
 
 export async function readSiteConfig(): Promise<SiteConfig> {
   return readSingleton(
-    path.join(CONFIG_DIR, "site.json"),
+    path.join(configDir(), "site.json"),
     (raw) => siteConfigSchema.parse(raw),
     DEFAULT_SITE_CONFIG,
   );
@@ -228,13 +240,13 @@ export async function readSiteConfig(): Promise<SiteConfig> {
 
 export async function writeSiteConfig(config: SiteConfig): Promise<void> {
   const parsed = siteConfigSchema.parse(config);
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(path.join(CONFIG_DIR, "site.json"), stringifyContent(parsed), "utf-8");
+  await fs.mkdir(configDir(), { recursive: true });
+  await fs.writeFile(path.join(configDir(), "site.json"), stringifyContent(parsed), "utf-8");
 }
 
 export async function readHeaderConfig(): Promise<HeaderConfig> {
   return readSingleton(
-    path.join(CONFIG_DIR, "header.json"),
+    path.join(configDir(), "header.json"),
     (raw) => headerConfigSchema.parse(raw),
     DEFAULT_HEADER_CONFIG,
   );
@@ -242,13 +254,13 @@ export async function readHeaderConfig(): Promise<HeaderConfig> {
 
 export async function writeHeaderConfig(config: HeaderConfig): Promise<void> {
   const parsed = headerConfigSchema.parse(config);
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(path.join(CONFIG_DIR, "header.json"), stringifyContent(parsed), "utf-8");
+  await fs.mkdir(configDir(), { recursive: true });
+  await fs.writeFile(path.join(configDir(), "header.json"), stringifyContent(parsed), "utf-8");
 }
 
 export async function readAppearance(): Promise<Appearance> {
   return readSingleton(
-    path.join(CONFIG_DIR, "appearance.json"),
+    path.join(configDir(), "appearance.json"),
     (raw) => appearanceSchema.parse(raw),
     DEFAULT_APPEARANCE,
   );
@@ -256,6 +268,6 @@ export async function readAppearance(): Promise<Appearance> {
 
 export async function writeAppearance(config: Appearance): Promise<void> {
   const parsed = appearanceSchema.parse(config);
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  await fs.writeFile(path.join(CONFIG_DIR, "appearance.json"), stringifyContent(parsed), "utf-8");
+  await fs.mkdir(configDir(), { recursive: true });
+  await fs.writeFile(path.join(configDir(), "appearance.json"), stringifyContent(parsed), "utf-8");
 }

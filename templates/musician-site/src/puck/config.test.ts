@@ -28,7 +28,6 @@ describe("puckConfig", () => {
     expect(Object.keys(puckConfig.components).sort()).toEqual(
       [
         "Button",
-        "CenteredBlock",
         "Columns",
         "Divider",
         "Embed",
@@ -232,15 +231,6 @@ describe("puckConfig", () => {
       expect(html).toMatch(/display:\s*grid/);
       expect(html).toMatch(/grid-template-columns:\s*1fr 2fr/);
       expect(html).toMatch(/gap:\s*var\(--space-/);
-    });
-  });
-
-  describe("CenteredBlock", () => {
-    it("uses narrow vs regular max-width token", () => {
-      const narrow = render("CenteredBlock", { text: "hi", maxWidth: "narrow" });
-      const regular = render("CenteredBlock", { text: "hi", maxWidth: "regular" });
-      expect(narrow).toMatch(/max-width:\s*var\(--max-width-narrow\)/);
-      expect(regular).toMatch(/max-width:\s*var\(--max-width-content\)/);
     });
   });
 

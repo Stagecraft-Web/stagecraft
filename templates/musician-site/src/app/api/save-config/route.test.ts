@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getSessionMock } = vi.hoisted(() => ({ getSessionMock: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getSession: getSessionMock }));
@@ -18,32 +19,36 @@ import {
   DEFAULT_SITE_CONFIG,
 } from "@/lib/site-config-types";
 
-const SITE_PATH = path.join(process.cwd(), "src/content/config/site.json");
-const HEADER_PATH = path.join(process.cwd(), "src/content/config/header.json");
-const APPEARANCE_PATH = path.join(process.cwd(), "src/content/config/appearance.json");
+// Worker-scoped tmpdir keeps these tests isolated from other test files that
+// also touch src/content/config/*.json (publish.test.ts, content.test.ts).
+let TMP_CONTENT_DIR: string;
+let SITE_PATH: string;
+let HEADER_PATH: string;
+let APPEARANCE_PATH: string;
 
-let originalSite: string | null = null;
-let originalHeader: string | null = null;
-let originalAppearance: string | null = null;
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-saveconfig-"));
+  SITE_PATH = path.join(TMP_CONTENT_DIR, "config/site.json");
+  HEADER_PATH = path.join(TMP_CONTENT_DIR, "config/header.json");
+  APPEARANCE_PATH = path.join(TMP_CONTENT_DIR, "config/appearance.json");
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
 
 beforeEach(async () => {
   getSessionMock.mockReset();
   publishMock.mockReset();
   publishMock.mockResolvedValue({ commitSha: null, mode: "local" });
-
-  originalSite = await fs.readFile(SITE_PATH, "utf-8").catch(() => null);
-  originalHeader = await fs.readFile(HEADER_PATH, "utf-8").catch(() => null);
-  originalAppearance = await fs.readFile(APPEARANCE_PATH, "utf-8").catch(() => null);
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
 });
 
 afterEach(async () => {
-  if (originalSite !== null) await fs.writeFile(SITE_PATH, originalSite, "utf-8");
-  else await fs.rm(SITE_PATH, { force: true });
-  if (originalHeader !== null) await fs.writeFile(HEADER_PATH, originalHeader, "utf-8");
-  else await fs.rm(HEADER_PATH, { force: true });
-  if (originalAppearance !== null)
-    await fs.writeFile(APPEARANCE_PATH, originalAppearance, "utf-8");
-  else await fs.rm(APPEARANCE_PATH, { force: true });
+  // Clear any singleton a test wrote.
+  await fs.rm(SITE_PATH, { force: true });
+  await fs.rm(HEADER_PATH, { force: true });
+  await fs.rm(APPEARANCE_PATH, { force: true });
 });
 
 function postJson(body: unknown) {

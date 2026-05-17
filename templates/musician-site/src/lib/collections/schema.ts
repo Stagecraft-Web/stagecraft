@@ -26,6 +26,8 @@
  * are silently stripped on read.
  */
 
+import { randomUUID } from "node:crypto";
+
 import type { Data as PuckData } from "@measured/puck";
 import { z, type ZodTypeAny } from "zod";
 
@@ -50,6 +52,19 @@ export type FieldKey = string;
  * item's URL slug is the filename and may change; the id never does.
  */
 export type ItemId = string;
+
+/**
+ * ID generation helpers. Every consumer that creates a new field or
+ * item should call these rather than rolling its own scheme — keeps
+ * id shapes consistent across the codebase, and gives us one place to
+ * change the strategy (e.g. swap UUID for nanoid) if we ever need to.
+ *
+ * The prefixes (`fld_` / `item_`) carry no semantic load at the data
+ * layer; they exist so a stray id in a log line tells you what it
+ * refers to.
+ */
+export const generateFieldId = (): FieldId => `fld_${randomUUID()}`;
+export const generateItemId = (): ItemId => `item_${randomUUID()}`;
 
 /**
  * Slug pattern shared by collection slugs and item slugs. Matches the

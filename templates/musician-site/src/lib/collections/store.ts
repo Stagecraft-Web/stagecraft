@@ -259,8 +259,9 @@ export async function listItemsInOrder(
 ): Promise<Item[]> {
   const slugs = await listItemSlugs(collectionSlug);
   // Build the per-item Zod schema once and reuse across every read.
-  // Without this the schema rebuilds per item — quadratic-ish cost on
-  // larger collections.
+  // Rebuilding it inside the readItem loop would walk the field list
+  // again for every item — wasted work proportional to N items × F
+  // fields.
   const fileSchema = buildItemFileSchema(def.fields);
   const items = (
     await Promise.all(slugs.map((slug) => readItemWithSchema(collectionSlug, slug, fileSchema)))

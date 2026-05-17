@@ -7,6 +7,8 @@ import {
   fieldDefSchema,
   fieldValueSchema,
   findField,
+  generateFieldId,
+  generateItemId,
   isFieldRequired,
   itemFileShellSchema,
   itemSlugSchema,
@@ -719,5 +721,28 @@ describe("findField", () => {
     const def = tourDatesDef();
     expect(findField(def, "f_venue")?.key).toBe("venue");
     expect(findField(def, "nope")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID generators
+// ---------------------------------------------------------------------------
+
+describe("ID generators", () => {
+  it("generateFieldId returns a fld_-prefixed string", () => {
+    const id = generateFieldId();
+    expect(id).toMatch(/^fld_/);
+    expect(id.length).toBeGreaterThan("fld_".length);
+  });
+
+  it("generateItemId returns an item_-prefixed string", () => {
+    const id = generateItemId();
+    expect(id).toMatch(/^item_/);
+    expect(id.length).toBeGreaterThan("item_".length);
+  });
+
+  it("returns a different id each call", () => {
+    expect(generateFieldId()).not.toBe(generateFieldId());
+    expect(generateItemId()).not.toBe(generateItemId());
   });
 });

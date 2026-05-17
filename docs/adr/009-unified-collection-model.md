@@ -57,6 +57,8 @@ Defined here once; used throughout the rest of the ADR.
   (`isSingleton`).
 - **Item.** One entry in a collection — one tour date, one release, one
   page. Stored at `src/content/collections/<slug>/items/<itemSlug>.json`.
+  Carries a stable `id` (`item_<uuid>`, generated via `generateItemId()`)
+  that survives renames; the URL slug is the filename and can change.
 - **Schema.** The set of `FieldDef`s on a collection. Editable by the
   artist via the schema editor (§11 guardrails apply).
 - **Field.** One configurable attribute on items in a collection — for
@@ -64,9 +66,10 @@ Defined here once; used throughout the rest of the ADR.
 - **FieldDef.** The TypeScript shape describing one field — its id, key,
   type, required-ness, and any type-specific config (options, mime
   filters, etc.).
-- **FieldId.** Internal stable identity of a field (UUID-ish). Never
-  visible to the artist. Item values reference fields by id, so renaming
-  is free.
+- **FieldId.** Internal stable identity of a field — `fld_<uuid>`.
+  Never visible to the artist. Item values reference fields by id, so
+  renaming is free. Generated via `generateFieldId()` from the
+  collections module.
 - **FieldKey.** Artist-facing name of a field ("venue"). Renameable
   without breaking item values, because the id stays put.
 - **FieldValue.** A typed value held by an item for one field — a
@@ -137,10 +140,9 @@ Defined here once; used throughout the rest of the ADR.
 
 Introduce a single `Collection` abstraction. Every editable surface on a
 musician site — pages, singletons, tour dates, releases, posts, store
-items, photos, videos — is a collection. Each collection owns its own
-schema, items, and per-item rendering template. Cross-cutting features
-(storage, validation, publish, routing, editor UI) are implemented once
-against the generic abstraction.
+items, photos, videos — is a collection. Storage, validation, publish,
+routing, and the editor UI are written once and work for every
+collection.
 
 ### 1. Core types
 
@@ -269,17 +271,21 @@ Pages stop being a special data path. The "pages" collection ships with:
 
 ```ts
 {
+  schemaVersion: 1,
   slug: "pages",
   singularName: "page",
   pluralName: "pages",
   detailUrlPrefix: "/",                                                // each page at /<slug>
   isSingleton: false,
   fields: [
-    { id: "fld_title",       key: "title",          type: "text",       required: true },
+    // title and body are systemLocked — the renderer and routing
+    // depend on them. The schema editor (PR 5) won't let the artist
+    // delete, rename, or retype either.
+    { id: "fld_title",       key: "title",          type: "text",       required: true, systemLocked: true },
     { id: "fld_isSplash",    key: "isSplashPage",   type: "boolean" },
     { id: "fld_hideFooter",  key: "isFooterHidden", type: "boolean" },
     { id: "fld_showInNav",   key: "showInNav",      type: "boolean" },  // Goal 2 (nav→pages) folds in here
-    { id: "fld_body",        key: "body",           type: "puckContent" },
+    { id: "fld_body",        key: "body",           type: "puckContent", systemLocked: true },
   ],
   slugSourceFieldId: "fld_title",
   defaultSort: { mode: "manual" },                                     // artist drags pages in /admin/pages
@@ -406,55 +412,53 @@ every block's prop is just a literal — there's no "field" to bind to,
 because the artist is producing this item's data, not a template to be
 filled in by many items.
 
-#### 4.2 Rendering rich/composite fields: field-render primitives
+#### 4.2 Rendering rich and composite fields
 
-`Bindable<T>` works for scalar props (a string, an image metadata, a
-URL). For richText and puckContent fields — which carry block-shaped
-content of their own — bindings are expressed as dedicated **field-render
-primitives**:
+`Bindable<T>` works for scalar props (a string, an ImageMetadata, a
+URL). It doesn't fit for richText and puckContent fields — those
+values expand into a tree of their own, not a single scalar to drop
+into a prop. Those fields are rendered via dedicated blocks:
 
 - `RichTextRender { field: FieldId }` — renders a richText field's
   Tiptap content at this position.
-- `PuckContentRender { field: FieldId }` — renders a puckContent field's
-  full Puck JSON at this position.
+- `PuckContentRender { field: FieldId }` — renders a puckContent
+  field's Puck JSON at this position.
 
-Conceptually these are still "bindings of `kind: binding`" — just
-expressed as their own block types rather than as a `Bindable` on a
-generic content prop, because they expand into a block tree of their
-own.
+These are bindings too, just packaged as their own block types
+because the thing they render is a tree, not a value.
 
-The Pages collection's detailTemplate is, in the simplest configuration,
-a single `PuckContentRender { field: "fld_body" }` block. The artist can
-add header / footer Primitives around it.
+The Pages collection's detailTemplate, at its simplest, is a single
+`PuckContentRender { field: "fld_body" }` block. The artist can add
+header / footer Primitives around it.
 
 #### 4.3 Cycle safety by structural rule
 
-The cycle worry is real: if a tour-date itemTemplate embedded a
-TourDatesView (a Collection block sourcing tour dates), it would render
-tour-date items via the same itemTemplate, which contains the view,
-which renders items, …
+Without a rule, cycles are easy to construct: a tour-date itemTemplate
+that embedded a TourDatesView would render tour-date items via the
+same itemTemplate, which contains the view, which renders items, and
+so on.
 
-The structural rule prevents this by construction:
+One rule prevents this:
 
 > **itemTemplate cannot contain Collection blocks. detailTemplate,
 > listTemplate, and any rendered puckContent field can.**
 
-This guarantees termination:
+Why it terminates:
 
-- A Collection block renders source items via the source collection's
-  itemTemplate. itemTemplate by rule contains no Collection blocks, so
-  recursion terminates after one level.
-- A puckContent field's contents are rendered via a `PuckContentRender`
-  primitive, only legal inside detailTemplate / listTemplate. Collection
-  blocks inside that puckContent render their source items via
-  itemTemplates, which are Collection-block-free. Terminates.
-- If an itemTemplate binds a puckContent field via `PuckContentRender`
-  (an authoring oddity but not forbidden by types), Collection blocks
-  inside that value are stripped at render time — runtime guard for the
-  niche case.
+- A Collection block renders its source items via the source
+  collection's itemTemplate. itemTemplates contain no Collection
+  blocks, so recursion stops after one level.
+- A puckContent field's contents are rendered via `PuckContentRender`,
+  which is only legal inside detailTemplate / listTemplate. Collection
+  blocks inside that puckContent render their items via itemTemplates,
+  which again contain no Collection blocks. Terminates.
+- An itemTemplate may bind a puckContent field via `PuckContentRender`
+  (the types don't forbid it). Collection blocks inside that bound
+  value are stripped at render time — the runtime backstop for the
+  pathological case.
 - Cross-collection `collectionRef` chains that form a runtime cycle
-  (release A → release B → release A) are detected at render and
-  rendered as a placeholder.
+  (release A → release B → release A) are detected at render and shown
+  as a placeholder.
 
 Collections are **fully universal**: any collection can have items with
 puckContent fields edited in a full Puck workspace, any item can have a
@@ -554,7 +558,7 @@ This unlocks the patterns the platform needs:
 ```ts
 // Tracks on the album detail page (intrinsic child→parent relationship)
 filter: { all: [{
-  field: "f_belongsToAlbum", op: "equals",
+  field: "fld_belongsToAlbum", op: "equals",
   value: { kind: "currentItemId" },
 }]}
 
@@ -563,13 +567,13 @@ filter: { all: [{ excludeCurrentItem: true }] }
 
 // "More shows on this tour"
 filter: { all: [{
-  field: "f_tourLeg", op: "equals",
-  value: { kind: "currentItemField", fieldId: "f_tourLeg" },
+  field: "fld_tourLeg", op: "equals",
+  value: { kind: "currentItemField", fieldId: "fld_tourLeg" },
 }]}
 
 // "Upcoming shows" (no current-item dependency)
 filter: { all: [{
-  field: "f_status", op: "in",
+  field: "fld_status", op: "in",
   values: [{ kind: "literal", value: "on_sale" }],
 }]}
 ```
@@ -751,20 +755,20 @@ the data level**:
   `buildItemFileSchema(fields: FieldDef[]): ZodSchema`, and the item is
   parsed against it. Invalid items cannot be saved. Bulk readers
   (`listItemsInOrder`) build the schema once per call and reuse it
-  across every read — building per item is quadratic-ish on larger
-  collections.
+  across every read — repeating the construction per item would waste
+  work proportional to the number of fields on every item.
 - **Runtime-narrowing accessors give ergonomic consumer code**:
   ```ts
-  const venue = getText(item, collection, "fld_venue");
+  const venue = getText(item, "fld_venue");
   // venue: string  — throws if the field doesn't exist or isn't text
   ```
   This is how hand-coded blocks consume specific fields.
-- **Codegen is available as an escape hatch but not v1.** Because both
-  prebaked AND artist-edited schemas live in git, a build-time step could
-  walk every `_collection.json` and emit `.d.ts` files giving each
-  collection a static row type. We defer this until the v1 runtime
-  accessors prove insufficient for the kinds of hand-coded blocks we end
-  up writing — for the generic template renderer (the 90% case) they are.
+- **Codegen is on the table but deferred.** Because both prebaked
+  and artist-edited schemas live in git, a build-time step could walk
+  every `_collection.json` and emit `.d.ts` files so each collection
+  gets a static row type. The generic template renderer doesn't need
+  it (runtime accessors are enough); if we end up writing many bespoke
+  blocks that consume specific fields, codegen earns its keep.
 
 ### 11. Schema-change guardrails
 
@@ -818,39 +822,47 @@ doesn't republish items. Each is a separate commit on save.
 
 ### 13. Migration plan
 
-The musician-site template is pre-1.0 and has few real-world users (the
-template ships a seed site only). A clean cutover is preferable to a
-feature flag.
+The musician-site template is pre-1.0 and ships only a seed site, so a
+clean cutover beats a feature flag.
 
-The foundation PR (see §15) performs the migration:
+**PR 3** (see §15) performs the migration in one shot:
 
-1. Move `src/content/pages/*.json` → `src/content/collections/pages/items/*.json`
-2. Move `src/content/config/{site,header,appearance}.json` →
+1. Generate `_collection.json` for each of the four existing surfaces
+   (`pages`, `site`, `header`, `appearance`) from the matching Zod
+   schemas in `src/lib/site-config-types.ts`. Each gets
+   `schemaVersion: 1`, the right `isSingleton` flag, and a
+   `slugSourceFieldId` for `pages`.
+2. Move `src/content/pages/*.json` →
+   `src/content/collections/pages/items/<slug>.json`. Wrap each existing
+   file's `{ root, content }` Puck data into a `puckContent` field on
+   the new item shape, generate an `id` (`item_<uuid>`), set
+   `createdAt` / `updatedAt` to the migration time, then write.
+3. Move `src/content/config/{site,header,appearance}.json` →
    `src/content/collections/{site,header,appearance}/items/_singleton.json`
-3. Generate `_collection.json` for each migrated collection from the
-   existing Zod schemas (`siteConfigSchema`, etc. in
-   `src/lib/site-config-types.ts`).
-4. The old `lib/content.ts` page reader becomes a thin adapter over the
-   collection store and is removed once all callers are migrated.
+   with the same wrapping (each existing field becomes a value under the
+   collection's matching field id), generated `id`, and timestamps.
+4. The old `lib/content.ts` page/singleton readers become thin
+   wrappers over the collection store, and are removed once every
+   caller has switched over.
 5. The existing `/admin/pages`, `/admin/settings`, `/admin/navigation`,
-   `/admin/appearance` routes survive as aliases, calling the generic
-   editor under the hood — no admin-UI regression.
+   `/admin/appearance` routes survive as aliases over the generic
+   editor — no admin-UI regression.
 
 External-facing API routes (`/api/publish`, `/api/pages`,
 `/api/save-config`) keep their paths for back-compat in the same PR.
 
 ### 14. Goal 2 (navigation menu into Pages) folded in
 
-The previously-separate Goal 2 ("remove the Navigation menu control and
-fold reordering + visibility into the Pages list") is subsumed by this
-ADR. The Pages collection ships with `defaultSort: { mode: "manual" }`
-(so order is stored in `items/_order.json` per §7) and a `showInNav:
-boolean` field. The Pages list view in the admin supports drag-to-reorder
-(rewrites `_order.json`) and an eye-icon toggle (flips each page's
-`showInNav`). The header reads the ordered list of Pages and filters by
-`showInNav` to build the nav menu. The `/admin/navigation` route shrinks
-to header-style-only controls (wordmark, mode, layout) and may merge into
-`/admin/settings` once the nav-menu UI lives entirely in `/admin/pages`.
+Goal 2 — "remove the Navigation menu control and fold reordering +
+visibility into the Pages list" — is part of this design. The Pages
+collection ships with `defaultSort: { mode: "manual" }` (order in
+`items/_order.json`) and a `showInNav: boolean` field. The Pages list
+in the admin supports drag-to-reorder (rewrites `_order.json`) and an
+eye-icon toggle (flips each page's `showInNav`). The header reads the
+ordered Pages list and filters by `showInNav` to build the nav menu.
+`/admin/navigation` shrinks to header-style controls (wordmark, mode,
+layout) and may fold into `/admin/settings` once the nav-menu UI lives
+entirely in `/admin/pages`.
 
 ### 15. Shipping plan
 
@@ -956,14 +968,21 @@ end up debating "is now the right time" without a reference point.
 
 - **Cross-collection ref integrity.** Deleting an item leaves dangling
   refs in other collections. v1's renderer treats missing refs as
-  "not present" (block doesn't render); the schema/item editors don't
-  warn before delete. The deferred fix is a back-ref index built at
-  write time so editors can show "X items reference this item."
+  "not present" (the block doesn't render); the schema and item
+  editors don't warn before delete. The deferred fix is a back-ref
+  index built at write time so editors can show "X items reference
+  this item."
   *Trigger:* first artist support case caused by a silently-broken
-  ref. The index is cheap to maintain incrementally once added but
-  requires a full backfill the first time, so getting in front of
-  this is mildly easier-now than later — pull forward if we expect
-  ref usage to be heavy early.
+  ref. The index is cheap to maintain incrementally; pull forward if
+  we expect ref usage to be heavy early.
+
+- **Refs to a non-existent target collection.** A `collectionRef` /
+  `multiCollectionRef` with `targetCollection: "tracks"` parses fine
+  even if no tracks collection exists. The renderer would silently
+  show nothing; the schema editor wouldn't warn.
+  *Trigger:* PR 7 ships a real cross-collection ref. The fix is a
+  build-time check that walks every CollectionDef and verifies every
+  ref's target exists.
 
 - **URL preservation on rename.** Renaming an item changes its slug
   and therefore its URL. External links break silently. v1 accepts
@@ -1049,6 +1068,25 @@ end up debating "is now the right time" without a reference point.
   AND an artist's deployment has lagged. Likely solved by tying
   platform releases to artist-site rebuilds.
 
+- **Block-schema evolution.** Puck block configs change between
+  template releases — a `TourDatesView` block might gain or rename a
+  prop. Existing items contain block instances with the old prop
+  shape. Puck handles unknown props by ignoring them and missing
+  props by falling back to `defaultProps`, so v1 inherits that
+  behaviour without action. Becomes a problem if we ship a breaking
+  prop change without a migration.
+  *Trigger:* the first time we want to make a non-additive change
+  to a block's prop schema. The fix is a per-block migration
+  registered alongside the block config.
+
+- **Date field validates shape but not validity.** `2026-02-31`
+  passes the date-field regex but isn't a real date. Same for
+  `2026-13-01`. v1 accepts these; downstream consumers that pass to
+  `Date.parse` get `NaN`.
+  *Trigger:* the first artist who types an invalid date and gets a
+  silent rendering glitch. Trivial fix — tighten the date validator
+  to also `Date.parse` and reject NaN.
+
 - **i18n / localized content.** Not addressed. The model would
   accommodate it via a `locale` field on items + locale-aware
   routing, but neither is in v1.
@@ -1063,31 +1101,29 @@ end up debating "is now the right time" without a reference point.
   *Trigger:* would require a meaningful product case to justify the
   rebuild.
 
-### Easier-now-than-later summary
+### What we built now to avoid pain later
 
-The items where the cost asymmetry is real (modest now, painful or
-lossy later) and already addressed in v1:
+Three additions cost almost nothing today but would be expensive to
+add after artist data exists:
 
-- **`schemaVersion` on every CollectionDef** — costs nothing now;
-  forgetting now means future migrations have to infer "what version
-  is this?" from missing-field heuristics.
-- **`createdAt` / `updatedAt` on every Item** — costs nothing now;
-  forgetting means the timestamps are unrecoverable from git history
-  for items committed before the change.
-- **`currentItemId` vs `currentItemField` filter discriminator** —
-  the sentinel-string alternative (`_id`) could collide with a real
-  FieldId. Fixing the on-disk shape later means a one-off migration
-  pass over every artist's collection files.
+- **`schemaVersion` on every CollectionDef.** Future migrations key
+  off this. Without it, migrations have to guess "what version is
+  this?" from missing fields.
+- **`createdAt` / `updatedAt` on every Item.** Real times can't be
+  recovered from git history for items committed before the change.
+- **`currentItemId` vs `currentItemField` filter discriminator** (not
+  a sentinel string). A real `FieldId` could be `_id`, so the sentinel
+  approach would have eventually collided. Fixing the on-disk shape
+  later means migrating every artist's collection files.
 
-The items where the cost asymmetry exists but we've chosen to wait:
+Two we deferred with eyes open — first add would be cheap, but the
+trigger condition isn't here yet:
 
-- **Back-ref index for ref integrity** — first add is cheap, retrofit
-  needs a backfill. Listed as "trigger: first support case."
-- **id-index for ref resolution** — same trade. Listed as "trigger:
-  any heavily-referenced collection passes ~100 items."
-
-These two are explicit "we'll pay the migration cost when we hit the
-trigger" rather than "we couldn't be bothered."
+- **Back-ref index for ref integrity.** Trigger: the first support
+  case caused by a silently broken ref.
+- **id-index for ref resolution.** Trigger: any heavily-referenced
+  collection passing roughly 100 items. The fix is straightforward;
+  doing it before there's data to backfill is the easy path.
 
 ## Consequences
 
@@ -1104,30 +1140,30 @@ trigger" rather than "we couldn't be bothered."
   generic item editor renders. The existing files become routing aliases
   with minimal logic. Net code reduction over time despite the new
   abstraction layer.
-- **One Puck config per surface, all dynamically composed.** The page-body
-  Puck config registers Primitive blocks + Collection blocks (one per
-  existing collection). The item-template Puck config registers Primitive
-  blocks
-  with binding controls. The two configs are derived from the collection
-  registry at render time, not hand-maintained.
-- **Foundational refactor of the publish layer.** Page-specific publish
-  targets are replaced with collection-item targets. Migration logic
-  inside the publish layer covers the cutover for in-flight artists.
-- **Build-time route generation depends on the collection registry.**
-  Next.js's static export reads the collection list at build time to
-  generate dynamic routes. A misconfigured collection (e.g. two
-  collections claiming `detailUrlPrefix: "/"`) is caught at build, not
-  runtime.
+- **Two Puck configs, both generated from the collection registry.**
+  The page-body config registers Primitive + Collection blocks (one
+  Collection block per existing collection). The item-template config
+  registers Primitive blocks with binding controls. Neither is
+  hand-maintained — both come from walking the registry at editor
+  mount.
+- **The publish layer trades page-specific targets for
+  collection-item targets.** PR 3 also keeps the old `/api/publish` /
+  `/api/pages` / `/api/save-config` endpoint paths so external
+  callers don't break.
+- **Build-time route generation reads the collection registry.**
+  Next.js's static export walks the registry to generate dynamic
+  routes. A misconfigured collection (two collections both at
+  `detailUrlPrefix: "/"`; a Page slug colliding with another
+  collection's prefix root) fails the build, not runtime.
 - **No SSR for the public site (carry-over from ADR-007).** Item template
   rendering happens at build time. A collection with frequently-changing
   items requires a rebuild on each change; current artist scale makes
   this acceptable. Revisit if a collection emerges whose items change
   faster than a rebuild cycle (~minutes).
-- **Schema editing is powerful and corruptive.** Guardrails (§11) mitigate
-  but don't eliminate the risk of an artist accidentally damaging their
-  data. v1 protects with confirmations and blocks the riskiest changes
-  (type changes); future evolution may add an undo / version log on top
-  of the existing git history.
+- **Schema editing can damage data.** Guardrails (§11) reduce the
+  risk — confirmations on field removal, blocked lossy type changes —
+  but don't remove it. The git history of `_collection.json` is the
+  undo log; we may add a friendlier one on top later.
 - **The legacy template is unaffected.** This ADR applies only to
   `templates/musician-site/`. The legacy Astro + Keystatic template at
   `templates/musician-site-legacy/` keeps its static Zod schemas and

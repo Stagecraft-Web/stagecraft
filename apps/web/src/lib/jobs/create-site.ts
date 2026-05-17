@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 import { prisma } from "@stagecraft/db";
@@ -9,7 +8,7 @@ import { generateBrokerSecret } from "@/lib/broker-secret";
 import { createRepo, deleteRepo, findGithubAppInstallation, pushFiles } from "@/lib/integrations/github";
 import { findAppInstallationForOwner } from "@/lib/github-app-token";
 import { createSite as createNetlifySite, setEnvVars as setNetlifyEnvVars } from "@/lib/integrations/netlify";
-import { getResendCredentials, RESEND_SANDBOX_FROM } from "@/lib/integrations/resend";
+import { getResendCredentials } from "@/lib/integrations/resend";
 import {
   createProject as createVercelProject,
   setEnvVars as setVercelEnvVars,
@@ -24,14 +23,6 @@ interface CreateSitePayload {
   name: string;
   slug: string;
   blueprintType: BlueprintType;
-}
-
-function getPlatformUrl(): string {
-  const value = process.env.AUTH_URL;
-  if (!value) {
-    throw new Error("AUTH_URL is not set on the platform");
-  }
-  return value.replace(/\/$/, "");
 }
 
 /**
@@ -298,28 +289,29 @@ export async function handleCreateSite(ctx: JobContext): Promise<JobResult> {
     // 5. Provision the deploy project on the chosen target. Both branches
     //    create the project linked to the GitHub repo and set the same
     //    runtime env vars; only the IDs they return differ.
+    //
+    // Intentionally NOT provisioned here (the template defaults them):
+    //   - STAGECRAFT_PLATFORM_URL — hardcoded prod default in publish.ts
+    //   - MAGIC_LINK_FROM — defaults to Resend sandbox in email.ts;
+    //     only provisioned when the artist has a custom verified
+    //     sender (a future setting; out of scope for now)
+    //   - MAGIC_LINK_SIGNING_SECRET — derived from
+    //     STAGECRAFT_BROKER_SECRET via HKDF inside the template's
+    //     auth.ts (see deriveMagicLinkSecret); one fewer secret to
+    //     provision/rotate per site
     const envVars: Record<string, string> = {
-      MAGIC_LINK_SIGNING_SECRET: randomBytes(32).toString("hex"),
       // ADMIN_EMAIL = the platform user's email-of-record, set during
       // Resend connect by round-tripping a verification code through
       // the artist's own Resend account. Same email everywhere: sign
       // in to Stagecraft, the artist site's /admin, and the inbox that
       // receives magic-link emails.
       ADMIN_EMAIL: user.email,
-      STAGECRAFT_PLATFORM_URL: getPlatformUrl(),
       // STAGECRAFT_SITE_ID, not SITE_ID — Netlify reserves the latter
       // (auto-injects its own Netlify-side site id into Functions). Use
       // the namespaced name on Vercel too so the artist template stays
       // single-codepath.
       STAGECRAFT_SITE_ID: siteId,
       RESEND_API_KEY: resend.apiKey,
-      // Always sandbox sender for now — works on every Resend account
-      // (including send-only keys), and ADMIN_EMAIL is the artist's
-      // Resend account email so sandbox always reaches it. Per-site
-      // custom-domain sender is a future setting that fires only when
-      // the artist has both verified the domain on Resend AND hooked
-      // it up to the Stagecraft site.
-      MAGIC_LINK_FROM: RESEND_SANDBOX_FROM,
       ...(brokerSecret ? { STAGECRAFT_BROKER_SECRET: brokerSecret.plaintext } : {}),
     };
 

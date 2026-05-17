@@ -100,11 +100,12 @@ async function provisionBrokerSecret(args: {
     vercelProjectId: string | null;
     vercelTeamId: string | null;
   };
-  platformUrl: string;
   brokerSecret: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
+  // STAGECRAFT_PLATFORM_URL is intentionally NOT provisioned here —
+  // the artist template's publish.ts defaults to the prod URL, so
+  // there's no per-site value to write.
   const envVars: Record<string, string> = {
-    STAGECRAFT_PLATFORM_URL: args.platformUrl,
     STAGECRAFT_SITE_ID: args.site.id,
     STAGECRAFT_BROKER_SECRET: args.brokerSecret,
   };
@@ -245,13 +246,6 @@ export async function GET(request: Request) {
     name = repos[0].name;
   }
 
-  // Canonical platform URL for the env-var block. Don't use url.origin —
-  // Netlify's edge → Lambda routing can hand the function a deploy-permalink
-  // Host (`<deploy-id>--<site>.netlify.app`) instead of the custom domain,
-  // which would tell the artist to point STAGECRAFT_PLATFORM_URL at a
-  // preview that won't exist after the next deploy.
-  const platformUrl = (process.env.AUTH_URL ?? url.origin).replace(/\/$/, "");
-
   const { plaintext, hash } = generateBrokerSecret();
 
   await prisma.site.update({
@@ -274,7 +268,6 @@ export async function GET(request: Request) {
       vercelProjectId: site.vercelProjectId,
       vercelTeamId: site.vercelTeamId,
     },
-    platformUrl,
     brokerSecret: plaintext,
   });
 
@@ -301,8 +294,7 @@ export async function GET(request: Request) {
 <p>Site <code>${escape(site.name)}</code> is linked to <code>${escape(owner)}/${escape(name)}</code>, but we couldn't push the broker secret to your <strong>${escape(site.deployTarget)}</strong> deploy automatically. Reason: <code>${escape(provisioned.reason)}</code>.</p>
 
 <h2>Set these env vars on your deployed site, then redeploy</h2>
-<pre>STAGECRAFT_PLATFORM_URL=${escape(platformUrl)}
-STAGECRAFT_SITE_ID=${escape(site.id)}
+<pre>STAGECRAFT_SITE_ID=${escape(site.id)}
 STAGECRAFT_BROKER_SECRET=${escape(plaintext)}</pre>
 
 <p><strong>Copy the secret now</strong> — it is shown exactly once and never stored on the platform in plaintext. If you lose it, rotate it from the dashboard; the previous one will stop working.</p>

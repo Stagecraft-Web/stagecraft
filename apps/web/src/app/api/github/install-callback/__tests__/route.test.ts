@@ -239,14 +239,15 @@ describe("GET /api/github/install-callback", () => {
       }),
     });
 
+    // STAGECRAFT_PLATFORM_URL is intentionally NOT in the env-var
+    // bundle — the artist template defaults to the prod URL.
     expect(setNetlifyEnvVarsMock).toHaveBeenCalledWith(
       "user-1",
       "netlify-abc",
-      expect.objectContaining({
-        STAGECRAFT_PLATFORM_URL: expect.any(String),
+      {
         STAGECRAFT_SITE_ID: "site-1",
         STAGECRAFT_BROKER_SECRET: expect.stringMatching(/^scbs_[0-9a-f]{64}$/),
-      }),
+      },
     );
     expect(triggerNetlifyBuildMock).toHaveBeenCalledWith("user-1", "netlify-abc");
     expect(setVercelEnvVarsMock).not.toHaveBeenCalled();
@@ -301,7 +302,9 @@ describe("GET /api/github/install-callback", () => {
     expect(body).toContain("finish setup manually");
     expect(body).toContain("Netlify API error (401): bad token");
     expect(body).toContain("STAGECRAFT_BROKER_SECRET=");
-    expect(body).toMatch(/<pre>STAGECRAFT_PLATFORM_URL=[^<]+<\/pre>/);
+    // The manual env-var block doesn't include STAGECRAFT_PLATFORM_URL
+    // anymore — the artist template defaults it.
+    expect(body).toMatch(/<pre>STAGECRAFT_SITE_ID=[^<]+\nSTAGECRAFT_BROKER_SECRET=[^<]+<\/pre>/);
     // Build trigger should be skipped if setEnvVars failed.
     expect(triggerNetlifyBuildMock).not.toHaveBeenCalled();
 

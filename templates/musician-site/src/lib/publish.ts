@@ -35,16 +35,31 @@ export type PublishResult = {
   mode: "github" | "local";
 };
 
+/**
+ * The canonical Stagecraft platform URL — used to build the broker
+ * endpoint. Override with `STAGECRAFT_PLATFORM_URL` if you ever need
+ * to point an artist site at a staging platform or fork. Otherwise
+ * this default keeps artist sites pointed at prod without a per-site
+ * env var.
+ */
+const STAGECRAFT_PLATFORM_URL_DEFAULT = "https://stagecraft.website";
+
 export type Env = {
-  platformUrl: string | undefined;
+  platformUrl: string;
   siteId: string | undefined;
   brokerSecret: string | undefined;
   branch: string;
 };
 
 export function readEnv(): Env {
+  // Always have a platformUrl — defaults to the prod URL — so the only
+  // thing that triggers the dev-local-disk fallback is missing siteId
+  // or brokerSecret.
+  const overridden = process.env.STAGECRAFT_PLATFORM_URL?.replace(/\/$/, "");
   return {
-    platformUrl: process.env.STAGECRAFT_PLATFORM_URL?.replace(/\/$/, ""),
+    platformUrl: overridden && overridden.length > 0
+      ? overridden
+      : STAGECRAFT_PLATFORM_URL_DEFAULT,
     // STAGECRAFT_SITE_ID, not SITE_ID — the latter is reserved by Netlify
     // (injected automatically into Functions to identify the Netlify site).
     siteId: process.env.STAGECRAFT_SITE_ID,
@@ -55,10 +70,12 @@ export function readEnv(): Env {
 
 /**
  * Whether the production path is fully configured. When false, publishPage
- * falls back to writing JSON locally (dev mode).
+ * falls back to writing JSON locally (dev mode). `platformUrl` is always
+ * present (hardcoded default), so the only things that matter are siteId
+ * and brokerSecret — both provisioned by the platform.
  */
 export function isPlatformConfigured(env: Env = readEnv()): boolean {
-  return Boolean(env.platformUrl && env.siteId && env.brokerSecret);
+  return Boolean(env.siteId && env.brokerSecret);
 }
 
 export async function fetchPublishToken(env: Env): Promise<{

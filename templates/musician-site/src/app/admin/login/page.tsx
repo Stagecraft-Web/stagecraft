@@ -8,6 +8,7 @@ export default async function LoginPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const isDev = process.env.NODE_ENV !== "production";
 
   if (params.sent) {
     return (
@@ -58,7 +59,35 @@ export default async function LoginPage({
         <button type="submit" style={{ padding: "var(--space-2) var(--space-4)" }}>
           Send sign-in link
         </button>
+        {isDev ? (
+          <button
+            type="submit"
+            formAction="/api/auth/dev-login"
+            formNoValidate
+            style={{
+              marginLeft: "var(--space-2)",
+              padding: "var(--space-2) var(--space-4)",
+              background: "transparent",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-muted)",
+              fontSize: "var(--font-size-sm)",
+            }}
+          >
+            Sign in as dev admin (skip magic link)
+          </button>
+        ) : null}
       </form>
+      {isDev ? (
+        <p
+          style={{
+            marginTop: "var(--space-4)",
+            color: "var(--color-text-muted)",
+            fontSize: "var(--font-size-sm)",
+          }}
+        >
+          Dev-only: the second button skips the magic-link round-trip and signs you in directly. Disabled in production.
+        </p>
+      ) : null}
     </main>
   );
 }

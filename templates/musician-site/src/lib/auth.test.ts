@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMagicLinkToken,
@@ -18,6 +18,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = ORIGINAL_ENV;
+  vi.unstubAllEnvs();
 });
 
 describe("auth tokens", () => {
@@ -84,11 +85,21 @@ describe("auth tokens: secret derived from STAGECRAFT_BROKER_SECRET", () => {
     expect(await verifySessionToken(token)).toBeNull();
   });
 
-  it("throws when neither secret is set", async () => {
+  it("throws in production when neither secret is set", async () => {
     delete process.env.MAGIC_LINK_SIGNING_SECRET;
     delete process.env.STAGECRAFT_BROKER_SECRET;
+    vi.stubEnv("NODE_ENV", "production");
     await expect(createSessionToken("user@example.com")).rejects.toThrow(
       /Neither MAGIC_LINK_SIGNING_SECRET nor STAGECRAFT_BROKER_SECRET/,
     );
+  });
+
+  it("falls back to a hardcoded dev secret when neither is set in dev", async () => {
+    delete process.env.MAGIC_LINK_SIGNING_SECRET;
+    delete process.env.STAGECRAFT_BROKER_SECRET;
+    vi.stubEnv("NODE_ENV", "development");
+
+    const token = await createSessionToken("user@example.com");
+    expect(await verifySessionToken(token)).toEqual({ email: "user@example.com" });
   });
 });

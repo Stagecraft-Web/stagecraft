@@ -158,8 +158,8 @@ Single allowed email per site, gated by middleware. Magic-link flow:
 
 | Var | Required | Notes |
 | --- | --- | --- |
-| `MAGIC_LINK_SIGNING_SECRET` | yes | Random string, ≥32 bytes. Used to sign JWTs (HS256). Rotate forces re-login. |
-| `ADMIN_EMAIL` | yes | Single allowed email. Anything else gets the same "check your email" response (no enumeration). |
+| `MAGIC_LINK_SIGNING_SECRET` | prod | Random string, ≥32 bytes. Used to sign JWTs (HS256). Rotate forces re-login. In dev, falls back to a hardcoded placeholder if unset. |
+| `ADMIN_EMAIL` | prod | Single allowed email. Anything else gets the same "check your email" response (no enumeration). In dev, when unset, the request handler accepts any submitted email. |
 | `RESEND_API_KEY` + `MAGIC_LINK_FROM` | prod | Provisioned automatically by `/create` from the artist's own Resend account (connected at `/settings` on the platform). Each artist site uses its owner's account end-to-end — the platform never sees recipient addresses. Without these, magic links log to the dev server console. |
 
 **Cookie:** `mc_session`, HttpOnly, SameSite=Lax, 7-day max age. `Secure` flag set in production.
@@ -168,7 +168,9 @@ Middleware (`src/middleware.ts`) gates `/admin/*` and `/api/save`. `/admin/login
 
 **Server-side session access:** `getSession()` from `@/lib/auth` reads the cookie and verifies it. Use it in Server Components and route handlers.
 
-**Local setup:** copy `.env.example` to `.env.local` and fill in `MAGIC_LINK_SIGNING_SECRET` + `ADMIN_EMAIL`. With `RESEND_API_KEY` / `MAGIC_LINK_FROM` unset, magic links log to the dev server console. In dev only, the request handler also emits a `console.warn` when `ADMIN_EMAIL` is missing or the submitted email doesn't match — production stays silent to prevent enumeration.
+**Local setup (zero-config):** `npm run dev`, visit `/admin/login`, click **Sign in as dev admin (skip magic link)**. The button only renders when `NODE_ENV !== "production"` and POSTs to `/api/auth/dev-login`, which returns 404 in production. The auth library also falls back to a hardcoded dev secret when both `MAGIC_LINK_SIGNING_SECRET` and `STAGECRAFT_BROKER_SECRET` are unset (dev only), so no env vars are needed to sign in.
+
+**Local setup (production-faithful):** copy `.env.example` to `.env.local` and fill in `MAGIC_LINK_SIGNING_SECRET` + `ADMIN_EMAIL`. Use the regular "Send sign-in link" button — with `RESEND_API_KEY` / `MAGIC_LINK_FROM` unset, the magic-link URL logs to the dev server console; copy/paste it into the browser. In dev only, the request handler emits a `console.warn` when the submitted email doesn't match `ADMIN_EMAIL` (production stays silent to prevent enumeration).
 
 **Logging out:** the editor header shows the signed-in email and a Sign out button that POSTs to `/api/auth/logout`. The endpoint is POST-only by design — a GET logout would be a CSRF foot-gun (any external `<img src>` could log everyone out).
 

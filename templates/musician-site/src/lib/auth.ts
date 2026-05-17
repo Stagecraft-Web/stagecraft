@@ -45,6 +45,19 @@ async function deriveMagicLinkSecret(brokerSecret: string): Promise<Uint8Array> 
   return new Uint8Array(signature);
 }
 
+/**
+ * Dev-only fallback signing secret. Used when neither
+ * MAGIC_LINK_SIGNING_SECRET nor STAGECRAFT_BROKER_SECRET is set AND
+ * the process is not running in production. Lets a fresh clone sign
+ * into /admin without writing any env vars (pairs with the dev-login
+ * button on /admin/login).
+ *
+ * Never used in production — getSecret() throws there if no secret
+ * is configured.
+ */
+const DEV_FALLBACK_SECRET =
+  "dev-only-magic-link-secret-do-not-use-in-prod";
+
 async function getSecret(): Promise<Uint8Array> {
   // Prefer an explicit MAGIC_LINK_SIGNING_SECRET so dev environments
   // and any legacy artist sites that have it set continue working.
@@ -54,6 +67,10 @@ async function getSecret(): Promise<Uint8Array> {
 
   const brokerSecret = process.env.STAGECRAFT_BROKER_SECRET;
   if (brokerSecret) return deriveMagicLinkSecret(brokerSecret);
+
+  if (process.env.NODE_ENV !== "production") {
+    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+  }
 
   throw new Error(
     "Neither MAGIC_LINK_SIGNING_SECRET nor STAGECRAFT_BROKER_SECRET is set",

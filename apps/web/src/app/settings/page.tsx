@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
 
+import { STAGECRAFT_GITHUB_APP_INSTALL_URL } from "@/lib/install-url";
 import { ConnectNetlify } from "./ConnectNetlify";
 import { ConnectResend } from "./ConnectResend";
 import { ConnectVercel } from "./ConnectVercel";
@@ -16,7 +17,7 @@ export default async function SettingsPage({
 
   const params = await searchParams;
 
-  const githubAppInstallUrl = process.env.GITHUB_APP_INSTALL_URL ?? null;
+  const githubAppInstallUrl = STAGECRAFT_GITHUB_APP_INSTALL_URL;
 
   const integrations = await prisma.integrationAccount.findMany({
     where: { userId: session.user.id },

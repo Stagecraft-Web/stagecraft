@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
@@ -9,12 +10,43 @@ const SESSION_TTL = "7d";
 
 type TokenType = "magic-link" | "session";
 
+/**
+ * Derive the magic-link signing secret deterministically from the
+ * site's broker secret. Both are per-site secrets the artist site
+ * uses internally; deriving one from the other saves provisioning a
+ * second env var on every site.
+ *
+ * Domain-separation tag `"magic-link/v1"` future-proofs the derivation
+ * — if we ever need to rotate the magic-link secret independent of the
+ * broker secret (e.g. cookie format change), bump to v2 to invalidate
+ * existing sessions without touching STAGECRAFT_BROKER_SECRET.
+ *
+ * Rotating STAGECRAFT_BROKER_SECRET also rotates this — by design.
+ * Existing magic-link sessions get invalidated, artists re-sign-in.
+ * Tokens are short-lived (7d session, 10m magic-link), so the impact
+ * is small.
+ */
+function deriveMagicLinkSecret(brokerSecret: string): string {
+  return createHmac("sha256", brokerSecret)
+    .update("magic-link/v1")
+    .digest("hex");
+}
+
 function getSecret(): Uint8Array {
-  const value = process.env.MAGIC_LINK_SIGNING_SECRET;
-  if (!value) {
-    throw new Error("MAGIC_LINK_SIGNING_SECRET is not set");
+  // Prefer an explicit MAGIC_LINK_SIGNING_SECRET so dev environments
+  // and any legacy artist sites that have it set continue working.
+  // New sites get just STAGECRAFT_BROKER_SECRET — derive from that.
+  const explicit = process.env.MAGIC_LINK_SIGNING_SECRET;
+  if (explicit) return new TextEncoder().encode(explicit);
+
+  const brokerSecret = process.env.STAGECRAFT_BROKER_SECRET;
+  if (brokerSecret) {
+    return new TextEncoder().encode(deriveMagicLinkSecret(brokerSecret));
   }
-  return new TextEncoder().encode(value);
+
+  throw new Error(
+    "Neither MAGIC_LINK_SIGNING_SECRET nor STAGECRAFT_BROKER_SECRET is set",
+  );
 }
 
 async function signToken(email: string, type: TokenType, ttl: string): Promise<string> {

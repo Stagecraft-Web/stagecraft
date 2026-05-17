@@ -116,7 +116,14 @@ const VERCEL_PROJECT_RESULT = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env = { ...ORIGINAL_ENV, AUTH_URL: "https://stagecraft.test" };
+  process.env = {
+    ...ORIGINAL_ENV,
+    AUTH_URL: "https://stagecraft.test",
+    // Override the artist-site broker URL away from the prod default
+    // so these tests don't depend on (or coincide with) the hardcoded
+    // production URL in platform-url.ts.
+    STAGECRAFT_PUBLIC_URL: "https://stagecraft.test",
+  };
   mockSiteUpdate.mockResolvedValue({});
   mockUserFindUnique.mockResolvedValue({ id: "user-1", email: "artist@example.com" });
   mockIntegrationFindUnique.mockResolvedValue({ accessToken: "token" });
@@ -220,13 +227,14 @@ describe("handleCreateSite — Netlify path (only Netlify connected)", () => {
     const [envUserId, envSiteId, envVars] = mockSetNetlifyEnvVars.mock.calls[0];
     expect(envUserId).toBe("user-1");
     expect(envSiteId).toBe("netlify-123");
+    // The artist template defaults STAGECRAFT_PLATFORM_URL (prod URL),
+    // derives MAGIC_LINK_SIGNING_SECRET from STAGECRAFT_BROKER_SECRET,
+    // and defaults MAGIC_LINK_FROM to the Resend sandbox — none of
+    // those land in the per-site env-var bundle anymore.
     expect(envVars).toEqual({
-      MAGIC_LINK_SIGNING_SECRET: expect.stringMatching(/^[0-9a-f]{64}$/),
       ADMIN_EMAIL: "artist@example.com",
-      STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
       RESEND_API_KEY: "re_test",
-      MAGIC_LINK_FROM: "onboarding@resend.dev",
     });
   });
 
@@ -347,12 +355,9 @@ describe("handleCreateSite — Vercel path (Vercel connected)", () => {
     expect(args.userId).toBe("user-1");
     expect(args.projectId).toBe("prj_abc123");
     expect(args.vars).toEqual({
-      MAGIC_LINK_SIGNING_SECRET: expect.stringMatching(/^[0-9a-f]{64}$/),
       ADMIN_EMAIL: "artist@example.com",
-      STAGECRAFT_PLATFORM_URL: "https://stagecraft.test",
       STAGECRAFT_SITE_ID: "site-1",
       RESEND_API_KEY: "re_test",
-      MAGIC_LINK_FROM: "onboarding@resend.dev",
     });
   });
 
@@ -533,7 +538,7 @@ describe("handleCreateSite — broker secret upfront provisioning", () => {
 });
 
 describe("handleCreateSite — per-artist Resend provisioning", () => {
-  it("provisions RESEND_API_KEY from artist's Resend account; MAGIC_LINK_FROM is always the sandbox sender", async () => {
+  it("provisions RESEND_API_KEY from artist's Resend account (MAGIC_LINK_FROM defaults inside the template)", async () => {
     mockIntegrationFindMany.mockResolvedValue([{ provider: "vercel", metadata: null }]);
     mockGetResendCredentials.mockResolvedValue({ apiKey: "re_artist_specific" });
 
@@ -542,7 +547,11 @@ describe("handleCreateSite — per-artist Resend provisioning", () => {
     expect(result.success).toBe(true);
     const envVarsCall = mockSetVercelEnvVars.mock.calls[0][0];
     expect(envVarsCall.vars.RESEND_API_KEY).toBe("re_artist_specific");
-    expect(envVarsCall.vars.MAGIC_LINK_FROM).toBe("onboarding@resend.dev");
+    // MAGIC_LINK_FROM is intentionally NOT provisioned — the template
+    // defaults to the Resend sandbox sender, which works for every
+    // artist without a verified domain. Only provisioned when the
+    // artist sets a custom sender (future).
+    expect(envVarsCall.vars.MAGIC_LINK_FROM).toBeUndefined();
   });
 
   it("ADMIN_EMAIL comes from User.email (set by Resend connect)", async () => {

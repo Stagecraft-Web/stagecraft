@@ -21,6 +21,12 @@ export type CommitArgs = {
   /** Commit message subject + optional body. */
   message: string;
   files: FileToCommit[];
+  /**
+   * Paths to delete in the same commit (relative to repo root). Useful for
+   * page deletion. Combined with `files` so a single publish can rename
+   * (write new + delete old) atomically.
+   */
+  deletePaths?: string[];
   /** Author appears in `git log`. Defaults to a generic author if omitted. */
   author?: { name: string; email: string };
 };
@@ -32,6 +38,9 @@ export type CommitArgs = {
  *
  * The flow: get HEAD ref → get tree → create blobs → create tree →
  * create commit → update ref. See ADR-007 §5 and ADR-008.
+ *
+ * `deletePaths` items are added as tree entries with `sha: null`, which the
+ * GitHub API treats as "remove from tree" relative to `base_tree`.
  */
 export async function commitFiles(args: CommitArgs): Promise<string> {
   const octokit = new Octokit({ auth: args.token });
@@ -55,18 +64,41 @@ export async function commitFiles(args: CommitArgs): Promise<string> {
     }),
   );
 
-  const tree = await octokit.git.createTree({
+  // GitHub's TS types model the tree entry's `sha` as `string`, but the
+  // REST API also accepts `null` to delete. Force-cast at the array level
+  // so we can construct a heterogeneous tree without losing the rest of
+  // the type-checking.
+  type TreeEntry = {
+    path: string;
+    mode: "100644";
+    type: "blob";
+    sha: string | null;
+  };
+  const tree: TreeEntry[] = [
+    ...blobs.map((b) => ({ path: b.path, mode: "100644" as const, type: "blob" as const, sha: b.sha })),
+    ...(args.deletePaths ?? []).map((p) => ({
+      path: p,
+      mode: "100644" as const,
+      type: "blob" as const,
+      sha: null,
+    })),
+  ];
+
+  // Octokit's TS type for `tree` doesn't model `sha: null` as a deletion,
+  // but the REST endpoint accepts it. Cast to bypass the typed property
+  // check; runtime behaviour is what we're asserting in git-commit.test.ts.
+  const createdTree = await octokit.git.createTree({
     owner,
     repo,
     base_tree: baseTreeSha,
-    tree: blobs.map((b) => ({ path: b.path, mode: "100644", type: "blob", sha: b.sha })),
-  });
+    tree,
+  } as unknown as Parameters<typeof octokit.git.createTree>[0]);
 
   const commit = await octokit.git.createCommit({
     owner,
     repo,
     message: args.message,
-    tree: tree.data.sha,
+    tree: createdTree.data.sha,
     parents: [headSha],
     author: args.author,
   });

@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { commitFilesMock } = vi.hoisted(() => ({ commitFilesMock: vi.fn() }));
 vi.mock("./git-commit", () => ({ commitFiles: commitFilesMock }));
 
-import { PublishError, publishPage, isPlatformConfigured } from "./publish";
+import { PublishError, publish, publishPage, isPlatformConfigured } from "./publish";
+import {
+  DEFAULT_APPEARANCE,
+  DEFAULT_HEADER_CONFIG,
+  DEFAULT_SITE_CONFIG,
+} from "./site-config-types";
 
 const TEST_SLUG = "publish-test";
 const TEST_FILE = path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}.json`);
@@ -174,5 +179,124 @@ describe("publishPage — broker + GitHub path", () => {
     commitFilesMock.mockResolvedValue("sha");
     await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
     expect(commitFilesMock.mock.calls[0][0].branch).toBe("develop");
+  });
+});
+
+const TEST_FILES_TO_CLEAN = [
+  path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}.json`),
+  path.join(process.cwd(), "src/content/pages", `${TEST_SLUG}-2.json`),
+];
+
+afterEach(async () => {
+  await Promise.all(TEST_FILES_TO_CLEAN.map((f) => fs.rm(f, { force: true })));
+});
+
+describe("publish — multi-target API", () => {
+  it("rejects empty target list", async () => {
+    await expect(
+      publish({ targets: [], authorEmail: "a@e.com" }),
+    ).rejects.toBeInstanceOf(PublishError);
+  });
+
+  it("dev fallback writes site-config to disk", async () => {
+    // Snapshot the existing site.json (if any) so the test doesn't leave
+    // the repo dirty. Restore the original on exit; if there was no
+    // original, remove the file we just wrote.
+    const sitePath = path.join(process.cwd(), "src/content/config/site.json");
+    const original = await fs.readFile(sitePath, "utf-8").catch(() => null);
+    try {
+      const cfg = { ...DEFAULT_SITE_CONFIG, artistName: "Multi-target Test" };
+      const out = await publish({
+        targets: [{ kind: "site-config", data: cfg }],
+        authorEmail: "a@e.com",
+      });
+      expect(out.mode).toBe("local");
+      const written = JSON.parse(await fs.readFile(sitePath, "utf-8"));
+      expect(written.artistName).toBe("Multi-target Test");
+    } finally {
+      if (original !== null) {
+        await fs.writeFile(sitePath, original, "utf-8");
+      } else {
+        await fs.rm(sitePath, { force: true });
+      }
+    }
+  });
+
+  it("commits multiple targets in a single GitHub commit when configured", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("multi-sha");
+    const result = await publish({
+      targets: [
+        { kind: "page", slug: TEST_SLUG, data: { content: [], root: {} } },
+        { kind: "site-config", data: DEFAULT_SITE_CONFIG },
+        { kind: "header-config", data: DEFAULT_HEADER_CONFIG },
+        { kind: "appearance", data: DEFAULT_APPEARANCE },
+      ],
+      authorEmail: "a@e.com",
+    });
+    expect(result.commitSha).toBe("multi-sha");
+    expect(commitFilesMock).toHaveBeenCalledTimes(1);
+    const call = commitFilesMock.mock.calls[0][0];
+    expect(call.files.map((f: { path: string }) => f.path)).toEqual([
+      `src/content/pages/${TEST_SLUG}.json`,
+      "src/content/config/site.json",
+      "src/content/config/header.json",
+      "src/content/config/appearance.json",
+    ]);
+  });
+
+  it("delete-page produces a deletePath rather than a file write", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("del-sha");
+    await publish({
+      targets: [{ kind: "delete-page", slug: TEST_SLUG }],
+      authorEmail: "a@e.com",
+    });
+    const call = commitFilesMock.mock.calls[0][0];
+    expect(call.files).toHaveLength(0);
+    expect(call.deletePaths).toEqual([`src/content/pages/${TEST_SLUG}.json`]);
+  });
+
+  it("validates site-config before commit (fails on bad email)", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "site-config",
+            data: { ...DEFAULT_SITE_CONFIG, contactEmail: "not-an-email" } as never,
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("commit subject summarises targets", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await publish({
+      targets: [
+        { kind: "page", slug: "home", data: {} },
+        { kind: "site-config", data: DEFAULT_SITE_CONFIG },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const message = commitFilesMock.mock.calls[0][0].message as string;
+    expect(message).toMatch(/^Update pages: home \+ site settings/);
+  });
+
+  it("custom commitSubject overrides the auto summary", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await publish({
+      targets: [{ kind: "page", slug: TEST_SLUG, data: {} }],
+      authorEmail: "a@e.com",
+      commitSubject: "Custom subject line",
+    });
+    const message = commitFilesMock.mock.calls[0][0].message as string;
+    expect(message).toMatch(/^Custom subject line/);
   });
 });

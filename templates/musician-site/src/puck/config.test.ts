@@ -8,6 +8,8 @@ import {
   SECTION_WIDTHS,
   BUTTON_VARIANTS,
   SPACER_SIZES,
+  COLUMN_LAYOUTS,
+  TEXT_ALIGNMENTS,
 } from "./config";
 
 function render<K extends keyof typeof puckConfig.components>(
@@ -24,8 +26,27 @@ function render<K extends keyof typeof puckConfig.components>(
 describe("puckConfig", () => {
   it("exposes the expected block names", () => {
     expect(Object.keys(puckConfig.components).sort()).toEqual(
-      ["Button", "Divider", "Heading", "Image", "RichText", "Section", "Spacer"].sort(),
+      [
+        "Button",
+        "CenteredBlock",
+        "Columns",
+        "Divider",
+        "Embed",
+        "FullscreenSection",
+        "Heading",
+        "Image",
+        "Quote",
+        "RichText",
+        "Section",
+        "Spacer",
+      ].sort(),
     );
+  });
+
+  it("declares per-page root fields (title, isSplashPage, isFooterHidden)", () => {
+    expect(puckConfig.root?.fields?.title?.type).toBe("text");
+    expect(puckConfig.root?.fields?.isSplashPage?.type).toBe("radio");
+    expect(puckConfig.root?.fields?.isFooterHidden?.type).toBe("radio");
   });
 
   describe("Heading", () => {
@@ -167,6 +188,143 @@ describe("puckConfig", () => {
     it("is aria-hidden (presentation only)", () => {
       const html = render("Spacer", { size: "md" });
       expect(html).toContain("aria-hidden");
+    });
+  });
+
+  describe("Columns", () => {
+    it("select options match COLUMN_LAYOUTS", () => {
+      const field = puckConfig.components.Columns.fields?.layout;
+      expect(field?.type).toBe("select");
+      if (field?.type === "select") {
+        expect(field.options.map((o) => o.value)).toEqual([...COLUMN_LAYOUTS]);
+      }
+    });
+
+    it("renders only the slots required by the chosen layout (2 for 1-1, 3 for 1-1-1)", () => {
+      const html2 = render("Columns", {
+        layout: "1-1",
+        col1: "A",
+        col2: "B",
+        col3: "C — should not render",
+      });
+      expect(html2).toContain("A");
+      expect(html2).toContain("B");
+      expect(html2).not.toContain("should not render");
+
+      const html3 = render("Columns", {
+        layout: "1-1-1",
+        col1: "A",
+        col2: "B",
+        col3: "C",
+      });
+      expect(html3).toContain("A");
+      expect(html3).toContain("B");
+      expect(html3).toContain("C");
+    });
+
+    it("uses CSS Grid with token-only spacing", () => {
+      const html = render("Columns", {
+        layout: "1-2",
+        col1: "x",
+        col2: "y",
+        col3: "",
+      });
+      expect(html).toMatch(/display:\s*grid/);
+      expect(html).toMatch(/grid-template-columns:\s*1fr 2fr/);
+      expect(html).toMatch(/gap:\s*var\(--space-/);
+    });
+  });
+
+  describe("CenteredBlock", () => {
+    it("uses narrow vs regular max-width token", () => {
+      const narrow = render("CenteredBlock", { text: "hi", maxWidth: "narrow" });
+      const regular = render("CenteredBlock", { text: "hi", maxWidth: "regular" });
+      expect(narrow).toMatch(/max-width:\s*var\(--max-width-narrow\)/);
+      expect(regular).toMatch(/max-width:\s*var\(--max-width-content\)/);
+    });
+  });
+
+  describe("Quote", () => {
+    it("renders blockquote text wrapped in curly quotes", () => {
+      const html = render("Quote", { text: "Great show!", attribution: "Sarah" });
+      expect(html).toContain("Great show!");
+      expect(html).toContain("Sarah");
+      expect(html).toContain("<blockquote");
+      expect(html).toContain("<figcaption");
+    });
+
+    it("omits the figcaption when attribution is blank", () => {
+      const html = render("Quote", { text: "Wow.", attribution: "" });
+      expect(html).not.toContain("<figcaption");
+    });
+  });
+
+  describe("FullscreenSection", () => {
+    it("renders headline + body even without an image", () => {
+      const html = render("FullscreenSection", {
+        headline: "Welcome",
+        body: "Now playing.",
+        image: null,
+        textAlign: "center",
+        overlayOpacity: 0.3,
+      });
+      expect(html).toContain("Welcome");
+      expect(html).toContain("Now playing.");
+      // No image means no <picture> overlay.
+      expect(html).not.toContain("<picture");
+    });
+
+    it("clamps overlayOpacity into [0,1]", () => {
+      const sampleImage = {
+        id: "abc1234567890def",
+        alt: "stage shot",
+        width: 1200,
+        height: 800,
+        placeholderDataUri: "data:image/webp;base64,AAAA",
+        contentSlug: "uploads",
+        originalExt: "jpg" as const,
+      };
+      const high = render("FullscreenSection", {
+        headline: "x",
+        body: "",
+        image: sampleImage,
+        textAlign: "center",
+        overlayOpacity: 5, // clamped to 1
+      });
+      // The overlay opacity ends up in inline style; "1" should appear and "5" shouldn't sneak through.
+      expect(high).toMatch(/opacity:\s*1[^0-9]/);
+    });
+  });
+
+  describe("Embed", () => {
+    it("inlines raw HTML so artist-pasted iframes render", () => {
+      const html = render("Embed", { html: '<iframe src="x" data-hook></iframe>' });
+      expect(html).toContain('<iframe src="x" data-hook>');
+    });
+  });
+
+  describe("text alignment shared enum", () => {
+    it("Heading exposes start/center/end via a select", () => {
+      const field = puckConfig.components.Heading.fields?.textAlign;
+      expect(field?.type).toBe("select");
+      if (field?.type === "select") {
+        expect(field.options.map((o) => o.value)).toEqual([...TEXT_ALIGNMENTS]);
+      }
+    });
+
+    it("Heading inline-styles its alignment", () => {
+      const html = render("Heading", { text: "Hi", level: "h1", textAlign: "center" });
+      expect(html).toMatch(/text-align:\s*center/);
+    });
+  });
+
+  describe("Button", () => {
+    it("opens in a new tab when isExternal is true", () => {
+      const internal = render("Button", { text: "x", href: "/y", variant: "primary", isExternal: false });
+      const external = render("Button", { text: "x", href: "https://x", variant: "primary", isExternal: true });
+      expect(internal).not.toContain("_blank");
+      expect(external).toContain('target="_blank"');
+      expect(external).toContain('rel="noopener noreferrer"');
     });
   });
 

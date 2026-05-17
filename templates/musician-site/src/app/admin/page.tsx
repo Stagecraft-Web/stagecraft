@@ -1,9 +1,10 @@
-import { getSession } from "@/lib/auth";
-import { readPage } from "@/lib/content";
-import { Editor } from "./Editor";
+import { redirect } from "next/navigation";
 
-export default async function AdminPage() {
-  const pageSlug = "home";
-  const [data, session] = await Promise.all([readPage(pageSlug), getSession()]);
-  return <Editor initialData={data} pageSlug={pageSlug} email={session?.email ?? ""} />;
+/**
+ * `/admin` is just the sidebar's "home" — the Pages panel is the actual
+ * landing surface because that's where new sites pick up. Redirecting here
+ * keeps the URL stable across content edits.
+ */
+export default function AdminRoot() {
+  redirect("/admin/pages");
 }

@@ -2,8 +2,10 @@
 
 import { Puck } from "@measured/puck";
 import "@measured/puck/puck.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 
+import { AdminAccountButton } from "@/components/admin/AdminAccountButton";
 import { puckConfig } from "@/puck/config";
 import type { PageData } from "@/lib/content";
 import type { DeployState } from "@/lib/deploy-status";
@@ -212,9 +214,38 @@ export function Editor({ initialData, pageSlug, email }: Props) {
       overrides={{
         headerActions: ({ children }) => (
           <>
+            <Link
+              href="/admin/pages"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "var(--space-1)",
+                padding: "var(--space-1) var(--space-3)",
+                fontSize: "var(--font-size-xs)",
+                fontWeight: "var(--font-weight-semibold)" as unknown as number,
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+                textDecoration: "none",
+              }}
+              title="Back to pages list"
+            >
+              ← Pages
+            </Link>
+            <span
+              style={{
+                fontSize: "var(--font-size-xs)",
+                color: "var(--color-text-muted)",
+                fontFamily: "var(--font-mono)",
+              }}
+              title="Page slug"
+            >
+              /{pageSlug}
+            </span>
             <PublishStatusPill state={publishState} />
             {children}
-            <UserMenu email={email} />
+            <AdminAccountButton email={email} />
           </>
         ),
       }}
@@ -394,110 +425,3 @@ function Dot() {
   );
 }
 
-function UserMenu({ email }: { email: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    function handle(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [isOpen]);
-
-  const initial = (email[0] ?? "?").toUpperCase();
-
-  return (
-    <div ref={containerRef} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        aria-label={`Account menu (signed in as ${email || "unknown"})`}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        style={{
-          width: "1.75rem",
-          height: "1.75rem",
-          borderRadius: "50%",
-          border: "1px solid var(--color-border)",
-          background: "var(--color-surface-raised)",
-          color: "var(--color-text)",
-          fontSize: "var(--font-size-xs)",
-          fontWeight: "var(--font-weight-semibold)" as unknown as number,
-          cursor: "pointer",
-          padding: 0,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {initial}
-      </button>
-      {isOpen ? (
-        <div
-          role="menu"
-          style={{
-            position: "absolute",
-            top: "calc(100% + var(--space-1))",
-            right: 0,
-            minWidth: "12rem",
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius)",
-            padding: "var(--space-2)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            zIndex: 1000,
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-2)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "var(--font-size-xs)",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            Signed in as
-          </div>
-          <div
-            style={{
-              fontSize: "var(--font-size-sm)",
-              fontWeight: "var(--font-weight-semibold)" as unknown as number,
-              color: "var(--color-text)",
-              wordBreak: "break-all",
-            }}
-          >
-            {email || "(unknown)"}
-          </div>
-          <form
-            action="/api/auth/logout"
-            method="POST"
-            style={{ margin: 0 }}
-            onSubmit={() => setIsOpen(false)}
-          >
-            <button
-              type="submit"
-              style={{
-                width: "100%",
-                padding: "var(--space-1) var(--space-3)",
-                fontSize: "var(--font-size-sm)",
-                border: "1px solid var(--color-border)",
-                background: "var(--color-surface)",
-                color: "var(--color-text)",
-                cursor: "pointer",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      ) : null}
-    </div>
-  );
-}

@@ -142,6 +142,45 @@ describe("commitFiles", () => {
     );
   });
 
+  it("includes delete tree entries (sha: null) for deletePaths", async () => {
+    setupHappyPath();
+    await commitFiles({
+      token: "t",
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      message: "msg",
+      files: [{ path: "src/content/pages/new.json", content: "{}" }],
+      deletePaths: ["src/content/pages/old.json"],
+    });
+    // Blob is created only for the write — deletes have no blob.
+    expect(createBlob).toHaveBeenCalledTimes(1);
+
+    const treeArg = createTree.mock.calls[0][0] as { tree: { path: string; sha: string | null }[] };
+    expect(treeArg.tree).toHaveLength(2);
+    expect(treeArg.tree).toContainEqual(
+      expect.objectContaining({ path: "src/content/pages/new.json", sha: expect.any(String) }),
+    );
+    expect(treeArg.tree).toContainEqual(
+      expect.objectContaining({ path: "src/content/pages/old.json", sha: null }),
+    );
+  });
+
+  it("supports a deletion-only commit (no writes)", async () => {
+    setupHappyPath();
+    await commitFiles({
+      token: "t",
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      message: "delete page",
+      files: [],
+      deletePaths: ["src/content/pages/gone.json"],
+    });
+    expect(createBlob).not.toHaveBeenCalled();
+    expect(createCommit).toHaveBeenCalledTimes(1);
+  });
+
   it("propagates octokit errors", async () => {
     getRef.mockRejectedValue(new Error("404"));
     await expect(

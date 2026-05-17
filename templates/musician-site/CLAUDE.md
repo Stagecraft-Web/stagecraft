@@ -29,17 +29,90 @@ block configs from the cross-system SSOT rule in the top-level
 ```
 src/
   app/
-    page.tsx              Public catch-all (renders Puck JSON via <Render>)
-    admin/page.tsx        /admin server entry — loads JSON
-    admin/Editor.tsx      Client component that hosts <Puck>
-    api/save/route.ts     Dev save endpoint (writes to disk)
+    (public)/
+      layout.tsx            Public layout: injects appearance CSS vars +
+                            Google Fonts <link>
+      [[...slug]]/page.tsx  Catch-all for every public URL:
+                              /         → splash page or 'home'
+                              /<slug>   → src/content/pages/<slug>.json
+    admin/
+      page.tsx              Redirects to /admin/pages
+      login/page.tsx        Magic-link sign-in form
+      pages/page.tsx        Pages list — add / delete / open in editor
+      pages/[slug]/page.tsx Puck editor for one page
+      settings/page.tsx     Site Settings form (artistName, social, footer)
+      navigation/page.tsx   Header & Nav form (mode, layout, nav order)
+      appearance/page.tsx   Colors + typography form
+    api/
+      publish/              Per-page publish (back-compat)
+      publish-status/       Vercel/Netlify deploy state proxy
+      upload-image/         sharp-based image processor + dedup
+      pages/                GET list, POST create
+      pages/[slug]/         DELETE
+      save-config/          POST: site-config | header-config | appearance
+  components/
+    Image.tsx               Public <picture> renderer for ImageMetadata
+    Header.tsx              Public site header (artist name + nav)
+    Footer.tsx              Public site footer (social links + copyright)
+    AppearanceStyles.tsx    Inline <style> + Google Fonts <link>
+    admin/                  Reusable admin form primitives:
+      AdminShell.tsx          sidebar + panel chrome
+      AdminAccountButton.tsx  signed-in avatar + sign-out menu
+      form.tsx                TextField, SelectField, CheckboxField,
+                              NumberField, ColorField, Field, FieldGroup
+      ReorderableList.tsx     ↑/↓/remove buttons for ordered slug lists
+      SaveBar.tsx             sticky bottom save bar (idle/saving/saved/error)
+      useSettingsForm.ts      dirty-tracking + POST hook (shared by all
+                              singleton forms)
   puck/
-    config.tsx            Puck Config — blocks, fields, render
+    config.tsx              Puck Config — blocks, root fields, render
+    ImagePickerField.tsx    Custom field for image picking
   lib/
-    content.ts            JSON read/write helpers
+    content.ts              Read/write helpers for pages + singletons +
+                            multi-page summary listings
+    site-config-types.ts    Zod schemas for site / header / appearance
+                            singletons and pages list contract
+    publish.ts              Multi-target publish flow (page,
+                            site-config, header-config, appearance,
+                            delete-page) over the broker → GitHub path
+                            with dev-disk fallback
+    git-commit.ts           Octokit blob/tree/commit/update-ref helper;
+                            supports `deletePaths` for page deletion
+    auth.ts                 JWT signing/verifying for magic links +
+                            sessions (jose, Edge-runtime safe)
+    image*.ts               sharp pipeline + ImageMetadata schema
   content/
-    pages/<slug>.json     Puck output for each page
+    pages/<slug>.json       One Puck JSON file per page
+    config/site.json        Site Settings singleton
+    config/header.json      Header & Navigation singleton
+    config/appearance.json  Appearance (colors + typography) singleton
 ```
+
+## Admin shell
+
+`/admin` is the editor surface. The sidebar in `AdminShell` lists four
+sections:
+
+- **Pages** — `/admin/pages` is the landing page. Lists every page on
+  disk, links each to the Puck editor, has an inline "Add page" form
+  (auto-slug from title) and per-row Delete. The Puck editor itself is
+  at `/admin/pages/<slug>` and fills the viewport.
+- **Site Settings** — `/admin/settings` — Identity (artist name, site
+  title, description, contact email), Social links (9 platforms),
+  Footer (copyright holder, hide-footer site-wide).
+- **Header & Navigation** — `/admin/navigation` — Wordmark + sizing,
+  Header style (mode, layout, uppercase, subtitle, transparent
+  foreground color), Navigation menu (which page slugs appear in the
+  header, in what order).
+- **Appearance** — `/admin/appearance` — 9 named color tokens (each
+  with a swatch + text input) and Typography (body font/weights +
+  optional split heading font/weights).
+
+Each singleton panel uses the same `useSettingsForm` hook + `SaveBar`
+component, so adding another singleton later is a small file. Per-page
+settings (title, isSplashPage, isFooterHidden) live on the Puck `root`
+fields and surface in the editor's right-hand inspector when no block
+is selected.
 
 ## Content collections (releases, tour dates, posts, store items)
 
@@ -129,16 +202,36 @@ public/images/<content-slug>/<image-id>/
 
 ## Publishing (ADR-007 §5, ADR-008)
 
-`POST /api/publish` accepts `{ pageSlug, data }`. Two modes:
+The publish flow is multi-target by design — one round-trip can write a
+page, a singleton, multiple files, or a mix. Each `PublishTarget` has
+its known repo path and Zod schema so a bad payload from the API fails
+before the GitHub call.
+
+Endpoints:
+
+- `POST /api/publish` — single-page publish from the Puck editor's
+  `onPublish` (back-compat path; takes `{ pageSlug, data }`).
+- `POST /api/save-config` — write one of `site-config`, `header-config`,
+  `appearance` (discriminated body `{ kind, data }`).
+- `POST /api/pages` — create a new empty page (writes the file + commits).
+- `DELETE /api/pages/[slug]` — delete a page (removes the file +
+  commits a tree entry with `sha: null` via `commitFiles`).
+
+Save semantics: every settings/page mutation writes locally **first**,
+then publishes through the broker → GitHub path. A publish failure
+surfaces as `{ ok: true, publishWarning }` so the artist keeps a
+usable local copy — the next save retries the publish.
 
 **Production (platform configured):**
 1. Validate magic-link session.
 2. POST `STAGECRAFT_PLATFORM_URL/api/publish-token` with `{ siteId }` and `Authorization: Bearer STAGECRAFT_BROKER_SECRET`.
 3. Broker mints a short-lived GitHub App installation token + returns `{ owner, repo }`.
-4. Octokit Git Data API: blob → tree → commit → update ref. One commit, structured trailer `Stagecraft-Publish-Id: <uuid>`. Author is the artist's email; committer is the App.
+4. Octokit Git Data API: blob → tree → commit → update ref. One commit per save, structured trailer `Stagecraft-Publish-Id: <uuid>`. Author is the artist's email; committer is the App.
 5. Return `{ ok: true, commitSha }`.
 
-**Dev fallback (platform not configured):** writes JSON directly to `src/content/pages/<slug>.json`. Detected by missing `STAGECRAFT_PLATFORM_URL`, `STAGECRAFT_SITE_ID`, or `STAGECRAFT_BROKER_SECRET`.
+**Dev fallback (platform not configured):** writes JSON directly to
+`src/content/pages/<slug>.json` and `src/content/config/*.json`.
+Detected by missing `STAGECRAFT_SITE_ID` or `STAGECRAFT_BROKER_SECRET`.
 
 **Env vars:**
 
@@ -156,6 +249,18 @@ public/images/<content-slug>/<image-id>/
 ## What's intentionally not here yet
 
 - **Platform-side endpoints** (token broker, install callback, webhook) — separate PR; without them, publish runs in dev fallback.
-- **Real block library** (releases, tour dates, posts — ported from legacy).
+- **Collection editor** (releases, tour dates, posts, store items) — the
+  legacy `src/content/collections/` shape is well-defined but a dedicated
+  UI surface for editing structured collection entries hasn't landed yet.
+  When it does, those collections plug back in through Puck blocks like
+  `<TourDatesList>` that read collection JSON at render time.
+- **Curated Google Fonts picker** — Appearance currently takes a free-text
+  family name. The legacy template's category + curated-per-category
+  picker can come back later (the Zod shape we persist is already
+  forwards-compatible — just one string).
+- **Per-page background image override** — the legacy template let each
+  page override the site-wide `pageBackground`. Surfaced through Puck's
+  root fields when it lands; the on-disk shape lives in
+  `site-config-types.ts`'s `pageRootPropsSchema`.
 
 These ship in stacked PRs.

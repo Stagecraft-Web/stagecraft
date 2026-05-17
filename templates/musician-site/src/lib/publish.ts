@@ -2,10 +2,26 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { commitFiles } from "./git-commit";
+import {
+  APPEARANCE_REPO_PATH,
+  HEADER_CONFIG_REPO_PATH,
+  pageRepoPath,
+  SITE_CONFIG_REPO_PATH,
+  stringifyContent,
+} from "./content";
+import { commitFiles, type FileToCommit } from "./git-commit";
+import {
+  appearanceSchema,
+  headerConfigSchema,
+  pageSlugSchema,
+  siteConfigSchema,
+  type Appearance,
+  type HeaderConfig,
+  type SiteConfig,
+} from "./site-config-types";
 import { publishTokenResponseSchema } from "./publish-types";
 
-const PAGES_DIR = path.join(process.cwd(), "src/content/pages");
+const CONTENT_DIR = path.join(process.cwd(), "src/content");
 
 export class PublishError extends Error {
   constructor(
@@ -21,11 +37,23 @@ export class PublishError extends Error {
   }
 }
 
+/**
+ * Targets the publish flow can write. Each target maps to a known repo path
+ * and a known on-disk JSON shape so the API can validate before committing.
+ */
+export type PublishTarget =
+  | { kind: "page"; slug: string; data: unknown }
+  | { kind: "site-config"; data: SiteConfig }
+  | { kind: "header-config"; data: HeaderConfig }
+  | { kind: "appearance"; data: Appearance }
+  | { kind: "delete-page"; slug: string };
+
 export type PublishArgs = {
-  pageSlug: string;
-  data: unknown;
+  targets: PublishTarget[];
   authorEmail: string;
   authorName?: string;
+  /** Human-readable subject for the commit. Defaults to a generated summary. */
+  commitSubject?: string;
 };
 
 export type PublishResult = {
@@ -35,13 +63,6 @@ export type PublishResult = {
   mode: "github" | "local";
 };
 
-/**
- * The canonical Stagecraft platform URL — used to build the broker
- * endpoint. Override with `STAGECRAFT_PLATFORM_URL` if you ever need
- * to point an artist site at a staging platform or fork. Otherwise
- * this default keeps artist sites pointed at prod without a per-site
- * env var.
- */
 const STAGECRAFT_PLATFORM_URL_DEFAULT = "https://stagecraft.website";
 
 export type Env = {
@@ -52,28 +73,18 @@ export type Env = {
 };
 
 export function readEnv(): Env {
-  // Always have a platformUrl — defaults to the prod URL — so the only
-  // thing that triggers the dev-local-disk fallback is missing siteId
-  // or brokerSecret.
   const overridden = process.env.STAGECRAFT_PLATFORM_URL?.replace(/\/$/, "");
   return {
-    platformUrl: overridden && overridden.length > 0
-      ? overridden
-      : STAGECRAFT_PLATFORM_URL_DEFAULT,
-    // STAGECRAFT_SITE_ID, not SITE_ID — the latter is reserved by Netlify
-    // (injected automatically into Functions to identify the Netlify site).
+    platformUrl:
+      overridden && overridden.length > 0
+        ? overridden
+        : STAGECRAFT_PLATFORM_URL_DEFAULT,
     siteId: process.env.STAGECRAFT_SITE_ID,
     brokerSecret: process.env.STAGECRAFT_BROKER_SECRET,
     branch: process.env.SITE_GIT_BRANCH ?? "main",
   };
 }
 
-/**
- * Whether the production path is fully configured. When false, publishPage
- * falls back to writing JSON locally (dev mode). `platformUrl` is always
- * present (hardcoded default), so the only things that matter are siteId
- * and brokerSecret — both provisioned by the platform.
- */
 export function isPlatformConfigured(env: Env = readEnv()): boolean {
   return Boolean(env.siteId && env.brokerSecret);
 }
@@ -94,7 +105,10 @@ export async function fetchPublishToken(env: Env): Promise<{
       body: JSON.stringify({ siteId: env.siteId }),
     });
   } catch (cause) {
-    throw new PublishError("broker-unreachable", `Could not reach token broker: ${String(cause)}`);
+    throw new PublishError(
+      "broker-unreachable",
+      `Could not reach token broker: ${String(cause)}`,
+    );
   }
 
   if (!response.ok) {
@@ -111,25 +125,113 @@ export async function fetchPublishToken(env: Env): Promise<{
       `Token broker returned malformed response: ${parsed.error.message}`,
     );
   }
-  return { token: parsed.data.token, owner: parsed.data.repo.owner, repo: parsed.data.repo.name };
+  return {
+    token: parsed.data.token,
+    owner: parsed.data.repo.owner,
+    repo: parsed.data.repo.name,
+  };
 }
 
-async function writeLocal(args: PublishArgs): Promise<PublishResult> {
-  const file = path.join(PAGES_DIR, `${args.pageSlug}.json`);
-  await fs.writeFile(file, JSON.stringify(args.data, null, 2) + "\n", "utf-8");
+/**
+ * Validate + normalise every target into a {repoPath, content} pair we can
+ * hand to the commit flow. Each target's schema is parsed here so a bad
+ * payload from the API fails before the GitHub call.
+ *
+ * Returns `delete-page` slugs separately because git-commit's `commitFiles`
+ * only adds files; deletions need a different tree entry.
+ */
+function planFiles(targets: PublishTarget[]): {
+  writes: FileToCommit[];
+  deletePaths: string[];
+} {
+  const writes: FileToCommit[] = [];
+  const deletePaths: string[] = [];
+
+  for (const target of targets) {
+    switch (target.kind) {
+      case "page": {
+        const slug = pageSlugSchema.parse(target.slug);
+        // Pages aren't validated against a per-block schema here; the Puck
+        // editor is the source of truth for block shape. We just persist what
+        // it gives us, but format consistently.
+        const content = stringifyContent(target.data);
+        writes.push({ path: pageRepoPath(slug), content });
+        break;
+      }
+      case "site-config": {
+        const parsed = siteConfigSchema.parse(target.data);
+        writes.push({ path: SITE_CONFIG_REPO_PATH, content: stringifyContent(parsed) });
+        break;
+      }
+      case "header-config": {
+        const parsed = headerConfigSchema.parse(target.data);
+        writes.push({ path: HEADER_CONFIG_REPO_PATH, content: stringifyContent(parsed) });
+        break;
+      }
+      case "appearance": {
+        const parsed = appearanceSchema.parse(target.data);
+        writes.push({ path: APPEARANCE_REPO_PATH, content: stringifyContent(parsed) });
+        break;
+      }
+      case "delete-page": {
+        const slug = pageSlugSchema.parse(target.slug);
+        deletePaths.push(pageRepoPath(slug));
+        break;
+      }
+    }
+  }
+
+  return { writes, deletePaths };
+}
+
+function summariseTargets(targets: PublishTarget[]): string {
+  // Stable order so re-runs produce the same commit subject.
+  const parts: string[] = [];
+  const pages = targets
+    .filter((t): t is { kind: "page"; slug: string; data: unknown } => t.kind === "page")
+    .map((t) => t.slug);
+  if (pages.length) parts.push(`pages: ${pages.join(", ")}`);
+  if (targets.some((t) => t.kind === "site-config")) parts.push("site settings");
+  if (targets.some((t) => t.kind === "header-config")) parts.push("header & navigation");
+  if (targets.some((t) => t.kind === "appearance")) parts.push("appearance");
+  const deletes = targets
+    .filter((t): t is { kind: "delete-page"; slug: string } => t.kind === "delete-page")
+    .map((t) => t.slug);
+  if (deletes.length) parts.push(`delete: ${deletes.join(", ")}`);
+  return parts.length ? `Update ${parts.join(" + ")}` : "Update content";
+}
+
+async function writeLocal(targets: PublishTarget[]): Promise<PublishResult> {
+  const { writes, deletePaths } = planFiles(targets);
+  for (const file of writes) {
+    const abs = path.join(process.cwd(), file.path);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, file.content, "utf-8");
+  }
+  for (const repoPath of deletePaths) {
+    const abs = path.join(process.cwd(), repoPath);
+    await fs.rm(abs, { force: true });
+  }
+  // Touch CONTENT_DIR so a watcher would notice the change even if we wrote
+  // only into config/.
+  await fs.stat(CONTENT_DIR).catch(() => undefined);
   return { commitSha: null, mode: "local" };
 }
 
-export async function publishPage(args: PublishArgs): Promise<PublishResult> {
+export async function publish(args: PublishArgs): Promise<PublishResult> {
+  if (args.targets.length === 0) {
+    throw new PublishError("github-failed", "publish: no targets supplied");
+  }
   const env = readEnv();
   if (!isPlatformConfigured(env)) {
-    return writeLocal(args);
+    return writeLocal(args.targets);
   }
 
+  const { writes, deletePaths } = planFiles(args.targets);
   const { token, owner, repo } = await fetchPublishToken(env);
   const publishId = randomUUID();
-  const filePath = `src/content/pages/${args.pageSlug}.json`;
-  const content = JSON.stringify(args.data, null, 2) + "\n";
+  const subject = args.commitSubject ?? summariseTargets(args.targets);
+  const message = `${subject}\n\nStagecraft-Publish-Id: ${publishId}`;
 
   let commitSha: string;
   try {
@@ -138,8 +240,9 @@ export async function publishPage(args: PublishArgs): Promise<PublishResult> {
       owner,
       repo,
       branch: env.branch,
-      message: `Update ${args.pageSlug}\n\nStagecraft-Publish-Id: ${publishId}`,
-      files: [{ path: filePath, content }],
+      message,
+      files: writes,
+      deletePaths,
       author: { name: args.authorName ?? "Artist", email: args.authorEmail },
     });
   } catch (cause) {
@@ -147,4 +250,22 @@ export async function publishPage(args: PublishArgs): Promise<PublishResult> {
   }
 
   return { commitSha, mode: "github" };
+}
+
+/**
+ * Back-compat helper preserved for callers that publish a single page (the
+ * common case from the Puck editor's onPublish handler).
+ */
+export async function publishPage(args: {
+  pageSlug: string;
+  data: unknown;
+  authorEmail: string;
+  authorName?: string;
+}): Promise<PublishResult> {
+  return publish({
+    targets: [{ kind: "page", slug: args.pageSlug, data: args.data }],
+    authorEmail: args.authorEmail,
+    authorName: args.authorName,
+    commitSubject: `Update ${args.pageSlug}`,
+  });
 }

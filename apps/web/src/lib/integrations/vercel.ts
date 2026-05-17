@@ -318,9 +318,16 @@ export async function getLatestDeployment(
     return { id: null, state: "queued", url: null, createdAt: null };
   }
   const d = deps[0];
-  // Vercel readyState: QUEUED | INITIALIZING | BUILDING | UPLOADING | DEPLOYING | READY | ERROR | CANCELED
+  // Vercel readyState as exposed via /v6/deployments:
+  //   QUEUED | INITIALIZING | BUILDING | READY | ERROR | CANCELED.
+  // Their internal pipeline also has UPLOADING and DEPLOYING phases
+  // (which their dashboard surfaces as "Build Completed" → "Deploying
+  // outputs…") but those are NOT exposed via this REST endpoint — only
+  // via the streamed-log events endpoint, where they're embedded in
+  // stdout/stderr text and brittle to parse. So we get a 4-stage
+  // signal and never see a real "finalizing" transition from Vercel.
   const raw = (d.readyState ?? d.state ?? "").toUpperCase();
-  const state: LatestDeployment["state"] =
+  const baseState: LatestDeployment["state"] =
     raw === "READY"
       ? "ready"
       : raw === "ERROR" || raw === "CANCELED"
@@ -334,6 +341,25 @@ export async function getLatestDeployment(
       : raw === "UPLOADING" || raw === "DEPLOYING"
       ? "finalizing"
       : "unknown";
+
+  // Time-based "finalizing" heuristic: once a Vercel deployment has
+  // been in BUILDING for longer than typical build time, infer that
+  // we're past the `next build` step and into upload + alias-swap.
+  // This is a white lie about provider state — but it matches what
+  // actually happens behind the scenes, and without it Vercel users
+  // would see "Building…" for the entire deploy, then snap straight
+  // to "Live!" with no intermediate signal. Calibrate via the median
+  // observed build time, with some headroom so we don't fire the
+  // transition prematurely on fast builds.
+  const VERCEL_FINALIZING_AFTER_MS = 35_000;
+  let state = baseState;
+  if (state === "building" && typeof d.created === "number") {
+    const elapsedMs = Date.now() - d.created;
+    if (elapsedMs > VERCEL_FINALIZING_AFTER_MS) {
+      state = "finalizing";
+    }
+  }
+
   return {
     id: d.uid,
     state,

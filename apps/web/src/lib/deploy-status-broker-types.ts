@@ -28,7 +28,31 @@ export type DeployStatusBrokerError = {
   error?: string;
 };
 
-export type DeployState = "queued" | "building" | "ready" | "error" | "unknown";
+/**
+ * Coalesced deploy state across providers. Vercel and Netlify expose
+ * different (and longer) raw state enums; we normalize to these five
+ * meaningful phases so consumers can drive a single progress UI.
+ *
+ *   queued       waiting for a builder to pick up the job
+ *   initializing builder is spinning up (cloning repo, npm ci, etc.)
+ *   building     framework build is running (`next build` and similar)
+ *   finalizing   build done, uploading artifacts / running post-deploy
+ *                steps / swapping production alias
+ *   ready        live and serving
+ *   error        failed (or canceled, on Vercel)
+ *   unknown      not yet known — provider returned no deploys, or the
+ *                site has no deploy target configured
+ *
+ * Provider → enum mapping lives in `integrations/{vercel,netlify}.ts`.
+ */
+export type DeployState =
+  | "queued"
+  | "initializing"
+  | "building"
+  | "finalizing"
+  | "ready"
+  | "error"
+  | "unknown";
 
 export type DeployStatusBrokerSuccess = {
   ok: true;

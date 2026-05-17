@@ -151,8 +151,8 @@ export async function getDeployPreviewForPR(
 export interface LatestDeploy {
   /** Netlify deploy id (e.g. `69f8...`); null if no deploys yet */
   id: string | null;
-  /** Normalized state: queued | building | ready | error | unknown */
-  state: "queued" | "building" | "ready" | "error" | "unknown";
+  /** Normalized state — see DeployState in deploy-status-broker-types.ts */
+  state: "queued" | "initializing" | "building" | "finalizing" | "ready" | "error" | "unknown";
   /** Public URL of the deploy (e.g. preview/permalink); null when not yet published */
   url: string | null;
   /** Build error message, when state === "error" */
@@ -189,7 +189,18 @@ export async function getLatestDeploy(
   const d = deploys[0];
   // Netlify states: new, pending_review, accepted, enqueued, building,
   // uploading, uploaded, preparing, prepared, processing, processed, ready,
-  // error, retrying. Coalesce to a small enum the UI can branch on.
+  // error, retrying. Map to the shared DeployState enum so the UI can
+  // drive a single progress bar across both providers.
+  //
+  // Buckets:
+  //   queued       — `new`, `pending_review`, `accepted`, `enqueued`
+  //   initializing — (Netlify doesn't expose a distinct init phase;
+  //                   collapse with building below)
+  //   building     — `building`, `retrying`
+  //   finalizing   — `uploading`, `uploaded`, `preparing`, `prepared`,
+  //                  `processing`, `processed`
+  //   ready        — `ready`
+  //   error        — `error`
   const state: LatestDeploy["state"] =
     d.state === "ready"
       ? "ready"
@@ -197,8 +208,10 @@ export async function getLatestDeploy(
       ? "error"
       : d.state === "new" || d.state === "enqueued" || d.state === "pending_review" || d.state === "accepted"
       ? "queued"
-      : d.state === "building" || d.state === "uploading" || d.state === "uploaded" || d.state === "preparing" || d.state === "prepared" || d.state === "processing" || d.state === "processed" || d.state === "retrying"
+      : d.state === "building" || d.state === "retrying"
       ? "building"
+      : d.state === "uploading" || d.state === "uploaded" || d.state === "preparing" || d.state === "prepared" || d.state === "processing" || d.state === "processed"
+      ? "finalizing"
       : "unknown";
   return {
     id: d.id,

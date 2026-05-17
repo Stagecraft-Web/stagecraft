@@ -33,11 +33,18 @@ type Props = {
  * the *transitions* (the visible bar fill within the building state is
  * still time-based; neither provider exposes granular progress).
  */
+/**
+ * `in_flight` collapses the provider-reported queued/initializing/
+ * building/finalizing into one state that carries the current phase
+ * for label + progress purposes. The two pre-build phases
+ * (`queued`, `initializing`) are intentionally surfaced as
+ * "Building…" — they're <10s each and the distinction adds noise.
+ * `finalizing` surfaces distinctly because it means "almost done."
+ */
 type PublishState =
   | { status: "idle" }
   | { status: "publishing" }
-  | { status: "queued"; publishedAt: number }
-  | { status: "building"; publishedAt: number }
+  | { status: "in_flight"; phase: DeployState; publishedAt: number }
   | { status: "live" }
   | { status: "stalled"; publishedAt: number }
   | { status: "error"; message: string };
@@ -88,7 +95,7 @@ export function Editor({ initialData, pageSlug, email }: Props) {
         if (body && body.ok && body.commitSha) {
           // Production: real commit, deploy will follow. Polling kicks in
           // via the useEffect below.
-          setPublishState({ status: "queued", publishedAt: Date.now() });
+          setPublishState({ status: "in_flight", phase: "queued", publishedAt: Date.now() });
         } else {
           // Dev fallback (no STAGECRAFT_PLATFORM_URL configured): publish
           // wrote JSON to local disk, no deploy, nothing to poll for.
@@ -114,7 +121,7 @@ export function Editor({ initialData, pageSlug, email }: Props) {
   // moment we hit publish, since that's a build kicked off by something
   // earlier (or another author) and isn't the one we care about.
   useEffect(() => {
-    if (publishState.status !== "queued" && publishState.status !== "building") return;
+    if (publishState.status !== "in_flight") return;
     const publishedAt = publishState.publishedAt;
     let cancelled = false;
     const start = Date.now();
@@ -144,12 +151,24 @@ export function Editor({ initialData, pageSlug, email }: Props) {
           });
           return true;
         }
-        if (deploy.state === "building" && isOurs) {
+        // Provider gave us a fresh in-flight phase — reflect it in the
+        // pill (label + progress). queued / initializing / building /
+        // finalizing all flow through here.
+        if (
+          (deploy.state === "queued" ||
+            deploy.state === "initializing" ||
+            deploy.state === "building" ||
+            deploy.state === "finalizing") &&
+          isOurs
+        ) {
+          const newPhase = deploy.state;
           setPublishState((current) =>
-            current.status === "building" ? current : { status: "building", publishedAt },
+            current.status === "in_flight" && current.phase === newPhase
+              ? current
+              : { status: "in_flight", phase: newPhase, publishedAt },
           );
         }
-        // queued / unknown / pre-publish deploys: keep polling.
+        // unknown / pre-publish deploys: keep polling.
         return false;
       } catch {
         return false; // transient — try again next tick
@@ -168,7 +187,9 @@ export function Editor({ initialData, pageSlug, email }: Props) {
       if (Date.now() - start > POLL_TIMEOUT_MS) {
         clearInterval(interval);
         if (!cancelled) {
-          setPublishState({ status: "stalled", publishedAt });
+          setPublishState((current) =>
+            current.status === "in_flight" ? { status: "stalled", publishedAt } : current,
+          );
         }
       }
     }, POLL_INTERVAL_MS);
@@ -229,7 +250,11 @@ function PublishStatusPill({ state }: { state: PublishState }) {
           <Spinner /> Publishing…
         </span>
       );
-    case "queued":
+    case "in_flight": {
+      // queued / initializing / building all render as "Building" — the
+      // pre-build phases are brief and the distinction adds noise. Only
+      // `finalizing` gets its own label (it means almost-done).
+      const isFinalizing = state.phase === "finalizing";
       return (
         <span
           role="status"
@@ -238,25 +263,12 @@ function PublishStatusPill({ state }: { state: PublishState }) {
             background: "var(--color-surface-raised)",
             color: "var(--color-text-muted)",
           }}
-          title="Build queued"
+          title={`Phase: ${state.phase} (~${EXPECTED_BUILD_MS / 1000}s typical end-to-end)`}
         >
-          <Spinner /> Queued…
+          {isFinalizing ? "Finalizing…" : "Building…"} <ProgressBar phase={state.phase} />
         </span>
       );
-    case "building":
-      return (
-        <span
-          role="status"
-          style={{
-            ...base,
-            background: "var(--color-surface-raised)",
-            color: "var(--color-text-muted)",
-          }}
-          title={`Building (~${EXPECTED_BUILD_MS / 1000}s typical)`}
-        >
-          Building… <ProgressBar />
-        </span>
-      );
+    }
     case "live":
       return (
         <span
@@ -301,11 +313,29 @@ function PublishStatusPill({ state }: { state: PublishState }) {
   }
 }
 
-function ProgressBar() {
-  // Pure CSS animation — `transform: scaleX` is GPU-composited and
-  // doesn't trigger layout, so it stays smooth even while Puck does its
-  // own work in the editor. `forwards` keeps the bar at 95% after the
-  // animation completes, so a slow build still shows "almost done".
+/**
+ * Stage-baseline progress for each phase. Mirrors the dashboard's
+ * STAGE_PROGRESS in apps/web/src/app/sites/[siteId]/page.tsx — kept in
+ * sync by hand because the artist site can't import from `apps/web`
+ * (different package boundary).
+ */
+const STAGE_PROGRESS: Record<DeployState, number> = {
+  queued: 0.15,
+  initializing: 0.25,
+  building: 0.45,
+  finalizing: 0.90,
+  ready: 1.0,
+  error: 0,
+  unknown: 0.10,
+};
+
+function ProgressBar({ phase }: { phase: DeployState }) {
+  // Stage-driven width. CSS transition smooths the visual jump when
+  // the provider reports a new phase (e.g. building 45% → finalizing
+  // 90%). `width:` (not `transform: scaleX`) so the bar tracks an
+  // absolute percentage of the container — the parent pill is
+  // narrow so a small JS update doesn't trigger noticeable layout.
+  const pct = (STAGE_PROGRESS[phase] ?? 0.1) * 100;
   return (
     <span
       aria-hidden
@@ -322,11 +352,10 @@ function ProgressBar() {
       <span
         style={{
           display: "block",
-          width: "100%",
+          width: `${pct}%`,
           height: "100%",
           background: "var(--color-text-muted)",
-          transformOrigin: "left",
-          animation: `stagecraftPublishProgress ${EXPECTED_BUILD_MS}ms ease-out forwards`,
+          transition: "width 600ms ease",
         }}
       />
     </span>

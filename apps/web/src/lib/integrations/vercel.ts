@@ -288,8 +288,8 @@ export async function setEnvVars(options: SetEnvVarsOptions): Promise<void> {
 export interface LatestDeployment {
   /** Vercel deployment id (e.g. `dpl_…`); null if no deploys yet */
   id: string | null;
-  /** Normalized state: queued | building | ready | error | unknown */
-  state: "queued" | "building" | "ready" | "error" | "unknown";
+  /** Normalized state — see DeployState in deploy-status-broker-types.ts */
+  state: "queued" | "initializing" | "building" | "finalizing" | "ready" | "error" | "unknown";
   /** Public URL of the deploy (e.g. `<project>-<hash>.vercel.app`); null when not yet published */
   url: string | null;
   /** ISO 8601 of when this deployment was created */
@@ -327,8 +327,12 @@ export async function getLatestDeployment(
       ? "error"
       : raw === "QUEUED"
       ? "queued"
-      : raw === "INITIALIZING" || raw === "BUILDING" || raw === "UPLOADING" || raw === "DEPLOYING"
+      : raw === "INITIALIZING"
+      ? "initializing"
+      : raw === "BUILDING"
       ? "building"
+      : raw === "UPLOADING" || raw === "DEPLOYING"
+      ? "finalizing"
       : "unknown";
   return {
     id: d.uid,

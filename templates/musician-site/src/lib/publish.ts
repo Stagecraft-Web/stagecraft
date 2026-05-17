@@ -9,6 +9,7 @@ import {
 import {
   collectionDefRepoPath,
   collectionDefSchema,
+  itemFileShellSchema,
   itemRepoPath,
   itemSlugSchema,
   orderFileSchema,
@@ -222,12 +223,16 @@ function planFiles(targets: PublishTarget[]): {
       case "collection-item": {
         const collectionSlug = slugSchema.parse(target.collectionSlug);
         const itemSlug = itemSlugSchema.parse(target.itemSlug);
-        // Item-shape validation happens at the API route (it needs the
-        // collection's CollectionDef to build the schema). Here we just
-        // persist the bytes after formatting.
+        // Per-field validation (maxLength, options, etc.) requires the
+        // CollectionDef and happens at the API-route level. Here we
+        // enforce the structural shell — `{ id, values }` — so a
+        // malformed payload (missing id, wrong wrapper, an entire
+        // CollectionDef pasted by mistake) fails before commit rather
+        // than at the next read.
+        const shellChecked = itemFileShellSchema.parse(target.data);
         writes.push({
           path: itemRepoPath(collectionSlug, itemSlug),
-          content: stringifyContent(target.data),
+          content: stringifyContent(shellChecked),
         });
         break;
       }

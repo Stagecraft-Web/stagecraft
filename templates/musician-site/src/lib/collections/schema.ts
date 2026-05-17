@@ -97,6 +97,25 @@ export const itemSlugSchema = z.union([slugSchema, z.literal(SINGLETON_ITEM_SLUG
 const fieldIdSchema = z.string().min(1);
 const fieldKeySchema = z.string().min(1).max(64);
 
+/**
+ * Properties common to every field variant. Spread into each
+ * `z.discriminatedUnion` arm so the discriminant (`type`) and per-type
+ * extras stay flat (Zod requires the discriminant directly on the
+ * object).
+ *
+ * `systemLocked` flags fields that ship with a prebaked collection and
+ * must not be deleted, renamed, or retyped by the artist — e.g.
+ * `Pages.title` and `Pages.body`, which the renderer and routing
+ * depend on. The flag is metadata only; enforcement lives in the
+ * schema editor (PR 5). Code-driven migrations (template updates) can
+ * still rewrite a systemLocked field by editing the JSON directly.
+ */
+const baseFieldShape = {
+  id: fieldIdSchema,
+  key: fieldKeySchema,
+  systemLocked: z.boolean().optional(),
+};
+
 const selectOptionSchema = z.object({
   /** Stable internal id; survives label renames. */
   id: z.string().min(1),
@@ -122,27 +141,23 @@ export type SelectOption = z.infer<typeof selectOptionSchema>;
  */
 export const fieldDefSchema = z.discriminatedUnion("type", [
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("text"),
     required: z.boolean(),
     maxLength: z.number().int().positive().optional(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("longText"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("richText"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("number"),
     required: z.boolean(),
     min: z.number().optional(),
@@ -150,76 +165,74 @@ export const fieldDefSchema = z.discriminatedUnion("type", [
     step: z.number().positive().optional(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("boolean"),
     /** Default applied when an item omits the field entirely. */
     default: z.boolean().optional(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("select"),
     required: z.boolean(),
     options: z.array(selectOptionSchema).min(1),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("multiSelect"),
     options: z.array(selectOptionSchema).min(1),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("date"),
     required: z.boolean(),
     /** When true, value carries a time component (full ISO 8601). */
     includeTime: z.boolean().optional(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("url"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("email"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("color"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("image"),
     required: z.boolean(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("file"),
     required: z.boolean(),
     /** Allowed MIME types (e.g. `["audio/*", "application/pdf"]`). */
     mimeFilter: z.array(z.string().min(1)).optional(),
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
     type: z.literal("collectionRef"),
     required: z.boolean(),
     /** Slug of the target collection (e.g. "tour-dates"). */
     targetCollection: slugSchema,
   }),
   z.object({
-    id: fieldIdSchema,
-    key: fieldKeySchema,
+    ...baseFieldShape,
+    type: z.literal("multiCollectionRef"),
+    /** Slug of the target collection. All refs in the array point to it. */
+    targetCollection: slugSchema,
+    /** Inclusive bounds on the array length. Optional. */
+    minItems: z.number().int().nonnegative().optional(),
+    maxItems: z.number().int().positive().optional(),
+  }),
+  z.object({
+    ...baseFieldShape,
     type: z.literal("puckContent"),
   }),
 ]);
@@ -229,11 +242,14 @@ export type FieldType = FieldDef["type"];
 
 /**
  * Required-ness with sensible defaults for variants that omit the flag.
+ * `multiSelect` / `multiCollectionRef` use `minItems` instead of a
+ * boolean — they're never "required" in the present/absent sense.
  */
 export function isFieldRequired(field: FieldDef): boolean {
   switch (field.type) {
     case "boolean":
     case "multiSelect":
+    case "multiCollectionRef":
     case "puckContent":
       return false;
     default:
@@ -267,12 +283,21 @@ const fileRefSchema = z.object({
 
 export type FileRef = z.infer<typeof fileRefSchema>;
 
+/**
+ * A reference to one item in a (potentially different) collection.
+ *
+ * The target collection is fixed on the `FieldDef.targetCollection`, so
+ * we don't repeat it in every value — the renderer always has the
+ * FieldDef in hand when resolving a binding. `multiCollectionRef` uses
+ * the same convention: just an array of item ids.
+ */
 const collectionRefSchema = z.object({
-  collection: slugSchema,
   itemId: z.string().min(1),
 });
 
 export type CollectionRefValue = z.infer<typeof collectionRefSchema>;
+
+const multiCollectionRefValueSchema = z.array(z.string().min(1));
 
 /**
  * Puck `Data` is validated leniently — any object with a `content` array
@@ -312,6 +337,7 @@ export const fieldValueSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("image"), value: imageMetadataSchema }),
   z.object({ type: z.literal("file"), value: fileRefSchema }),
   z.object({ type: z.literal("collectionRef"), value: collectionRefSchema }),
+  z.object({ type: z.literal("multiCollectionRef"), value: multiCollectionRefValueSchema }),
   z.object({ type: z.literal("puckContent"), value: puckDataLooseSchema }),
 ]);
 
@@ -397,6 +423,12 @@ export function buildFieldValueZodSchema(field: FieldDef): ZodTypeAny {
     }
     case "collectionRef":
       return z.object({ type: z.literal("collectionRef"), value: collectionRefSchema });
+    case "multiCollectionRef": {
+      let inner = multiCollectionRefValueSchema;
+      if (field.minItems !== undefined) inner = inner.min(field.minItems);
+      if (field.maxItems !== undefined) inner = inner.max(field.maxItems);
+      return z.object({ type: z.literal("multiCollectionRef"), value: inner });
+    }
     case "puckContent":
       return z.object({ type: z.literal("puckContent"), value: puckDataLooseSchema });
   }
@@ -543,6 +575,21 @@ export type ItemFile = {
   id: ItemId;
   values: Record<FieldId, FieldValue>;
 };
+
+/**
+ * Structural shell of an `ItemFile` — `{ id, values }` only, without
+ * per-field constraints. Used by the publish layer to reject obviously
+ * malformed payloads (missing id, wrong wrapper, a whole CollectionDef
+ * pasted by mistake) without needing the originating CollectionDef.
+ *
+ * Per-field constraint validation (maxLength, select options, mime
+ * filters, …) requires the collection's current schema and runs at the
+ * API-route level via `buildItemFileSchema(def.fields)`.
+ */
+export const itemFileShellSchema = z.object({
+  id: z.string().min(1),
+  values: z.record(z.string(), fieldValueSchema),
+});
 
 /**
  * Build the values map schema for a collection. Required fields must be

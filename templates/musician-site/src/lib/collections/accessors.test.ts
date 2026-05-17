@@ -4,12 +4,14 @@ import {
   FieldAccessError,
   getBoolean,
   getColor,
+  getCollectionRef,
   getDate,
   getEmail,
   getFile,
   getImage,
   getImageOrNull,
   getLongText,
+  getMultiCollectionRef,
   getMultiSelect,
   getNumber,
   getNumberOrNull,
@@ -76,6 +78,22 @@ describe("typed accessors — happy path", () => {
   it("getFile", () => {
     const file = { src: "/x.pdf", mimeType: "application/pdf", originalName: "x.pdf", sizeBytes: 1 };
     expect(getFile(makeItem({ f: { type: "file", value: file } }), "f")).toEqual(file);
+  });
+  it("getCollectionRef", () => {
+    expect(
+      getCollectionRef(
+        makeItem({ f: { type: "collectionRef", value: { itemId: "rel_x" } } }),
+        "f",
+      ),
+    ).toEqual({ itemId: "rel_x" });
+  });
+  it("getMultiCollectionRef", () => {
+    expect(
+      getMultiCollectionRef(
+        makeItem({ f: { type: "multiCollectionRef", value: ["tr_1", "tr_2"] } }),
+        "f",
+      ),
+    ).toEqual(["tr_1", "tr_2"]);
   });
 });
 

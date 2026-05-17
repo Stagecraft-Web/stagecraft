@@ -8,6 +8,7 @@ import {
   fieldValueSchema,
   findField,
   isFieldRequired,
+  itemFileShellSchema,
   itemSlugSchema,
   ORDER_FILE_NAME,
   orderFileSchema,
@@ -46,6 +47,7 @@ function describeFieldDef(def: FieldDef): string {
     case "image":
     case "file":
     case "collectionRef":
+    case "multiCollectionRef":
     case "puckContent":
       return def.type;
     default:
@@ -69,6 +71,7 @@ function describeFieldValue(v: FieldValue): string {
     case "image":
     case "file":
     case "collectionRef":
+    case "multiCollectionRef":
     case "puckContent":
       return v.type;
     default:
@@ -174,7 +177,15 @@ describe("fieldDefSchema", () => {
         required: false,
         targetCollection: "releases",
       },
-      { id: "f15", key: "body", type: "puckContent" },
+      {
+        id: "f15",
+        key: "tracks",
+        type: "multiCollectionRef",
+        targetCollection: "tracks",
+        minItems: 1,
+        maxItems: 20,
+      },
+      { id: "f16", key: "body", type: "puckContent" },
     ];
     for (const def of cases) {
       expect(fieldDefSchema.parse(def)).toEqual(def);
@@ -201,9 +212,17 @@ describe("fieldDefSchema", () => {
 });
 
 describe("isFieldRequired", () => {
-  it("treats boolean and multiSelect as optional regardless of caller intent", () => {
+  it("treats boolean and multi-value types as optional regardless of caller intent", () => {
     expect(isFieldRequired({ id: "f", key: "b", type: "boolean" })).toBe(false);
     expect(isFieldRequired({ id: "f", key: "m", type: "multiSelect", options: [] })).toBe(false);
+    expect(
+      isFieldRequired({
+        id: "f",
+        key: "tracks",
+        type: "multiCollectionRef",
+        targetCollection: "tracks",
+      }),
+    ).toBe(false);
   });
 
   it("treats puckContent as optional (artist may leave a body empty)", () => {
@@ -213,6 +232,67 @@ describe("isFieldRequired", () => {
   it("respects the required flag for other types", () => {
     expect(isFieldRequired({ id: "f", key: "t", type: "text", required: true })).toBe(true);
     expect(isFieldRequired({ id: "f", key: "t", type: "text", required: false })).toBe(false);
+  });
+});
+
+describe("systemLocked", () => {
+  it("parses on any field variant", () => {
+    expect(
+      fieldDefSchema.parse({
+        id: "f_title",
+        key: "title",
+        systemLocked: true,
+        type: "text",
+        required: true,
+      }),
+    ).toMatchObject({ systemLocked: true });
+  });
+
+  it("defaults to absent / undefined (artist-managed)", () => {
+    const parsed = fieldDefSchema.parse({
+      id: "f",
+      key: "x",
+      type: "text",
+      required: false,
+    });
+    expect("systemLocked" in parsed && parsed.systemLocked).toBeFalsy();
+  });
+});
+
+describe("itemFileShellSchema", () => {
+  it("accepts the {id, values} envelope with any FieldValue inside", () => {
+    expect(
+      itemFileShellSchema.parse({
+        id: "item_x",
+        values: {
+          f_a: { type: "text", value: "hi" },
+          f_b: { type: "number", value: 5 },
+        },
+      }),
+    ).toBeDefined();
+  });
+
+  it("rejects a payload missing the id", () => {
+    expect(itemFileShellSchema.safeParse({ values: {} }).success).toBe(false);
+  });
+
+  it("rejects a payload whose values contain a non-FieldValue shape", () => {
+    expect(
+      itemFileShellSchema.safeParse({
+        id: "x",
+        values: { f_a: "not wrapped in a FieldValue discriminator" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a CollectionDef pasted in by mistake", () => {
+    expect(
+      itemFileShellSchema.safeParse({
+        slug: "tour-dates",
+        fields: [],
+        // ...
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -331,6 +411,48 @@ describe("buildFieldValueZodSchema (per-field constraints)", () => {
     });
     expect(schema.parse({ type: "multiSelect", value: ["x", "y"] })).toBeDefined();
     expect(schema.safeParse({ type: "multiSelect", value: ["x", "z"] }).success).toBe(false);
+  });
+
+  it("collectionRef stores just an itemId (target comes from FieldDef)", () => {
+    const schema = buildFieldValueZodSchema({
+      id: "f",
+      key: "r",
+      type: "collectionRef",
+      required: true,
+      targetCollection: "releases",
+    });
+    expect(
+      schema.parse({ type: "collectionRef", value: { itemId: "rel_abc" } }),
+    ).toBeDefined();
+  });
+
+  it("multiCollectionRef stores an array of itemIds (target comes from FieldDef)", () => {
+    const schema = buildFieldValueZodSchema({
+      id: "f",
+      key: "tracks",
+      type: "multiCollectionRef",
+      targetCollection: "tracks",
+    });
+    expect(
+      schema.parse({ type: "multiCollectionRef", value: ["tr_1", "tr_2", "tr_3"] }),
+    ).toBeDefined();
+  });
+
+  it("multiCollectionRef enforces minItems / maxItems when set", () => {
+    const schema = buildFieldValueZodSchema({
+      id: "f",
+      key: "tracks",
+      type: "multiCollectionRef",
+      targetCollection: "tracks",
+      minItems: 2,
+      maxItems: 4,
+    });
+    expect(schema.parse({ type: "multiCollectionRef", value: ["a", "b"] })).toBeDefined();
+    expect(schema.parse({ type: "multiCollectionRef", value: ["a", "b", "c", "d"] })).toBeDefined();
+    expect(schema.safeParse({ type: "multiCollectionRef", value: ["a"] }).success).toBe(false);
+    expect(
+      schema.safeParse({ type: "multiCollectionRef", value: ["a", "b", "c", "d", "e"] }).success,
+    ).toBe(false);
   });
 
   it("file applies mime filter when provided", () => {

@@ -375,6 +375,44 @@ describe("publish — collection target kinds", () => {
     );
   });
 
+  it("collection-item rejects a payload missing the id (structural guard)", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-item",
+            collectionSlug: "tour-dates",
+            itemSlug: "paris-2026",
+            data: { values: {} },
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("collection-item rejects a CollectionDef pasted in by mistake", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-item",
+            collectionSlug: "tour-dates",
+            itemSlug: "paris-2026",
+            data: tourDatesDef(),
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
   it("delete-collection-item adds to deletePaths instead of writes", async () => {
     configurePlatform();
     commitFilesMock.mockResolvedValue("commit-sha");

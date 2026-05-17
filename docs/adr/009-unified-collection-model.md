@@ -108,6 +108,22 @@ Defined here once; used throughout the rest of the ADR.
   settings (`site`, `header`, `appearance`). The admin UI hides item-list
   affordances and routes the collection's URL straight to the editor for
   its single item.
+- **collectionRef / multiCollectionRef.** Field types whose value is a
+  reference (or ordered list of references) to items in another
+  collection. The target collection is fixed on the `FieldDef`; the
+  value stores just item id(s). See §6 for the three-way distinction
+  between `collectionRef`, `multiCollectionRef`, and a filtered
+  Collection block.
+- **Current-item context.** The item being rendered by the surrounding
+  template. Threaded through the renderer so that Collection-block
+  filters can reference the current item via
+  `{ kind: "currentItem", field: … }` (§5.1). For Pages, the page
+  itself is the current item; for any other collection's
+  detailTemplate, the item being shown.
+- **systemLocked.** Flag on a `FieldDef` marking it as non-editable by
+  the artist (cannot be deleted, renamed, or retyped via the schema
+  editor). Used for prebaked fields the renderer or routing depends on,
+  e.g. `Pages.title` and `Pages.body`.
 
 ## Decision
 
@@ -125,22 +141,31 @@ against the generic abstraction.
 type FieldId = string;        // UUID-ish; never visible to the artist
 type FieldKey = string;       // current name; renameable
 
+// Every variant carries these in addition to its type-specific fields:
+//   id          stable internal identifier
+//   key         artist-facing name
+//   systemLocked? `true` on prebaked fields the artist must not delete,
+//                 rename, or retype (e.g. Pages.title, Pages.body).
+//                 Enforced in the schema editor (PR 5); code-driven
+//                 template migrations can still rewrite these by
+//                 editing the JSON directly.
 type FieldDef =
-  | { id: FieldId; key: FieldKey; type: "text"; required: boolean; maxLength?: number }
-  | { id: FieldId; key: FieldKey; type: "longText"; required: boolean }
-  | { id: FieldId; key: FieldKey; type: "richText"; required: boolean }       // Tiptap JSON
-  | { id: FieldId; key: FieldKey; type: "number"; required: boolean; min?: number; max?: number; step?: number }
-  | { id: FieldId; key: FieldKey; type: "boolean"; default?: boolean }
-  | { id: FieldId; key: FieldKey; type: "select"; required: boolean; options: SelectOption[] }
-  | { id: FieldId; key: FieldKey; type: "multiSelect"; options: SelectOption[] }
-  | { id: FieldId; key: FieldKey; type: "date"; required: boolean; includeTime?: boolean }
-  | { id: FieldId; key: FieldKey; type: "url"; required: boolean }
-  | { id: FieldId; key: FieldKey; type: "email"; required: boolean }
-  | { id: FieldId; key: FieldKey; type: "color"; required: boolean }
-  | { id: FieldId; key: FieldKey; type: "image"; required: boolean }          // uses existing image pipeline
-  | { id: FieldId; key: FieldKey; type: "file"; required: boolean; mimeFilter?: string[] }   // covers audio, PDF, etc.
-  | { id: FieldId; key: FieldKey; type: "collectionRef"; required: boolean; targetCollection: string }
-  | { id: FieldId; key: FieldKey; type: "puckContent" };                      // full Puck block layout
+  | { /* base */ type: "text"; required: boolean; maxLength?: number }
+  | { /* base */ type: "longText"; required: boolean }
+  | { /* base */ type: "richText"; required: boolean }       // Tiptap JSON
+  | { /* base */ type: "number"; required: boolean; min?: number; max?: number; step?: number }
+  | { /* base */ type: "boolean"; default?: boolean }
+  | { /* base */ type: "select"; required: boolean; options: SelectOption[] }
+  | { /* base */ type: "multiSelect"; options: SelectOption[] }
+  | { /* base */ type: "date"; required: boolean; includeTime?: boolean }
+  | { /* base */ type: "url"; required: boolean }
+  | { /* base */ type: "email"; required: boolean }
+  | { /* base */ type: "color"; required: boolean }
+  | { /* base */ type: "image"; required: boolean }          // uses existing image pipeline
+  | { /* base */ type: "file"; required: boolean; mimeFilter?: string[] }   // covers audio, PDF, etc.
+  | { /* base */ type: "collectionRef"; required: boolean; targetCollection: string }
+  | { /* base */ type: "multiCollectionRef"; targetCollection: string; minItems?: number; maxItems?: number }
+  | { /* base */ type: "puckContent" };                      // full Puck block layout
 
 type CollectionDef = {
   slug: string;                       // "pages" | "tourDates" | "releases" | …
@@ -188,7 +213,8 @@ type FieldValue =
   | { type: "color"; value: string }                 // #rrggbb
   | { type: "image"; value: ImageMetadata }
   | { type: "file"; value: { src: string; mimeType: string; originalName: string; sizeBytes: number } }
-  | { type: "collectionRef"; value: { collection: string; itemId: string } }
+  | { type: "collectionRef"; value: { itemId: ItemId } }         // target collection comes from FieldDef
+  | { type: "multiCollectionRef"; value: ItemId[] }              // ordered; target collection comes from FieldDef
   | { type: "puckContent"; value: PuckData };
 
 type Item = {
@@ -429,15 +455,15 @@ addition to Primitive blocks.
 ```ts
 TourDatesView: {
   fields: {
-    sourceCollection: { type: "internal", value: "tourDates" },   // not editable
-    filter: { type: "object", objectFields: { … per-field filters … } },
-    sort: { type: "select", options: [ … fields and directions … ] },
-    limit: { type: "number" },
+    sourceCollection: { type: "internal", value: "tour-dates" },   // not editable
+    filter: { type: "custom", render: FilterField },               // see §5.1 below
+    sort:   { type: "select", options: [ … fields × {asc, desc} … ] },
+    limit:  { type: "number" },
     hideFields: { type: "array", arrayFields: { fieldId: { type: "select", options: [ … field list … ] } } },
     styleOverrides: { type: "custom", render: StyleOverrideField },  // light knobs only
   },
   defaultProps: { … },
-  render: (props) => <RenderCollectionView {...props} />,
+  render: (props, ctx) => <RenderCollectionView {...props} currentItem={ctx.currentItem} />,
 }
 ```
 
@@ -445,7 +471,7 @@ TourDatesView: {
 filter / sort / limit / hideFields, and renders each item through the
 source collection's **itemTemplate**. The artist gets a "Manage tour
 dates →" button in the Collection block's inspector that navigates to
-`/admin/collections/tourDates`.
+`/admin/collections/tour-dates`.
 
 Collection blocks are registered dynamically: at editor mount, the admin
 reads the list of collections from disk and injects one Collection block
@@ -453,30 +479,105 @@ per collection into the relevant Puck configs. Adding a new collection
 automatically makes it embeddable everywhere Collection blocks are
 permitted.
 
+#### 5.1 Filter shape and current-item context
+
+The filter is the main authoring surface for selecting which items to
+render. Its on-disk shape is a small expression tree:
+
+```ts
+type FilterValue =
+  | { kind: "literal"; value: unknown }
+  | { kind: "currentItem"; field: FieldId | "_id" };   // resolved at render
+
+type FilterClause =
+  | { field: FieldId; op: "equals" | "notEquals"; value: FilterValue }
+  | { field: FieldId; op: "in" | "notIn"; values: FilterValue[] }
+  | { field: FieldId; op: "isEmpty" | "isNotEmpty" }
+  | { field: FieldId; op: "gt" | "gte" | "lt" | "lte"; value: FilterValue }   // numbers + dates
+  | { field: FieldId; op: "contains"; value: FilterValue }                    // text + longText
+  | { excludeCurrentItem: true };                                             // shorthand for "not me"
+
+type Filter =
+  | { all: FilterClause[] }   // AND
+  | { any: FilterClause[] };  // OR
+```
+
+`{ kind: "currentItem"; field: FieldId | "_id" }` is the central
+mechanism that makes contextual rendering work. The renderer threads a
+**current-item context** through every template — when rendering a
+detail page, `currentItem` is the item being shown; when rendering a
+Page, `currentItem` is that Page (Pages are items in the unified
+model, so the context is always defined for any template).
+
+This unlocks the patterns the platform needs:
+
+```ts
+// Tracks on the album detail page (intrinsic child→parent relationship)
+filter: { all: [{
+  field: "f_belongsToAlbum", op: "equals",
+  value: { kind: "currentItem", field: "_id" },
+}]}
+
+// "More releases by me" on a release detail page
+filter: { all: [{ excludeCurrentItem: true }] }
+
+// "More shows on this tour"
+filter: { all: [{
+  field: "f_tourLeg", op: "equals",
+  value: { kind: "currentItem", field: "f_tourLeg" },
+}]}
+
+// "Upcoming shows" (no current-item dependency)
+filter: { all: [{
+  field: "f_status", op: "in",
+  values: [{ kind: "literal", value: "on_sale" }],
+}]}
+```
+
+The editor UI for the filter (PR 5/6) renders a clause builder that
+hides `currentItem` complexity behind plain-English wording ("matches
+the current item's tour leg"). The on-disk shape is the source of
+truth.
+
 ### 6. Field-type palette (v1)
 
-| Type           | Storage                                                          | Notes                                    |
-| -------------- | ---------------------------------------------------------------- | ---------------------------------------- |
-| `text`         | `string`                                                         | optional `maxLength`                     |
-| `longText`     | `string`                                                         | multi-line plain text                    |
-| `richText`     | Tiptap JSON                                                      | inline formatting only — no block layout |
-| `number`       | `number`                                                         | optional `min` / `max` / `step`          |
-| `boolean`      | `boolean`                                                        |                                          |
-| `select`       | `string`                                                         | options on the field def                 |
-| `multiSelect`  | `string[]`                                                       | options on the field def                 |
-| `date`         | ISO 8601 `string`                                                | optional `includeTime`                   |
-| `url`          | `string`                                                         | validated as URL                         |
-| `email`        | `string`                                                         | validated as email                       |
-| `color`        | `#rrggbb` `string`                                               |                                          |
-| `image`        | `ImageMetadata` (uses existing pipeline)                         |                                          |
-| `file`         | `{ src, mimeType, originalName, sizeBytes }`                     | `mimeFilter` covers audio / PDF / etc.   |
-| `collectionRef`| `{ collection, itemId }`                                         | resolved on read                         |
-| `puckContent`  | Puck `Data`                                                      | full block layout — only on Pages        |
+| Type                 | Storage                                      | Notes                                         |
+| -------------------- | -------------------------------------------- | --------------------------------------------- |
+| `text`               | `string`                                     | optional `maxLength`                          |
+| `longText`           | `string`                                     | multi-line plain text                         |
+| `richText`           | Tiptap JSON                                  | inline formatting only — no block layout      |
+| `number`             | `number`                                     | optional `min` / `max` / `step`               |
+| `boolean`            | `boolean`                                    |                                               |
+| `select`             | `string`                                     | options on the field def                      |
+| `multiSelect`        | `string[]`                                   | options on the field def                      |
+| `date`               | ISO 8601 `string`                            | optional `includeTime`                        |
+| `url`                | `string`                                     | validated as URL                              |
+| `email`              | `string`                                     | validated as email                            |
+| `color`              | `#rrggbb` `string`                           |                                               |
+| `image`              | `ImageMetadata` (uses existing pipeline)     |                                               |
+| `file`               | `{ src, mimeType, originalName, sizeBytes }` | `mimeFilter` covers audio / PDF / etc.        |
+| `collectionRef`      | `{ itemId }`                                 | one ref; target collection comes from FieldDef |
+| `multiCollectionRef` | `ItemId[]`                                   | ordered array; target collection from FieldDef |
+| `puckContent`        | Puck `Data`                                  | full block layout                             |
 
 `richText` is distinct from `puckContent`: richText is inline prose
 formatting *within one field* (bold, italic, links, lists), puckContent is
 block-level layout composition. A puckContent surface internally uses
 richText for its Text blocks. Composition, not duplication.
+
+**`collectionRef` vs `multiCollectionRef` vs filtered Collection block.**
+Three ways to express "one thing relates to others." Use:
+
+- **`collectionRef`** for a single curated link (`page.featuredRelease`).
+- **`multiCollectionRef`** for an ordered, per-parent-curated list
+  (`page.featuredReleases`, `page.gallery`, `tourDate.supportActs`).
+  The ordering lives on the parent.
+- **Filtered Collection block** (§5) for an intrinsic child→parent
+  relationship (`release.tracks` where each `track.belongsToAlbum`
+  points to the release). The relationship lives on the child, and the
+  parent's detailTemplate embeds a Collection block filtered by
+  `belongsToAlbum = currentItem.id`. Use this when the child knows
+  where it belongs by its nature; the artist edits from the child side.
 
 ### 7. Storage layout
 
@@ -541,9 +642,18 @@ exists is independent:
 
 Next.js dynamic routes are generated at build time from the collection
 registry. A single `[...slug]` catch-all at the public root dispatches
-by walking the registry, matching `detailUrlPrefix` + `itemSlug`. Build
-time catches conflicts (two collections both claiming
-`detailUrlPrefix: "/"`).
+by reading the registry, matching the longest `detailUrlPrefix` first
+(so `/shows` wins over `/`), then resolving the rest as the item slug.
+Build-time conflict detection catches both:
+
+- Two collections claiming the same `detailUrlPrefix` (e.g. two
+  collections both at `/`).
+- A Page slug colliding with another collection's prefix root (e.g.
+  the artist creates a Page with slug `shows` while a tour-dates
+  collection already has `detailUrlPrefix: "/shows"`).
+
+Both cases fail the build with a structured error pointing at the
+conflict — these can corrupt the public site if allowed at runtime.
 
 ### 9. Editor surfaces
 
@@ -598,8 +708,11 @@ the data level**:
   Notion, Airtable, Sanity, and similar dynamic-schema systems make.
 - **Runtime validation is strong.** When an item is read or written, a
   Zod schema is built dynamically from the collection's `fields` via
-  `buildZodSchema(fields: FieldDef[]): ZodSchema`, and the item is parsed
-  against it. Invalid items cannot be saved.
+  `buildItemFileSchema(fields: FieldDef[]): ZodSchema`, and the item is
+  parsed against it. Invalid items cannot be saved. Bulk readers
+  (`listItemsInOrder`) build the schema once per call and reuse it
+  across every read — building per item is quadratic-ish on larger
+  collections.
 - **Runtime-narrowing accessors give ergonomic consumer code**:
   ```ts
   const venue = getText(item, collection, "fld_venue");
@@ -620,18 +733,34 @@ The schema editor enforces:
 - **Stable field IDs.** Renaming a field changes only its `key`. The `id`
   is permanent. Item values reference fields by `id`, so renames are
   zero-migration.
+- **`systemLocked` fields** can't be deleted, renamed, or retyped from
+  the schema editor. Pages.title and Pages.body are the canonical
+  examples — the renderer and routing depend on them. Code-driven
+  template migrations can still rewrite these by editing the JSON
+  directly.
 - **Add field**: allowed freely. Existing items get `undefined` for the
   new field; required-field validation kicks in only for new items until
   the artist backfills.
 - **Remove field**: warns "N items have data in this field; removal will
-  delete it." Requires an explicit confirm.
+  delete it." Requires an explicit confirm. (See "Counting affected
+  items" in §"Known limitations" for the performance footnote.)
 - **Change required**: from optional → required is allowed only if all
   existing items have a value; otherwise the schema editor surfaces a
   "Fix N items first" link to a bulk-edit view.
-- **Change type**: blocked. Type changes are almost always lossy; the
-  artist must remove and recreate. Future versions may allow safe
-  coercions (text ↔ longText, select option additions) with explicit
-  opt-in.
+- **Change type**: lossless transitions are allowed with an inline
+  preview of the migration:
+  - `text` ↔ `longText` (string ↔ string)
+  - `text` → `url` / `email` / `color` (only if every existing value
+    parses against the new validator; otherwise blocked)
+  - `select` → `multiSelect` (wrap each string in a 1-element array)
+  - `multiSelect` → `select` (only if every item has at most one option
+    selected; otherwise blocked)
+  - adding new options to `select` / `multiSelect` (purely additive)
+  
+  Lossy transitions (e.g. `puckContent` → `text`, removing select
+  options that are in use) remain blocked. Future versions may add
+  more lossless coercions or a "convert with confirmation" path for
+  intentional data loss.
 - **Reorder fields**: free; affects display order in the item editor and
   in the default item template only.
 
@@ -749,6 +878,76 @@ breadth on the same foundation.
   Tina and Keystatic have static schemas (fail the editable-schema
   requirement). Rolling our own keeps full control over the artist's
   authoring experience, which is the product differentiator.
+
+## Known limitations and deferred work
+
+The v1 design is deliberately scoped. The list below tracks the gaps
+we know we'll hit and the rough plan for addressing each. These are
+not bugs in the model; they're scope boundaries.
+
+- **Nested-record fields (`array<{...}>`).** No way to model an
+  array of structured sub-objects (e.g. `release.tracks` as an
+  in-document array of `{title, duration}` rows). The v1 path for
+  tracks is a separate `tracks` collection plus either a filtered
+  Collection block on the album (intrinsic membership) or a
+  `multiCollectionRef` (per-album curation). Revisit if usage shows
+  the per-collection overhead is meaningfully worse than inline
+  arrays would be.
+
+- **Cross-collection ref integrity.** Deleting an item leaves dangling
+  refs. v1 doesn't enforce or surface this — the renderer treats
+  missing refs as "not present" (block doesn't render). A future pass
+  should add a back-ref index built at write time so the schema and
+  item editors can warn before delete.
+
+- **Image lifecycle for items.** Images attached to an item are
+  written under `public/images/<contentSlug>/<imageId>/`. Deleting
+  the item doesn't garbage-collect its images. v1 accepts the
+  drift; a periodic GC pass (script or build-time hook) can prune
+  orphans later without touching this model.
+
+- **Counting affected items for guardrails.** Schema-change guardrails
+  in §11 ("N items have data in this field") require enumerating
+  every item to count. v1 does the obvious `listItemsInOrder + filter`
+  on each schema-editor mount. Acceptable for small collections;
+  introduce a per-collection summary cache when needed.
+
+- **Concurrent editing.** Single-editor assumption (ADR-007 §7).
+  Two browser tabs, two band members, or one stale tab can silently
+  clobber each other on save. v1 relies on the artist not opening
+  two editors at once. The platform-level fix is per-item ETags + a
+  CAS save endpoint; lands when we see real collisions.
+
+- **Schema-version forward compat.** If the platform ships a new field
+  type and an artist's `_collection.json` already uses it, an older
+  deployment of the artist's site can't read it. v1 fails the build
+  loudly. A backward-compatible "skip unknown field types" mode is
+  possible but defers data loss to read time, which is worse.
+
+- **Filter UI breadth.** §5.1's filter shape supports the common
+  cases. More exotic predicates (string-pattern match, date ranges
+  spanning fields, joined filters across multiple collections) can
+  be added without changing the on-disk shape — extend `FilterClause`.
+
+- **Drafts beyond single-editor `localStorage`.** Carry-over from
+  ADR-007 §7. v1 keeps the same localStorage drafts model; per-item
+  drafts that survive across devices land later (probably as a
+  `drafts/<item-slug>` branch in the artist repo).
+
+- **Pagination / search on public list pages.** Not in v1. List pages
+  render every matching item. For collections that grow large, the
+  artist authors filtering manually with separate pages. Real
+  pagination + search is a future enhancement to the Collection
+  block + view rendering.
+
+- **i18n / localized content.** Not addressed. The model would
+  accommodate it via a `locale` field on items + locale-aware
+  routing, but neither is in v1.
+
+- **Drag-corner resizing of Primitive blocks** (mentioned in earlier
+  drafts). Deferred indefinitely — Puck's canvas doesn't natively
+  support per-block resize, and the existing token-driven style knobs
+  cover most needs.
 
 ## Consequences
 

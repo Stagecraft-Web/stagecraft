@@ -18,6 +18,8 @@
  * silently propagating.
  */
 
+import type { z } from "zod";
+
 import {
   localPathForRepoPath,
   readdirFiltered,
@@ -135,17 +137,34 @@ export async function listItemSlugs(collectionSlug: string): Promise<string[]> {
  *
  * Takes the collection def as an argument (rather than reading it
  * here) so callers can amortise the def read across many item reads.
+ * For bulk reads (e.g. `listItemsInOrder`), prefer the internal
+ * `readItemWithSchema` and build the per-item Zod schema once — see
+ * the comment on `readItemWithSchema`.
  */
 export async function readItem(
   collectionSlug: string,
   itemSlug: string,
   def: CollectionDef,
 ): Promise<Item | null> {
+  return readItemWithSchema(collectionSlug, itemSlug, buildItemFileSchema(def.fields));
+}
+
+/**
+ * Internal: read an item against a pre-built file schema. The schema
+ * builder walks `def.fields` and assembles a Zod object per call; for
+ * a 500-item collection that's 500 identical schema constructions.
+ * Listing flows build the schema once and reuse it across reads.
+ */
+async function readItemWithSchema(
+  collectionSlug: string,
+  itemSlug: string,
+  fileSchema: z.ZodType<ItemFile>,
+): Promise<Item | null> {
   slugSchema.parse(collectionSlug);
   itemSlugSchema.parse(itemSlug);
   const raw = await readJson<unknown>(itemLocalPath(collectionSlug, itemSlug));
   if (raw === null) return null;
-  const file = buildItemFileSchema(def.fields).parse(raw);
+  const file = fileSchema.parse(raw);
   // The on-disk file omits the slug — derive it from the filename so
   // renames are a single fs operation, not a content edit.
   return { id: file.id, slug: itemSlug, values: file.values };
@@ -221,8 +240,12 @@ export async function listItemsInOrder(
   def: CollectionDef,
 ): Promise<Item[]> {
   const slugs = await listItemSlugs(collectionSlug);
+  // Build the per-item Zod schema once and reuse across every read.
+  // Without this the schema rebuilds per item — quadratic-ish cost on
+  // larger collections.
+  const fileSchema = buildItemFileSchema(def.fields);
   const items = (
-    await Promise.all(slugs.map((slug) => readItem(collectionSlug, slug, def)))
+    await Promise.all(slugs.map((slug) => readItemWithSchema(collectionSlug, slug, fileSchema)))
   ).filter((item): item is Item => item !== null);
 
   if (def.defaultSort?.mode === "manual") {

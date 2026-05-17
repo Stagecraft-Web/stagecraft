@@ -150,6 +150,9 @@ export const getCollectionRef = (i: Item, f: FieldId): CollectionRefValue =>
 export const getCollectionRefOrNull = (i: Item, f: FieldId): CollectionRefValue | null =>
   getTypedOrNull(i, f, "collectionRef");
 
+export const getMultiCollectionRef = (i: Item, f: FieldId): string[] =>
+  getTyped(i, f, "multiCollectionRef");
+
 export const getPuckContent = (i: Item, f: FieldId): PuckData => getTyped(i, f, "puckContent");
 export const getPuckContentOrNull = (i: Item, f: FieldId): PuckData | null =>
   getTypedOrNull(i, f, "puckContent");

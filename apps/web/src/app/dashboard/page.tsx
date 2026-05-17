@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@stagecraft/db";
 import Button from "@/components/Button";
 
+import { isStagecraftAdmin } from "@/lib/admin-allowlist";
+import { NukeAllSitesButton } from "./NukeAllSitesButton";
+
 export default async function DashboardPage() {
   const session = await auth();
 
@@ -72,6 +75,10 @@ export default async function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {isStagecraftAdmin(session.user.email) && (
+        <NukeAllSitesButton siteCount={sites.length} />
+      )}
     </main>
   );
 }

@@ -548,7 +548,7 @@ export default function SiteDetailPage() {
       <section style={{ marginTop: "3rem", borderTop: `1px solid var(--color-border)`, paddingTop: "1.5rem" }}>
         <h2 style={{ color: "var(--color-error)" }}>Danger Zone</h2>
         <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
-          Permanently delete this site, its GitHub repository, and Netlify deployment. This cannot be undone.
+          Permanently delete this site, its GitHub repository, and its {site.deployTarget === "vercel" ? "Vercel" : "Netlify"} {site.deployTarget === "vercel" ? "project" : "deployment"}. This cannot be undone.
         </p>
         <div style={{ maxWidth: "18.75rem" }}>
           <Input

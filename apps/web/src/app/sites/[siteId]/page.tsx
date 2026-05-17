@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Button from "@/components/Button";
-import AssetManager from "@/components/AssetManager";
 import Input from "@/components/Input";
 
 type SiteStatus = "creating" | "active" | "error" | "deploy_failed" | "archived";
@@ -512,25 +511,6 @@ export default function SiteDetailPage() {
               </ul>
             </div>
           )}
-        </section>
-      )}
-
-      {isActive && <AssetManager siteId={siteId} />}
-
-      {site.jobs.length > 0 && (
-        <section style={{ marginTop: "1.5rem" }}>
-          <h2>Jobs</h2>
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {site.jobs.map((job) => (
-              <li key={job.id} style={{ padding: "0.75rem", border: `1px solid var(--color-border)`, borderRadius: "var(--radius-lg)", marginBottom: "0.5rem" }}>
-                <strong>{job.type}</strong>
-                <span style={{ marginLeft: "0.5rem", color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>{job.status}</span>
-                {job.errorMessage && (
-                  <p style={{ color: "var(--color-error)", fontSize: "var(--font-size-sm)", margin: "0.25rem 0 0" }}>{job.errorMessage}</p>
-                )}
-              </li>
-            ))}
-          </ul>
         </section>
       )}
 

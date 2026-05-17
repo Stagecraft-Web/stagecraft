@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
@@ -16,6 +15,10 @@ type TokenType = "magic-link" | "session";
  * uses internally; deriving one from the other saves provisioning a
  * second env var on every site.
  *
+ * Uses Web Crypto's HMAC-SHA256 (rather than `node:crypto`) so this
+ * code runs in the Edge runtime — middleware.ts imports
+ * `verifySessionToken` from here and runs on Edge.
+ *
  * Domain-separation tag `"magic-link/v1"` future-proofs the derivation
  * — if we ever need to rotate the magic-link secret independent of the
  * broker secret (e.g. cookie format change), bump to v2 to invalidate
@@ -26,13 +29,23 @@ type TokenType = "magic-link" | "session";
  * Tokens are short-lived (7d session, 10m magic-link), so the impact
  * is small.
  */
-function deriveMagicLinkSecret(brokerSecret: string): string {
-  return createHmac("sha256", brokerSecret)
-    .update("magic-link/v1")
-    .digest("hex");
+async function deriveMagicLinkSecret(brokerSecret: string): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(brokerSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode("magic-link/v1"),
+  );
+  return new Uint8Array(signature);
 }
 
-function getSecret(): Uint8Array {
+async function getSecret(): Promise<Uint8Array> {
   // Prefer an explicit MAGIC_LINK_SIGNING_SECRET so dev environments
   // and any legacy artist sites that have it set continue working.
   // New sites get just STAGECRAFT_BROKER_SECRET — derive from that.
@@ -40,9 +53,7 @@ function getSecret(): Uint8Array {
   if (explicit) return new TextEncoder().encode(explicit);
 
   const brokerSecret = process.env.STAGECRAFT_BROKER_SECRET;
-  if (brokerSecret) {
-    return new TextEncoder().encode(deriveMagicLinkSecret(brokerSecret));
-  }
+  if (brokerSecret) return deriveMagicLinkSecret(brokerSecret);
 
   throw new Error(
     "Neither MAGIC_LINK_SIGNING_SECRET nor STAGECRAFT_BROKER_SECRET is set",
@@ -54,12 +65,12 @@ async function signToken(email: string, type: TokenType, ttl: string): Promise<s
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(ttl)
-    .sign(getSecret());
+    .sign(await getSecret());
 }
 
 async function verifyToken(token: string, expected: TokenType): Promise<{ email: string } | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, await getSecret());
     if (payload.type !== expected) return null;
     if (typeof payload.email !== "string") return null;
     return { email: payload.email };

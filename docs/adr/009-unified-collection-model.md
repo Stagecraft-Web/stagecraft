@@ -43,6 +43,72 @@ data layer.
 This ADR records that generalisation and the design decisions that follow
 from it.
 
+## Glossary
+
+Defined here once; used throughout the rest of the ADR.
+
+- **Collection.** A named type of content (`pages`, `tourDates`,
+  `releases`, …). Owns a schema, a set of items, and one or more
+  templates. Configured by a `CollectionDef` stored at
+  `src/content/collections/<slug>/_collection.json`.
+- **CollectionDef.** The TypeScript shape that describes a collection:
+  identity (slug, names), schema (fields), templates (item / detail /
+  list), routing (detail URL prefix), ordering, and feature flags
+  (`isSingleton`).
+- **Item.** One entry in a collection — one tour date, one release, one
+  page. Stored at `src/content/collections/<slug>/items/<itemSlug>.json`.
+- **Schema.** The set of `FieldDef`s on a collection. Editable by the
+  artist via the schema editor (§11 guardrails apply).
+- **Field.** One configurable attribute on items in a collection — for
+  tour dates, that's "date", "venue", "city", "status", "ticketUrl".
+- **FieldDef.** The TypeScript shape describing one field — its id, key,
+  type, required-ness, and any type-specific config (options, mime
+  filters, etc.).
+- **FieldId.** Internal stable identity of a field (UUID-ish). Never
+  visible to the artist. Item values reference fields by id, so renaming
+  is free.
+- **FieldKey.** Artist-facing name of a field ("venue"). Renameable
+  without breaking item values, because the id stays put.
+- **FieldValue.** A typed value held by an item for one field — a
+  discriminated union over the field types.
+- **Primitive block.** A building-block React component used to compose
+  templates and page bodies. Three sub-kinds:
+  - **Layout primitive**: `Section`, `Stack`, `Columns`, `Spacer`.
+  - **Content primitive**: `Text`, `RichText`, `Image`, `Button`,
+    `Link`, `Embed`, `Audio`.
+  - **Field-render primitive**: `RichTextRender`, `PuckContentRender` —
+    placeholder blocks whose only purpose is to render a richText or
+    puckContent field at this position in a template.
+- **Collection block.** A block that embeds an entire collection on a
+  page or detail template — `TourDatesView`, `ReleasesView`, etc. At
+  render time, it loads items from its source collection and renders
+  each via the source collection's **itemTemplate**.
+- **Template.** A piece of Puck JSON describing a per-item layout.
+  Three kinds, all optional per collection:
+  - **itemTemplate** — how an item renders when listed inside a
+    Collection block (compact card / row). Built from Primitive blocks
+    only. No Collection blocks (§4 cycle safety).
+  - **detailTemplate** — how an item renders on its own detail page at
+    `<detailUrlPrefix>/<slug>`. Built from Primitive blocks plus
+    Collection blocks.
+  - **listTemplate** — optional default layout for an auto-generated
+    list page (e.g. an automatic `/shows` index). When null, the artist
+    builds the list page as a regular Page that contains the
+    appropriate Collection block.
+- **Bindable\<T\>.** A prop value that can be either a literal of type
+  `T` or a binding to a field of compatible type. Resolved at render
+  time. Only meaningful inside templates (§4).
+- **Binding.** The specific case of a `Bindable` whose value comes from
+  a field rather than a literal.
+- **Detail page.** The per-item public URL at
+  `<detailUrlPrefix>/<itemSlug>`. Optional — a collection can have items
+  with no detail pages (e.g. a "Quotes" collection that only exists to
+  feed Collection blocks).
+- **Singleton.** A collection with exactly one item, used for site-level
+  settings (`site`, `header`, `appearance`). The admin UI hides item-list
+  affordances and routes the collection's URL straight to the editor for
+  its single item.
+
 ## Decision
 
 Introduce a single `Collection` abstraction. Every editable surface on a
@@ -77,17 +143,35 @@ type FieldDef =
   | { id: FieldId; key: FieldKey; type: "puckContent" };                      // full Puck block layout
 
 type CollectionDef = {
-  slug: string;                  // "pages" | "tourDates" | "releases" | …
-  singularName: string;          // "page" | "tour date"
-  pluralName: string;            // "pages" | "tour dates"
-  urlPrefix: string | null;      // "/", "/shows", "/news"; null = no public URLs
+  slug: string;                       // "pages" | "tourDates" | "releases" | …
+  singularName: string;               // "page" | "tour date"
+  pluralName: string;                 // "pages" | "tour dates"
+
+  // ── Schema ──────────────────────────────────────────────────────
   fields: FieldDef[];
-  slugSourceFieldId: FieldId | null;   // field used to derive slugs from; null = manual
-  defaultSort: { fieldId: FieldId; direction: "asc" | "desc" } | null;
-  itemTemplate: PuckData | null;   // compact rendering for list contexts; excludes view blocks (§4)
-  detailTemplate: PuckData | null; // detail-page rendering at <urlPrefix>/<slug>; view blocks allowed
-  listTemplate: PuckData | null;   // optional default list-page layout (the wrapper around items)
-  isSingleton: boolean;            // true for settings/header/appearance: hides item-list UI
+  slugSourceFieldId: FieldId | null;  // field used to derive slugs from; null = manual
+
+  // ── Routing ─────────────────────────────────────────────────────
+  // Detail pages are independent of listTemplate. A collection can be
+  // embedded in Collection blocks without having public detail pages
+  // (e.g. a Quotes collection), and can have detail pages without an
+  // auto-generated list page (the artist builds the list page as a
+  // regular Page that hosts the relevant Collection block).
+  detailUrlPrefix: string | null;     // "/", "/shows", "/news"; null = no detail pages
+
+  // ── Ordering ────────────────────────────────────────────────────
+  defaultSort:
+    | { mode: "manual" }                                          // see §7 _order.json
+    | { mode: "fieldSort"; fieldId: FieldId; direction: "asc" | "desc" }
+    | null;                                                       // null = filesystem order
+
+  // ── Templates (all optional) ────────────────────────────────────
+  itemTemplate: PuckData | null;      // compact rendering inside Collection blocks; Primitives only (§4)
+  detailTemplate: PuckData | null;    // detail-page rendering; Primitives + Collection blocks
+  listTemplate: PuckData | null;      // optional auto-generated list page; null = author as a Page
+
+  // ── Flags ───────────────────────────────────────────────────────
+  isSingleton: boolean;               // true for settings/header/appearance: hides item-list UI
 };
 
 type FieldValue =
@@ -128,20 +212,20 @@ Pages stop being a special data path. The "pages" collection ships with:
   slug: "pages",
   singularName: "page",
   pluralName: "pages",
-  urlPrefix: "/",
+  detailUrlPrefix: "/",                                                // each page at /<slug>
   isSingleton: false,
   fields: [
     { id: "fld_title",       key: "title",          type: "text",       required: true },
     { id: "fld_isSplash",    key: "isSplashPage",   type: "boolean" },
     { id: "fld_hideFooter",  key: "isFooterHidden", type: "boolean" },
-    { id: "fld_showInNav",   key: "showInNav",      type: "boolean" },   // Goal 2 (nav→pages) folds in here
-    { id: "fld_navOrder",    key: "navOrder",       type: "number" },    // ordering for nav
+    { id: "fld_showInNav",   key: "showInNav",      type: "boolean" },  // Goal 2 (nav→pages) folds in here
     { id: "fld_body",        key: "body",           type: "puckContent" },
   ],
   slugSourceFieldId: "fld_title",
-  defaultSort: { fieldId: "fld_navOrder", direction: "asc" },
-  itemTemplate: <compact "page link" card for sitemap-style listings>,   // optional
-  detailTemplate: <Puck-edited surface that renders the body field>,
+  defaultSort: { mode: "manual" },                                     // artist drags pages in /admin/pages
+  itemTemplate: <compact "page link" card for sitemap-style listings>, // optional
+  detailTemplate: <Puck template rendering the body field>,
+  listTemplate: null,                                                  // pages list is admin-only, no public list page
 }
 ```
 
@@ -150,7 +234,7 @@ model, the workspace is the detailTemplate editor with the body field
 "pinned" as its content surface — same UX, generic implementation
 underneath. The itemTemplate is optional: Pages rarely appear inside view
 blocks, but providing one (title + excerpt, say) enables a "Recent pages"
-or "Site map" view block if the artist wants one.
+or "Site map" Collection block if the artist wants one.
 
 The Pages collection retains its sidebar entry and its specialised "add
 page" affordance because it's the foundational surface — but it executes
@@ -170,28 +254,28 @@ in the admin sidebar.
 A future "Settings" surface can group several singleton collections under
 one screen without changing the storage model.
 
-### 4. Item template, detail template, and data binding
+### 4. Templates and data binding
 
-Every collection has up to two Puck-edited templates, both composed from
-the *display block library* whose blocks support data binding:
+Every collection has up to three templates (all optional, see Glossary):
+**itemTemplate**, **detailTemplate**, **listTemplate**. All are Puck JSON
+authored in a Puck editor specifically for templates.
 
-- **`itemTemplate`** — how one item renders in **list contexts** (inside a
-  view block on another page; in the default list-page rendering). This
-  is the compact card / row layout. Display blocks only.
-- **`detailTemplate`** — how one item renders on its **detail page** at
-  `<urlPrefix>/<slug>`. Display blocks **plus** view blocks. This is
-  where the artist composes the full per-item page layout (the body of a
-  tour-date detail page, the layout of a release detail page, the body
-  of a Pages page).
+The two block kinds — **Primitive blocks** and **Collection blocks** —
+are also defined in the Glossary. Recapping the relationship:
 
-The display block library:
+- itemTemplate may use **Primitive blocks only**.
+- detailTemplate and listTemplate may use **Primitive blocks plus
+  Collection blocks**.
 
-- **Layout blocks**: Section, Stack (vertical / horizontal), Spacer, Columns
-- **Display blocks**: Text, RichText, Image, Button, Link, Embed, Audio
-- **Composition**: implicit hide-if-empty on bindable props (no explicit
-  Conditional block in v1)
+#### 4.1 Bindings: how a Primitive block knows what to render
 
-Every bindable prop accepts either a literal value or a binding:
+A template is rendered many times against different items (the
+itemTemplate renders once per item in a Collection block; the
+detailTemplate renders for each item visiting its detail page). The
+artist authors the template once; the renderer fills in field values per
+item. The mechanism is **bindings**.
+
+Every Primitive block's content-bearing prop is typed `Bindable<T>`:
 
 ```ts
 type Bindable<T> =
@@ -199,66 +283,153 @@ type Bindable<T> =
   | { kind: "binding"; fieldId: FieldId };
 ```
 
-Concretely: a Text block's `content` is `Bindable<string>`. The artist
-toggles a small switch in the block's inspector between "literal" and
-"bind to field"; "bind to field" surfaces a dropdown of available fields
-of compatible type. An Image block's `src` is `Bindable<ImageMetadata>`,
-restricted to image fields. A "Render field" composition block resolves a
-`puckContent` or `richText` field at the chosen position. And so on.
+The artist controls this prop's `kind` from the block's inspector in the
+template editor. The inspector shows a small toggle (literal ↔ field)
+above each bindable input.
 
-The **template renderer** walks the Puck JSON tree, resolves bindings
-against the item's `values`, and renders the result. A bound prop whose
-field is empty causes the block to render nothing (implicit conditional
-rendering) — explicit `Conditional` blocks for richer rules can come
-later.
+**Worked example.** Artist is editing the tour-dates `itemTemplate` at
+`/admin/collections/tourDates/template/item`. They drop a Stack and add
+two Text blocks inside it.
 
-The item-template and detail-template editors are both Puck `<Puck>`
-instances with template-specific configs. They live at
-`/admin/collections/<slug>/template/item` and `…/template/detail`.
-Editing either re-renders a preview against a representative item (the
-first item, or a placeholder if the collection is empty).
+For the first Text block ("Venue label"), they want the same word on
+every card:
 
-**Cycle safety by structural rule.** The cycle worry is real (a tour-date
-itemTemplate that embeds a TourDatesView, which renders tour-date items
-via the same itemTemplate, recurses infinitely). The structural rule is
-simple:
+```
+Inspector → Text block
+─────────────────────────────────────
+Content:    [● Literal]  [○ From field]
 
-> **`itemTemplate` cannot contain view blocks. `detailTemplate` and any
-> rendered `puckContent` field can.**
+            ┌─────────────────────────┐
+            │ Where:                  │
+            └─────────────────────────┘
+```
 
-This makes cycles impossible by construction:
+For the second Text block ("Venue value"), they want each card to show
+its tour-date's venue:
 
-- A view block always renders its source items via the source collection's
-  `itemTemplate`, which by rule cannot contain view blocks. Recursion
-  terminates after one level.
-- A `puckContent` field's contents are rendered only when the renderer is
-  in detail-template context (i.e. via a "Render field" block placed in a
-  detailTemplate, or via the body of the Pages collection's
-  detailTemplate). View blocks inside that puckContent recurse one level
-  into itemTemplates, which are again view-block-free.
-- An `itemTemplate` may bind a `puckContent` field — view blocks inside
-  that puckContent value are stripped at render time (runtime guard for
-  the niche case where someone constructs this configuration).
-- Cross-collection collectionRef chains that form a runtime cycle (release
-  A references release B references release A) are detected at render
-  time and rendered as a placeholder.
+```
+Inspector → Text block
+─────────────────────────────────────
+Content:    [○ Literal]  [● From field]
+
+            ┌─────────────────────────┐
+            │ ▼ venue   (text)        │
+            └─────────────────────────┘
+              Choices: title, venue,
+              city, ticketUrl
+              (only text-typed fields
+              of this collection)
+```
+
+The stored template snippet for the two blocks:
+
+```json
+[
+  { "type": "Text", "props": { "content": { "kind": "literal", "value": "Where:" } } },
+  { "type": "Text", "props": { "content": { "kind": "binding", "fieldId": "fld_venue" } } }
+]
+```
+
+When the renderer encounters a `kind: "binding"` prop, it looks up
+`item.values[fieldId]` and uses that value. A binding to an empty /
+missing field renders nothing (implicit hide-if-empty; explicit
+conditional blocks can come later).
+
+The field-picker dropdown is type-filtered: a Text block's `Bindable<string>`
+prop offers only `text` / `longText` / `select` / `url` / `email` fields.
+An Image block's `Bindable<ImageMetadata>` prop offers only `image`
+fields. Type-incompatible bindings can't be authored.
+
+**Bindings exist only in templates.** When the artist edits a *specific
+item's* puckContent field (e.g. authoring the body of a particular page),
+every block's prop is just a literal — there's no "field" to bind to,
+because the artist is producing this item's data, not a template to be
+filled in by many items.
+
+#### 4.2 Rendering rich/composite fields: field-render primitives
+
+`Bindable<T>` works for scalar props (a string, an image metadata, a
+URL). For richText and puckContent fields — which carry block-shaped
+content of their own — bindings are expressed as dedicated **field-render
+primitives**:
+
+- `RichTextRender { field: FieldId }` — renders a richText field's
+  Tiptap content at this position.
+- `PuckContentRender { field: FieldId }` — renders a puckContent field's
+  full Puck JSON at this position.
+
+Conceptually these are still "bindings of `kind: binding`" — just
+expressed as their own block types rather than as a `Bindable` on a
+generic content prop, because they expand into a block tree of their
+own.
+
+The Pages collection's detailTemplate is, in the simplest configuration,
+a single `PuckContentRender { field: "fld_body" }` block. The artist can
+add header / footer Primitives around it.
+
+#### 4.3 Cycle safety by structural rule
+
+The cycle worry is real: if a tour-date itemTemplate embedded a
+TourDatesView (a Collection block sourcing tour dates), it would render
+tour-date items via the same itemTemplate, which contains the view,
+which renders items, …
+
+The structural rule prevents this by construction:
+
+> **itemTemplate cannot contain Collection blocks. detailTemplate,
+> listTemplate, and any rendered puckContent field can.**
+
+This guarantees termination:
+
+- A Collection block renders source items via the source collection's
+  itemTemplate. itemTemplate by rule contains no Collection blocks, so
+  recursion terminates after one level.
+- A puckContent field's contents are rendered via a `PuckContentRender`
+  primitive, only legal inside detailTemplate / listTemplate. Collection
+  blocks inside that puckContent render their source items via
+  itemTemplates, which are Collection-block-free. Terminates.
+- If an itemTemplate binds a puckContent field via `PuckContentRender`
+  (an authoring oddity but not forbidden by types), Collection blocks
+  inside that value are stripped at render time — runtime guard for the
+  niche case.
+- Cross-collection `collectionRef` chains that form a runtime cycle
+  (release A → release B → release A) are detected at render and
+  rendered as a placeholder.
 
 Collections are **fully universal**: any collection can have items with
 puckContent fields edited in a full Puck workspace, any item can have a
-rich detail-page layout that embeds other collections' items, and per-item
-bodies behave the same on pages and on releases or shows or anywhere else.
+rich detail-page layout that embeds other collections' items, and
+per-item bodies behave the same on pages and on releases or shows or
+anywhere else.
 
-### 5. View blocks on pages
+#### 4.4 Template editor surfaces
 
-A page's `body` (a PuckContent field) is edited in the existing
-`/admin/pages/<slug>` Puck editor, whose config registers — in addition to
-the display block library — one **view block per existing collection**.
-A view block embeds a collection on the page:
+Both template editors are Puck `<Puck>` instances with template-specific
+configs. They live at:
+
+- `/admin/collections/<slug>/template/item` — itemTemplate. Config
+  registers Primitive blocks only.
+- `/admin/collections/<slug>/template/detail` — detailTemplate. Config
+  registers Primitive blocks + one Collection block per existing
+  collection (dynamic, see §5).
+
+Editing either re-renders a preview against a representative item (the
+first item in the collection, or a placeholder item if the collection is
+empty). The block inspector adds the literal/binding toggle described in
+§4.1 to every bindable prop.
+
+### 5. Collection blocks
+
+A **Collection block** embeds an entire collection on a page or detail
+template. One Collection block is registered per existing collection
+(`PagesView`, `TourDatesView`, `ReleasesView`, …); the page-body Puck
+editor and the detail-template Puck editor both include the full set in
+addition to Primitive blocks.
 
 ```ts
 TourDatesView: {
   fields: {
-    sourceCollection: { type: "internal", value: "tourDates" },
+    sourceCollection: { type: "internal", value: "tourDates" },   // not editable
     filter: { type: "object", objectFields: { … per-field filters … } },
     sort: { type: "select", options: [ … fields and directions … ] },
     limit: { type: "number" },
@@ -271,15 +442,16 @@ TourDatesView: {
 ```
 
 `<RenderCollectionView>` loads items from the source collection, applies
-filter / sort / limit / hideFields, and renders each item through that
-collection's item template. The artist gets a "Manage tour dates →"
-button in the view block's inspector that navigates to
+filter / sort / limit / hideFields, and renders each item through the
+source collection's **itemTemplate**. The artist gets a "Manage tour
+dates →" button in the Collection block's inspector that navigates to
 `/admin/collections/tourDates`.
 
-View blocks are registered dynamically: at editor mount, the admin reads
-the list of collections from disk and injects one view block per
-collection into the page-body Puck config. Adding a new collection
-automatically makes it embeddable on any page.
+Collection blocks are registered dynamically: at editor mount, the admin
+reads the list of collections from disk and injects one Collection block
+per collection into the relevant Puck configs. Adding a new collection
+automatically makes it embeddable everywhere Collection blocks are
+permitted.
 
 ### 6. Field-type palette (v1)
 
@@ -310,8 +482,10 @@ richText for its Text blocks. Composition, not duplication.
 
 ```
 src/content/collections/<collection-slug>/
-  _collection.json          # CollectionDef (schema, item + detail + list templates, settings)
-  items/<item-slug>.json    # one Item per file
+  _collection.json          # CollectionDef (schema, item + detail + list templates, routing, sort)
+  items/
+    _order.json             # OPTIONAL — present only when defaultSort.mode === "manual"
+    <item-slug>.json        # one Item per file
 ```
 
 Both the collection definition AND the items are committed to git.
@@ -320,6 +494,23 @@ default `_collection.json` files the artist can freely modify.
 
 Singletons store their single item at `items/_singleton.json`.
 
+**`_order.json`** is the sole place ordering lives when the artist
+chooses manual ordering. Its shape:
+
+```json
+["paris-2026-07-15", "berlin-2026-07-20", "london-2026-07-25"]
+```
+
+A list of item slugs. Items not present (e.g. a freshly-created item not
+yet positioned) sort to the end. Drag-to-reorder in the admin rewrites
+this file and triggers one publish commit. Renaming an item slug rewrites
+both the item file and the order entry in a single commit. Deleting an
+item removes its entry from `_order.json` in the same commit.
+
+When `defaultSort.mode === "fieldSort"` or `defaultSort` is `null`,
+`_order.json` is absent and items sort by the configured field (or by
+filesystem order when null).
+
 The existing pages directory (`src/content/pages/`) moves to
 `src/content/collections/pages/items/` as part of the foundation PR
 (§13). Existing singletons (`src/content/config/*.json`) move to
@@ -327,20 +518,32 @@ The existing pages directory (`src/content/pages/`) moves to
 
 ### 8. Routing
 
-Each collection's `urlPrefix` determines its public routes:
+A collection's `detailUrlPrefix` determines whether and where its items
+get public detail pages:
 
-- `urlPrefix: "/"` — items render at `/<itemSlug>`. The Pages collection
-  uses this.
-- `urlPrefix: "/shows"` — items render at `/shows/<itemSlug>`. List view
-  at `/shows` (rendered via the collection's `listTemplate` or a default
-  template if null).
-- `urlPrefix: null` — no public routes. Useful for collections that exist
-  only to feed view blocks (e.g. a "Quotes" collection embedded on the
-  About page but with no detail pages).
+- `detailUrlPrefix: "/"` — each item gets `/<itemSlug>`. The Pages
+  collection uses this.
+- `detailUrlPrefix: "/shows"` — each item gets `/shows/<itemSlug>`.
+- `detailUrlPrefix: null` — no detail pages. The collection can still be
+  embedded in a Collection block; items just have no individual URL.
+  Useful for "Quotes", "FAQ entries", or any collection whose items
+  exist only to populate other pages.
+
+Whether a collection's *list page* (`/shows` as a list of all tour dates)
+exists is independent:
+
+- If `listTemplate` is set, the system auto-generates the list page at
+  `detailUrlPrefix` (e.g. `/shows`).
+- If `listTemplate` is null, no auto-list page is generated. To have a
+  `/shows` page, the artist creates a Page (`/admin/collections/pages/items/new`,
+  slug `shows`) and places a `TourDatesView` Collection block on it.
+  This is the path we expect to be most common.
 
 Next.js dynamic routes are generated at build time from the collection
-list. A single `[...slug]` catch-all at the public root dispatches by
-walking the collection registry, matching `urlPrefix` + `itemSlug`.
+registry. A single `[...slug]` catch-all at the public root dispatches
+by walking the registry, matching `detailUrlPrefix` + `itemSlug`. Build
+time catches conflicts (two collections both claiming
+`detailUrlPrefix: "/"`).
 
 ### 9. Editor surfaces
 
@@ -351,8 +554,8 @@ walking the collection registry, matching `urlPrefix` + `itemSlug`.
   /collections/<slug>/items/new           New item form
   /collections/<slug>/items/<itemSlug>    Item editor
   /collections/<slug>/schema              Schema editor (fields)
-  /collections/<slug>/template/item       Item template editor (Puck, display blocks only)
-  /collections/<slug>/template/detail     Detail template editor (Puck, display + view blocks)
+  /collections/<slug>/template/item       Item template editor (Puck, Primitive blocks only)
+  /collections/<slug>/template/detail     Detail template editor (Puck, Primitive + Collection blocks)
   /pages                                  Pages list — view alias over /collections/pages
   /pages/<slug>                           Page editor — view alias over /collections/pages/items/<slug>
   /settings                               Settings — view alias over /collections/site/items/_singleton
@@ -376,8 +579,9 @@ The **schema editor** lists fields with add / remove / rename / reorder /
 edit-type. It enforces guardrails (§11) for destructive changes.
 
 The **template editors** are two Puck instances per collection, sharing
-the display block library. The item-template editor's config excludes
-view blocks (per §4); the detail-template editor's config includes them.
+the Primitive block library. The item-template editor's config excludes
+Collection blocks (per §4); the detail-template editor's config includes
+them.
 Both edit fields on `_collection.json`.
 
 ### 10. Type-safety stance
@@ -470,12 +674,14 @@ External-facing API routes (`/api/publish`, `/api/pages`,
 
 The previously-separate Goal 2 ("remove the Navigation menu control and
 fold reordering + visibility into the Pages list") is subsumed by this
-ADR. The Pages collection ships with `showInNav: boolean` and
-`navOrder: number` fields; the Pages list view supports drag-to-reorder
-(updating `navOrder`) and an eye-icon toggle (updating `showInNav`). The
-`/admin/navigation` route shrinks to header-style-only controls
-(wordmark, mode, layout) and may merge into `/admin/settings` once the
-nav-menu UI lives entirely in `/admin/pages`.
+ADR. The Pages collection ships with `defaultSort: { mode: "manual" }`
+(so order is stored in `items/_order.json` per §7) and a `showInNav:
+boolean` field. The Pages list view in the admin supports drag-to-reorder
+(rewrites `_order.json`) and an eye-icon toggle (flips each page's
+`showInNav`). The header reads the ordered list of Pages and filters by
+`showInNav` to build the nav menu. The `/admin/navigation` route shrinks
+to header-style-only controls (wordmark, mode, layout) and may merge into
+`/admin/settings` once the nav-menu UI lives entirely in `/admin/pages`.
 
 ### 15. Shipping plan
 
@@ -485,7 +691,7 @@ Eight PRs, each independently reviewable and (where possible) mergeable:
    `Item`, `FieldValue` types in a new package (or in
    `src/lib/collections/`). Zod builder. Item store (read / write / list /
    delete). Publish target kinds. No UI.
-2. **Item template renderer + data binding primitives.** Display block
+2. **Item template renderer + data binding primitives.** Primitive block
    library. Binding resolution. Renderer that takes a template + item and
    produces React. Unit-tested without the editor.
 3. **Pages migration.** Move pages and singletons to the collection
@@ -496,9 +702,9 @@ Eight PRs, each independently reviewable and (where possible) mergeable:
 5. **Schema editor UI.** Add / remove / rename / reorder / type changes
    with guardrails. Existing pages collection becomes editable.
 6. **Template Puck editors.** Per-collection layout designers for both
-   `itemTemplate` (display blocks only) and `detailTemplate` (display +
-   view blocks). Shared editor shell with config differing only in which
-   blocks are registered.
+   `itemTemplate` (Primitive blocks only) and `detailTemplate` (Primitive +
+   Collection blocks). Shared editor shell with config differing only in
+   which blocks are registered.
 7. **First non-pages collection: tour dates.** Validates the full stack.
    Includes the `TourDatesView` block on pages, with the "Manage" button
    for navigation.
@@ -560,8 +766,9 @@ breadth on the same foundation.
   with minimal logic. Net code reduction over time despite the new
   abstraction layer.
 - **One Puck config per surface, all dynamically composed.** The page-body
-  Puck config registers display blocks + view blocks (one per existing
-  collection). The item-template Puck config registers display blocks
+  Puck config registers Primitive blocks + Collection blocks (one per
+  existing collection). The item-template Puck config registers Primitive
+  blocks
   with binding controls. The two configs are derived from the collection
   registry at render time, not hand-maintained.
 - **Foundational refactor of the publish layer.** Page-specific publish
@@ -570,7 +777,8 @@ breadth on the same foundation.
 - **Build-time route generation depends on the collection registry.**
   Next.js's static export reads the collection list at build time to
   generate dynamic routes. A misconfigured collection (e.g. two
-  collections claiming `urlPrefix: "/"`) is caught at build, not runtime.
+  collections claiming `detailUrlPrefix: "/"`) is caught at build, not
+  runtime.
 - **No SSR for the public site (carry-over from ADR-007).** Item template
   rendering happens at build time. A collection with frequently-changing
   items requires a rebuild on each change; current artist scale makes

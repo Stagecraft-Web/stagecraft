@@ -1,0 +1,423 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  collectionDefRepoPath,
+  createItem,
+  deleteItem,
+  findField,
+  ItemExistsError,
+  itemRepoPath,
+  listCollectionSlugs,
+  listItemSlugs,
+  listItemsInOrder,
+  orderRepoPath,
+  readCollectionDef,
+  readItem,
+  readOrder,
+  readSingleton,
+  SINGLETON_ITEM_SLUG,
+  writeCollectionDef,
+  writeItem,
+  writeOrder,
+  writeSingleton,
+} from "./index";
+import type { CollectionDef, Item } from "./index";
+
+let TMP_CONTENT_DIR: string;
+
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-collections-"));
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
+
+beforeEach(async () => {
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
+  // Wipe between tests so each one starts from a clean tree.
+  await fs.rm(path.join(TMP_CONTENT_DIR, "collections"), { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+function tourDatesDef(): CollectionDef {
+  return {
+    slug: "tour-dates",
+    singularName: "tour date",
+    pluralName: "tour dates",
+    fields: [
+      { id: "f_date", key: "date", type: "date", required: true },
+      { id: "f_venue", key: "venue", type: "text", required: true },
+      { id: "f_city", key: "city", type: "text", required: true },
+      {
+        id: "f_status",
+        key: "status",
+        type: "select",
+        required: true,
+        options: [
+          { id: "o1", value: "on_sale", label: "On sale" },
+          { id: "o2", value: "sold_out", label: "Sold out" },
+        ],
+      },
+    ],
+    slugSourceFieldId: "f_venue",
+    detailUrlPrefix: "/shows",
+    defaultSort: { mode: "fieldSort", fieldId: "f_date", direction: "asc" },
+    itemTemplate: null,
+    detailTemplate: null,
+    listTemplate: null,
+    isSingleton: false,
+  };
+}
+
+function tourDateItem(slug: string, date: string, venue: string, city: string): Item {
+  return {
+    id: `item_${slug}`,
+    slug,
+    values: {
+      f_date: { type: "date", value: date },
+      f_venue: { type: "text", value: venue },
+      f_city: { type: "text", value: city },
+      f_status: { type: "select", value: "on_sale" },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Repo path helpers
+// ---------------------------------------------------------------------------
+
+describe("repo path helpers", () => {
+  it("collectionDefRepoPath returns the canonical location", () => {
+    expect(collectionDefRepoPath("tour-dates")).toBe(
+      "src/content/collections/tour-dates/_collection.json",
+    );
+  });
+
+  it("itemRepoPath includes the items/ directory", () => {
+    expect(itemRepoPath("tour-dates", "paris-2026")).toBe(
+      "src/content/collections/tour-dates/items/paris-2026.json",
+    );
+  });
+
+  it("orderRepoPath uses the reserved _order filename", () => {
+    expect(orderRepoPath("tour-dates")).toBe(
+      "src/content/collections/tour-dates/items/_order.json",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collection-level
+// ---------------------------------------------------------------------------
+
+describe("collection-level operations", () => {
+  it("listCollectionSlugs returns sorted slugs of every collection on disk", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    await writeCollectionDef("releases", { ...tourDatesDef(), slug: "releases" });
+    expect(await listCollectionSlugs()).toEqual(["releases", "tour-dates"]);
+  });
+
+  it("listCollectionSlugs returns [] when no collections exist", async () => {
+    expect(await listCollectionSlugs()).toEqual([]);
+  });
+
+  it("listCollectionSlugs ignores non-directory entries and badly-named dirs", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    await fs.mkdir(path.join(TMP_CONTENT_DIR, "collections", "Bad-Slug"), { recursive: true });
+    await fs.writeFile(path.join(TMP_CONTENT_DIR, "collections", "stray.json"), "{}");
+    expect(await listCollectionSlugs()).toEqual(["tour-dates"]);
+  });
+
+  it("readCollectionDef returns null for an unknown collection", async () => {
+    expect(await readCollectionDef("does-not-exist")).toBeNull();
+  });
+
+  it("readCollectionDef parses a written def", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const read = await readCollectionDef("tour-dates");
+    expect(read).toEqual(def);
+  });
+
+  it("writeCollectionDef refuses a def whose slug doesn't match the target", async () => {
+    await expect(
+      writeCollectionDef("tour-dates", { ...tourDatesDef(), slug: "different" }),
+    ).rejects.toThrow();
+  });
+
+  it("writeCollectionDef rejects an invalid def at write time", async () => {
+    const bad = tourDatesDef();
+    bad.fields = [
+      { id: "dup", key: "a", type: "text", required: true },
+      { id: "dup", key: "b", type: "text", required: true },
+    ];
+    bad.slugSourceFieldId = null;
+    bad.defaultSort = null;
+    await expect(writeCollectionDef("tour-dates", bad)).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item operations
+// ---------------------------------------------------------------------------
+
+describe("item operations", () => {
+  it("listItemSlugs returns sorted slugs, excluding reserved files", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    await writeItem("tour-dates", "berlin-2026", tourDateItem("berlin-2026", "2026-07-20", "X", "Berlin"), def);
+    await writeItem("tour-dates", "paris-2026", tourDateItem("paris-2026", "2026-07-15", "Y", "Paris"), def);
+    await writeOrder("tour-dates", ["paris-2026", "berlin-2026"]);
+    expect(await listItemSlugs("tour-dates")).toEqual(["berlin-2026", "paris-2026"]);
+  });
+
+  it("listItemSlugs returns [] when items/ doesn't exist", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    expect(await listItemSlugs("tour-dates")).toEqual([]);
+  });
+
+  it("readItem returns null when the item file doesn't exist", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    expect(await readItem("tour-dates", "nope", def)).toBeNull();
+  });
+
+  it("writeItem + readItem round-trips an item with its slug", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const item = tourDateItem("paris-2026", "2026-07-15", "La Cigale", "Paris");
+    await writeItem("tour-dates", "paris-2026", item, def);
+    expect(await readItem("tour-dates", "paris-2026", def)).toEqual(item);
+  });
+
+  it("writeItem refuses an item whose slug doesn't match the target", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    await expect(
+      writeItem(
+        "tour-dates",
+        "paris-2026",
+        tourDateItem("different-slug", "2026-07-15", "X", "Y"),
+        def,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("writeItem rejects an item that violates the collection schema", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const bad: Item = {
+      id: "item_bad",
+      slug: "bad",
+      values: {
+        // Missing required f_venue, f_city, f_status.
+        f_date: { type: "date", value: "2026-07-15" },
+      },
+    };
+    await expect(writeItem("tour-dates", "bad", bad, def)).rejects.toThrow();
+  });
+
+  it("createItem fails if the item already exists", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const item = tourDateItem("paris-2026", "2026-07-15", "X", "Paris");
+    await writeItem("tour-dates", "paris-2026", item, def);
+    await expect(createItem("tour-dates", "paris-2026", item, def)).rejects.toThrow(
+      ItemExistsError,
+    );
+  });
+
+  it("deleteItem removes the file (and is a no-op on missing files)", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    await writeItem(
+      "tour-dates",
+      "paris-2026",
+      tourDateItem("paris-2026", "2026-07-15", "X", "Paris"),
+      def,
+    );
+    await deleteItem("tour-dates", "paris-2026");
+    expect(await readItem("tour-dates", "paris-2026", def)).toBeNull();
+    await deleteItem("tour-dates", "paris-2026");
+  });
+
+  it("readItem strips values for fields that no longer exist on the schema", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    // Write file directly so we can include a value for a field id that
+    // the current schema doesn't know about.
+    const itemPath = path.join(
+      TMP_CONTENT_DIR,
+      "collections",
+      "tour-dates",
+      "items",
+      "paris-2026.json",
+    );
+    await fs.mkdir(path.dirname(itemPath), { recursive: true });
+    await fs.writeFile(
+      itemPath,
+      JSON.stringify({
+        id: "item_p",
+        values: {
+          f_date: { type: "date", value: "2026-07-15" },
+          f_venue: { type: "text", value: "X" },
+          f_city: { type: "text", value: "Paris" },
+          f_status: { type: "select", value: "on_sale" },
+          f_removed: { type: "text", value: "stale" },
+        },
+      }),
+    );
+    const read = await readItem("tour-dates", "paris-2026", def);
+    expect(read?.values).not.toHaveProperty("f_removed");
+    expect(read?.values).toHaveProperty("f_venue");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ordering
+// ---------------------------------------------------------------------------
+
+describe("listItemsInOrder", () => {
+  async function seed() {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    await writeItem(
+      "tour-dates",
+      "berlin-2026",
+      tourDateItem("berlin-2026", "2026-07-20", "Bar", "Berlin"),
+      def,
+    );
+    await writeItem(
+      "tour-dates",
+      "paris-2026",
+      tourDateItem("paris-2026", "2026-07-15", "Foo", "Paris"),
+      def,
+    );
+    await writeItem(
+      "tour-dates",
+      "london-2026",
+      tourDateItem("london-2026", "2026-07-25", "Baz", "London"),
+      def,
+    );
+    return def;
+  }
+
+  it("fieldSort asc orders by the field value", async () => {
+    const def = await seed();
+    const items = await listItemsInOrder("tour-dates", def);
+    expect(items.map((i) => i.slug)).toEqual(["paris-2026", "berlin-2026", "london-2026"]);
+  });
+
+  it("fieldSort desc reverses the order", async () => {
+    const def = await seed();
+    def.defaultSort = { mode: "fieldSort", fieldId: "f_date", direction: "desc" };
+    const items = await listItemsInOrder("tour-dates", def);
+    expect(items.map((i) => i.slug)).toEqual(["london-2026", "berlin-2026", "paris-2026"]);
+  });
+
+  it("manual sort respects _order.json, with missing items at the end (alpha)", async () => {
+    const def = await seed();
+    def.defaultSort = { mode: "manual" };
+    await writeOrder("tour-dates", ["london-2026", "paris-2026"]);
+    const items = await listItemsInOrder("tour-dates", def);
+    expect(items.map((i) => i.slug)).toEqual([
+      "london-2026",
+      "paris-2026",
+      "berlin-2026", // not in order file → end, alpha
+    ]);
+  });
+
+  it("manual sort with no _order.json falls back to alpha", async () => {
+    const def = await seed();
+    def.defaultSort = { mode: "manual" };
+    const items = await listItemsInOrder("tour-dates", def);
+    expect(items.map((i) => i.slug)).toEqual(["berlin-2026", "london-2026", "paris-2026"]);
+  });
+
+  it("null defaultSort orders alphabetically by slug", async () => {
+    const def = await seed();
+    def.defaultSort = null;
+    const items = await listItemsInOrder("tour-dates", def);
+    expect(items.map((i) => i.slug)).toEqual(["berlin-2026", "london-2026", "paris-2026"]);
+  });
+});
+
+describe("ordering files", () => {
+  it("readOrder returns null when _order.json doesn't exist", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    expect(await readOrder("tour-dates")).toBeNull();
+  });
+
+  it("writeOrder + readOrder round-trips", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    await writeOrder("tour-dates", ["a", "b", "c"]);
+    expect(await readOrder("tour-dates")).toEqual(["a", "b", "c"]);
+  });
+
+  it("writeOrder rejects invalid slugs", async () => {
+    await writeCollectionDef("tour-dates", tourDatesDef());
+    await expect(writeOrder("tour-dates", ["NOT-VALID"])).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Singletons
+// ---------------------------------------------------------------------------
+
+describe("singletons", () => {
+  function siteSettingsDef(): CollectionDef {
+    return {
+      slug: "site",
+      singularName: "site settings",
+      pluralName: "site settings",
+      fields: [
+        { id: "f_name", key: "artistName", type: "text", required: true },
+      ],
+      slugSourceFieldId: null,
+      detailUrlPrefix: null,
+      defaultSort: null,
+      itemTemplate: null,
+      detailTemplate: null,
+      listTemplate: null,
+      isSingleton: true,
+    };
+  }
+
+  it("write and read a singleton", async () => {
+    const def = siteSettingsDef();
+    await writeCollectionDef("site", def);
+    const item: Item = {
+      id: "item_site",
+      slug: SINGLETON_ITEM_SLUG,
+      values: { f_name: { type: "text", value: "Test Artist" } },
+    };
+    await writeSingleton("site", item, def);
+    expect(await readSingleton("site", def)).toEqual(item);
+  });
+
+  it("readSingleton returns null when no singleton exists yet", async () => {
+    const def = siteSettingsDef();
+    await writeCollectionDef("site", def);
+    expect(await readSingleton("site", def)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
+
+describe("findField", () => {
+  it("returns the matching field by id, or undefined", () => {
+    const def = tourDatesDef();
+    expect(findField(def, "f_venue")?.key).toBe("venue");
+    expect(findField(def, "nope")).toBeUndefined();
+  });
+});

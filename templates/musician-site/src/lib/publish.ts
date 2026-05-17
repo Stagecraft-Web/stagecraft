@@ -9,6 +9,16 @@ import {
   SITE_CONFIG_REPO_PATH,
   stringifyContent,
 } from "./content";
+import {
+  collectionDefRepoPath,
+  collectionDefSchema,
+  itemRepoPath,
+  itemSlugSchema,
+  orderFileSchema,
+  orderRepoPath,
+  slugSchema,
+  type CollectionDef,
+} from "./collections";
 import { commitFiles, type FileToCommit } from "./git-commit";
 import {
   appearanceSchema,
@@ -59,13 +69,29 @@ export class PublishError extends Error {
 /**
  * Targets the publish flow can write. Each target maps to a known repo path
  * and a known on-disk JSON shape so the API can validate before committing.
+ *
+ * The `collection-*` kinds (ADR-009) extend the same machinery: each
+ * resolves to a path under `src/content/collections/<slug>/...`. Item
+ * payloads are validated against the collection's dynamic schema at the
+ * API-route level (since validation requires reading the collection
+ * def); this layer only enforces the structural shape.
  */
 export type PublishTarget =
   | { kind: "page"; slug: string; data: unknown }
   | { kind: "site-config"; data: SiteConfig }
   | { kind: "header-config"; data: HeaderConfig }
   | { kind: "appearance"; data: Appearance }
-  | { kind: "delete-page"; slug: string };
+  | { kind: "delete-page"; slug: string }
+  | { kind: "collection-def"; collectionSlug: string; data: CollectionDef }
+  | {
+      kind: "collection-item";
+      collectionSlug: string;
+      itemSlug: string;
+      /** Pre-validated against the collection's schema by the caller. */
+      data: unknown;
+    }
+  | { kind: "delete-collection-item"; collectionSlug: string; itemSlug: string }
+  | { kind: "collection-order"; collectionSlug: string; data: string[] };
 
 export type PublishArgs = {
   targets: PublishTarget[];
@@ -197,6 +223,47 @@ function planFiles(targets: PublishTarget[]): {
         deletePaths.push(pageRepoPath(slug));
         break;
       }
+      case "collection-def": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const parsed = collectionDefSchema.parse(target.data);
+        if (parsed.slug !== collectionSlug) {
+          throw new Error(
+            `collection-def: def.slug (${parsed.slug}) must match collectionSlug (${collectionSlug})`,
+          );
+        }
+        writes.push({
+          path: collectionDefRepoPath(collectionSlug),
+          content: stringifyContent(parsed),
+        });
+        break;
+      }
+      case "collection-item": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const itemSlug = itemSlugSchema.parse(target.itemSlug);
+        // Item-shape validation happens at the API route (it needs the
+        // collection's CollectionDef to build the schema). Here we just
+        // persist the bytes after formatting.
+        writes.push({
+          path: itemRepoPath(collectionSlug, itemSlug),
+          content: stringifyContent(target.data),
+        });
+        break;
+      }
+      case "delete-collection-item": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const itemSlug = itemSlugSchema.parse(target.itemSlug);
+        deletePaths.push(itemRepoPath(collectionSlug, itemSlug));
+        break;
+      }
+      case "collection-order": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const parsed = orderFileSchema.parse(target.data);
+        writes.push({
+          path: orderRepoPath(collectionSlug),
+          content: stringifyContent(parsed),
+        });
+        break;
+      }
     }
   }
 
@@ -213,10 +280,26 @@ function summariseTargets(targets: PublishTarget[]): string {
   if (targets.some((t) => t.kind === "site-config")) parts.push("site settings");
   if (targets.some((t) => t.kind === "header-config")) parts.push("header & navigation");
   if (targets.some((t) => t.kind === "appearance")) parts.push("appearance");
+  const collectionDefs = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-def" }> => t.kind === "collection-def")
+    .map((t) => t.collectionSlug);
+  if (collectionDefs.length) parts.push(`collection defs: ${collectionDefs.join(", ")}`);
+  const collectionItems = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-item" }> => t.kind === "collection-item")
+    .map((t) => `${t.collectionSlug}/${t.itemSlug}`);
+  if (collectionItems.length) parts.push(`items: ${collectionItems.join(", ")}`);
+  const orders = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-order" }> => t.kind === "collection-order")
+    .map((t) => t.collectionSlug);
+  if (orders.length) parts.push(`order: ${orders.join(", ")}`);
   const deletes = targets
-    .filter((t): t is { kind: "delete-page"; slug: string } => t.kind === "delete-page")
+    .filter((t): t is Extract<PublishTarget, { kind: "delete-page" }> => t.kind === "delete-page")
     .map((t) => t.slug);
   if (deletes.length) parts.push(`delete: ${deletes.join(", ")}`);
+  const itemDeletes = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "delete-collection-item" }> => t.kind === "delete-collection-item")
+    .map((t) => `${t.collectionSlug}/${t.itemSlug}`);
+  if (itemDeletes.length) parts.push(`delete items: ${itemDeletes.join(", ")}`);
   return parts.length ? `Update ${parts.join(" + ")}` : "Update content";
 }
 

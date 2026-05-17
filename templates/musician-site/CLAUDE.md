@@ -69,9 +69,11 @@ src/
     config.tsx              Puck Config — blocks, root fields, render
     ImagePickerField.tsx    Custom field for image picking
   lib/
-    fs-helpers.ts           contentDir / readJson / isNotFound /
-                            stringifyContent — shared by every
-                            content-store layer
+    fs-helpers.ts           Shared filesystem primitives used by every
+                            content-store layer + publish:
+                            contentDir, localPathForRepoPath,
+                            readJson, writeJson, unlinkIfExists,
+                            readdirFiltered, stringifyContent, isNotFound
     content.ts              Read/write helpers for pages + singletons +
                             multi-page summary listings
     site-config-types.ts    Zod schemas for site / header / appearance

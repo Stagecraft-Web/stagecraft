@@ -516,6 +516,11 @@ export const collectionDefSchema = z
 
 export type CollectionDef = z.infer<typeof collectionDefSchema>;
 
+/** Look up a field by id on a CollectionDef, or `undefined` if absent. */
+export function findField(def: CollectionDef, fieldId: FieldId): FieldDef | undefined {
+  return def.fields.find((f) => f.id === fieldId);
+}
+
 // ---------------------------------------------------------------------------
 // 5. Item / ItemFile and dynamic per-collection schema
 // ---------------------------------------------------------------------------

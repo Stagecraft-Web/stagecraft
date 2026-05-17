@@ -8,7 +8,6 @@ import {
   collectionDefRepoPath,
   createItem,
   deleteItem,
-  findField,
   ItemExistsError,
   itemRepoPath,
   listCollectionSlugs,
@@ -361,17 +360,5 @@ describe("singletons", () => {
     const def = siteSettingsDef();
     await writeCollectionDef("site", def);
     expect(await readSingleton("site", def)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-describe("findField", () => {
-  it("returns the matching field by id, or undefined", () => {
-    const def = tourDatesDef();
-    expect(findField(def, "f_venue")?.key).toBe("venue");
-    expect(findField(def, "nope")).toBeUndefined();
   });
 });

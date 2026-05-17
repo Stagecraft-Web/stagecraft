@@ -6,6 +6,7 @@ import {
   collectionDefSchema,
   fieldDefSchema,
   fieldValueSchema,
+  findField,
   isFieldRequired,
   itemSlugSchema,
   ORDER_FILE_NAME,
@@ -17,6 +18,7 @@ import {
   type FieldDef,
   type FieldValue,
 } from "./schema";
+import { tourDatesDef } from "./test-fixtures";
 
 // ---------------------------------------------------------------------------
 // Compile-time exhaustiveness — the tests "pass" by typechecking. Any new
@@ -549,5 +551,17 @@ describe("orderFileSchema", () => {
 
   it("accepts an empty array", () => {
     expect(orderFileSchema.parse([])).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findField
+// ---------------------------------------------------------------------------
+
+describe("findField", () => {
+  it("returns the matching field by id, or undefined", () => {
+    const def = tourDatesDef();
+    expect(findField(def, "f_venue")?.key).toBe("venue");
+    expect(findField(def, "nope")).toBeUndefined();
   });
 });

@@ -4,7 +4,17 @@ import path from "node:path";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { contentDir, isNotFound, readJson, stringifyContent } from "./fs-helpers";
+import {
+  contentDir,
+  isNotFound,
+  localPathForRepoPath,
+  readdirFiltered,
+  readJson,
+  REPO_CONTENT_PREFIX,
+  stringifyContent,
+  unlinkIfExists,
+  writeJson,
+} from "./fs-helpers";
 
 let TMP_DIR: string;
 
@@ -71,5 +81,68 @@ describe("readJson", () => {
     const file = path.join(TMP_DIR, "bad.json");
     await fs.writeFile(file, "{not json");
     await expect(readJson(file)).rejects.toThrow();
+  });
+});
+
+describe("writeJson", () => {
+  it("creates parent directories as needed", async () => {
+    const file = path.join(TMP_DIR, "deep/nested/dir/file.json");
+    await writeJson(file, { x: 1 });
+    expect(await readJson(file)).toEqual({ x: 1 });
+  });
+
+  it("writes with canonical formatting (matches stringifyContent)", async () => {
+    const file = path.join(TMP_DIR, "format.json");
+    await writeJson(file, { a: 1 });
+    expect(await fs.readFile(file, "utf-8")).toBe('{\n  "a": 1\n}\n');
+  });
+});
+
+describe("readdirFiltered", () => {
+  it("returns the picked values from each entry, sorted", async () => {
+    const dir = path.join(TMP_DIR, "filt");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "c.json"), "");
+    await fs.writeFile(path.join(dir, "a.json"), "");
+    await fs.writeFile(path.join(dir, "b.txt"), "");
+    const result = await readdirFiltered(dir, (e) =>
+      e.isFile() && e.name.endsWith(".json") ? e.name.replace(/\.json$/, "") : null,
+    );
+    expect(result).toEqual(["a", "c"]);
+  });
+
+  it("returns [] when the directory doesn't exist (ENOENT swallowed)", async () => {
+    expect(await readdirFiltered(path.join(TMP_DIR, "nope"), () => "x")).toEqual([]);
+  });
+});
+
+describe("unlinkIfExists", () => {
+  it("deletes the file when present", async () => {
+    const file = path.join(TMP_DIR, "to-delete.txt");
+    await fs.writeFile(file, "");
+    await unlinkIfExists(file);
+    expect(await readJson(file)).toBeNull();
+  });
+
+  it("is a no-op when the file doesn't exist", async () => {
+    await expect(unlinkIfExists(path.join(TMP_DIR, "nope.txt"))).resolves.toBeUndefined();
+  });
+});
+
+describe("localPathForRepoPath", () => {
+  it("maps a src/content/... path under STAGECRAFT_CONTENT_DIR", () => {
+    expect(localPathForRepoPath("src/content/pages/home.json")).toBe(
+      path.join(TMP_DIR, "pages/home.json"),
+    );
+  });
+
+  it("falls back to <cwd>/<path> for paths outside src/content/", () => {
+    expect(localPathForRepoPath("public/images/x.png")).toBe(
+      path.join(process.cwd(), "public/images/x.png"),
+    );
+  });
+
+  it("REPO_CONTENT_PREFIX is the canonical prefix", () => {
+    expect(REPO_CONTENT_PREFIX).toBe("src/content/");
   });
 });

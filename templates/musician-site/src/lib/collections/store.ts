@@ -10,25 +10,21 @@
  *       _singleton.json                   # OPTIONAL — singletons only
  *       <item-slug>.json                  # one regular item per file
  *
- * Conventions matching the existing `content.ts`:
- *
- *   - `STAGECRAFT_CONTENT_DIR` overrides the content root so test files
- *     can isolate per-worker tmpdirs without clobbering each other.
- *
- *   - Reads return `null` on ENOENT (not throw) so callers can fall back
- *     to defaults instead of branching on errors.
- *
- *   - Writes stringify with `stringifyContent` for canonical formatting
- *     (2-space indent + trailing newline) so re-saves diff minimally.
- *
- *   - Validation happens on both read and write so a corrupt file is
- *     surfaced loudly at read time rather than silently propagating.
+ * Paths flow repo → local via `localPathForRepoPath` (shared with the
+ * publish layer) so the on-disk root resolves the same way in both
+ * places. JSON read/write goes through `readJson` / `writeJson` so
+ * formatting stays canonical (see `fs-helpers.ts`). Validation runs on
+ * both read and write so corrupt data surfaces loudly rather than
+ * silently propagating.
  */
 
-import fs from "node:fs/promises";
-import path from "node:path";
-
-import { contentDir, isNotFound, readJson, stringifyContent } from "../fs-helpers";
+import {
+  localPathForRepoPath,
+  readdirFiltered,
+  readJson,
+  unlinkIfExists,
+  writeJson,
+} from "../fs-helpers";
 
 import {
   buildItemFileSchema,
@@ -39,7 +35,6 @@ import {
   ORDER_FILE_NAME,
   SINGLETON_ITEM_SLUG,
   type CollectionDef,
-  type FieldDef,
   type FieldValue,
   type Item,
   type ItemFile,
@@ -47,70 +42,32 @@ import {
 
 // ---------------------------------------------------------------------------
 // Paths
+//
+// Repo paths (relative to repo root) are the source of truth. Local
+// filesystem paths derive from them via `localPathForRepoPath`, which
+// honours `STAGECRAFT_CONTENT_DIR` so test workers stay isolated. This
+// matches the convention publish.ts uses for the same `src/content/...`
+// → on-disk mapping.
 // ---------------------------------------------------------------------------
 
-function collectionsDir(): string {
-  return path.join(contentDir(), "collections");
-}
+const COLLECTIONS_REPO_ROOT = "src/content/collections";
 
-function collectionDir(collectionSlug: string): string {
-  return path.join(collectionsDir(), collectionSlug);
-}
+const collectionRepoDir = (s: string) => `${COLLECTIONS_REPO_ROOT}/${s}`;
+const itemsRepoDir = (s: string) => `${collectionRepoDir(s)}/items`;
 
-function collectionDefPath(collectionSlug: string): string {
-  return path.join(collectionDir(collectionSlug), "_collection.json");
-}
+export const collectionDefRepoPath = (s: string) => `${collectionRepoDir(s)}/_collection.json`;
+export const itemRepoPath = (s: string, i: string) => `${itemsRepoDir(s)}/${i}.json`;
+export const orderRepoPath = (s: string) => `${itemsRepoDir(s)}/${ORDER_FILE_NAME}.json`;
 
-function itemsDir(collectionSlug: string): string {
-  return path.join(collectionDir(collectionSlug), "items");
-}
-
-function itemPath(collectionSlug: string, itemSlug: string): string {
-  return path.join(itemsDir(collectionSlug), `${itemSlug}.json`);
-}
-
-function orderPath(collectionSlug: string): string {
-  return path.join(itemsDir(collectionSlug), `${ORDER_FILE_NAME}.json`);
-}
-
-/**
- * Repo paths (relative to repo root) for the publish layer.
- *
- * Mirrors the local-path functions above but produces the
- * `src/content/...` form publish targets expect.
- */
-export function collectionDefRepoPath(collectionSlug: string): string {
-  return `src/content/collections/${collectionSlug}/_collection.json`;
-}
-
-export function itemRepoPath(collectionSlug: string, itemSlug: string): string {
-  return `src/content/collections/${collectionSlug}/items/${itemSlug}.json`;
-}
-
-export function orderRepoPath(collectionSlug: string): string {
-  return `src/content/collections/${collectionSlug}/items/${ORDER_FILE_NAME}.json`;
-}
+const collectionsLocalDir = () => localPathForRepoPath(COLLECTIONS_REPO_ROOT);
+const itemsLocalDir = (s: string) => localPathForRepoPath(itemsRepoDir(s));
+const collectionDefLocalPath = (s: string) => localPathForRepoPath(collectionDefRepoPath(s));
+const itemLocalPath = (s: string, i: string) => localPathForRepoPath(itemRepoPath(s, i));
+const orderLocalPath = (s: string) => localPathForRepoPath(orderRepoPath(s));
 
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
-
-export class CollectionNotFoundError extends Error {
-  constructor(public collectionSlug: string) {
-    super(`No collection with slug "${collectionSlug}"`);
-    this.name = "CollectionNotFoundError";
-  }
-}
-
-export class ItemNotFoundError extends Error {
-  constructor(
-    public collectionSlug: string,
-    public itemSlug: string,
-  ) {
-    super(`No item "${itemSlug}" in collection "${collectionSlug}"`);
-    this.name = "ItemNotFoundError";
-  }
-}
 
 export class ItemExistsError extends Error {
   constructor(
@@ -127,26 +84,17 @@ export class ItemExistsError extends Error {
 // ---------------------------------------------------------------------------
 
 export async function listCollectionSlugs(): Promise<string[]> {
-  let entries;
-  try {
-    entries = await fs.readdir(collectionsDir(), { withFileTypes: true });
-  } catch (cause) {
-    if (isNotFound(cause)) return [];
-    throw cause;
-  }
-  return entries
-    .filter((e) => e.isDirectory() && slugSchema.safeParse(e.name).success)
-    .map((e) => e.name)
-    .sort();
+  return readdirFiltered(collectionsLocalDir(), (e) =>
+    e.isDirectory() && slugSchema.safeParse(e.name).success ? e.name : null,
+  );
 }
 
 export async function readCollectionDef(
   collectionSlug: string,
 ): Promise<CollectionDef | null> {
   slugSchema.parse(collectionSlug);
-  const raw = await readJson<unknown>(collectionDefPath(collectionSlug));
-  if (raw === null) return null;
-  return collectionDefSchema.parse(raw);
+  const raw = await readJson<unknown>(collectionDefLocalPath(collectionSlug));
+  return raw === null ? null : collectionDefSchema.parse(raw);
 }
 
 export async function writeCollectionDef(
@@ -159,13 +107,7 @@ export async function writeCollectionDef(
       `writeCollectionDef: def.slug (${def.slug}) must match target slug (${collectionSlug})`,
     );
   }
-  const parsed = collectionDefSchema.parse(def);
-  await fs.mkdir(collectionDir(collectionSlug), { recursive: true });
-  await fs.writeFile(
-    collectionDefPath(collectionSlug),
-    stringifyContent(parsed),
-    "utf-8",
-  );
+  await writeJson(collectionDefLocalPath(collectionSlug), collectionDefSchema.parse(def));
 }
 
 // ---------------------------------------------------------------------------
@@ -174,22 +116,16 @@ export async function writeCollectionDef(
 
 /**
  * Walk `items/` and return the slugs of every regular item file. Reserved
- * filenames (`_singleton`, `_order`) are excluded.
+ * filenames (`_singleton`, `_order`) are excluded by `slugSchema`'s
+ * leading-underscore rejection.
  */
 export async function listItemSlugs(collectionSlug: string): Promise<string[]> {
   slugSchema.parse(collectionSlug);
-  let entries;
-  try {
-    entries = await fs.readdir(itemsDir(collectionSlug), { withFileTypes: true });
-  } catch (cause) {
-    if (isNotFound(cause)) return [];
-    throw cause;
-  }
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith(".json"))
-    .map((e) => e.name.replace(/\.json$/, ""))
-    .filter((slug) => slugSchema.safeParse(slug).success)
-    .sort();
+  return readdirFiltered(itemsLocalDir(collectionSlug), (e) => {
+    if (!e.isFile() || !e.name.endsWith(".json")) return null;
+    const slug = e.name.replace(/\.json$/, "");
+    return slugSchema.safeParse(slug).success ? slug : null;
+  });
 }
 
 /**
@@ -197,7 +133,7 @@ export async function listItemSlugs(collectionSlug: string): Promise<string[]> {
  * collection's current schema; throws on schema mismatch so corrupt
  * data is surfaced rather than silently propagating.
  *
- * Accepts the collection def as an argument (rather than reading it
+ * Takes the collection def as an argument (rather than reading it
  * here) so callers can amortise the def read across many item reads.
  */
 export async function readItem(
@@ -207,21 +143,18 @@ export async function readItem(
 ): Promise<Item | null> {
   slugSchema.parse(collectionSlug);
   itemSlugSchema.parse(itemSlug);
-  const raw = await readJson<unknown>(itemPath(collectionSlug, itemSlug));
+  const raw = await readJson<unknown>(itemLocalPath(collectionSlug, itemSlug));
   if (raw === null) return null;
   const file = buildItemFileSchema(def.fields).parse(raw);
-  return materialiseItem(itemSlug, file);
-}
-
-/** Combine the file's `{ id, values }` with the slug derived from the filename. */
-function materialiseItem(slug: string, file: ItemFile): Item {
-  return { id: file.id, slug, values: file.values };
+  // The on-disk file omits the slug — derive it from the filename so
+  // renames are a single fs operation, not a content edit.
+  return { id: file.id, slug: itemSlug, values: file.values };
 }
 
 /**
  * Write an item. Validates against the collection's schema and ensures
- * the item's own `slug` field matches the target slug (which becomes
- * the filename).
+ * the item's own `slug` matches the target slug (which becomes the
+ * filename).
  */
 export async function writeItem(
   collectionSlug: string,
@@ -236,14 +169,11 @@ export async function writeItem(
       `writeItem: item.slug (${item.slug}) must match target slug (${itemSlug})`,
     );
   }
-  const fileSchema = buildItemFileSchema(def.fields);
-  const file = fileSchema.parse({ id: item.id, values: item.values });
-  await fs.mkdir(itemsDir(collectionSlug), { recursive: true });
-  await fs.writeFile(
-    itemPath(collectionSlug, itemSlug),
-    stringifyContent(file),
-    "utf-8",
-  );
+  const file: ItemFile = buildItemFileSchema(def.fields).parse({
+    id: item.id,
+    values: item.values,
+  });
+  await writeJson(itemLocalPath(collectionSlug, itemSlug), file);
 }
 
 /**
@@ -270,11 +200,7 @@ export async function deleteItem(
 ): Promise<void> {
   slugSchema.parse(collectionSlug);
   itemSlugSchema.parse(itemSlug);
-  try {
-    await fs.unlink(itemPath(collectionSlug, itemSlug));
-  } catch (cause) {
-    if (!isNotFound(cause)) throw cause;
-  }
+  await unlinkIfExists(itemLocalPath(collectionSlug, itemSlug));
 }
 
 /**
@@ -338,9 +264,10 @@ function sortByField(
 }
 
 /**
- * Extract a sortable scalar from a `FieldValue` for `fieldSort`. Only the
- * value types where sorting is meaningful are supported; others (image,
- * file, puckContent, etc.) return null and sort to the end.
+ * Extract a sortable scalar from a `FieldValue` for `fieldSort`. Only
+ * the value types where sorting is meaningful are supported; others
+ * (image, file, puckContent, multiSelect, richText, collectionRef)
+ * return null and sort to the end.
  */
 function scalarSortKey(value: FieldValue | undefined): string | number | null {
   if (value === undefined) return null;
@@ -352,7 +279,6 @@ function scalarSortKey(value: FieldValue | undefined): string | number | null {
     case "email":
     case "color":
     case "select":
-      return value.value;
     case "number":
       return value.value;
     case "boolean":
@@ -368,9 +294,8 @@ function scalarSortKey(value: FieldValue | undefined): string | number | null {
 
 export async function readOrder(collectionSlug: string): Promise<string[] | null> {
   slugSchema.parse(collectionSlug);
-  const raw = await readJson<unknown>(orderPath(collectionSlug));
-  if (raw === null) return null;
-  return orderFileSchema.parse(raw);
+  const raw = await readJson<unknown>(orderLocalPath(collectionSlug));
+  return raw === null ? null : orderFileSchema.parse(raw);
 }
 
 export async function writeOrder(
@@ -378,9 +303,7 @@ export async function writeOrder(
   order: string[],
 ): Promise<void> {
   slugSchema.parse(collectionSlug);
-  const parsed = orderFileSchema.parse(order);
-  await fs.mkdir(itemsDir(collectionSlug), { recursive: true });
-  await fs.writeFile(orderPath(collectionSlug), stringifyContent(parsed), "utf-8");
+  await writeJson(orderLocalPath(collectionSlug), orderFileSchema.parse(order));
 }
 
 // ---------------------------------------------------------------------------
@@ -407,16 +330,4 @@ export async function writeSingleton(
   def: CollectionDef,
 ): Promise<void> {
   await writeItem(collectionSlug, SINGLETON_ITEM_SLUG, item, def);
-}
-
-// ---------------------------------------------------------------------------
-// Re-exports useful for callers that already have a CollectionDef and
-// only need to traverse its fields without re-importing types.ts.
-// ---------------------------------------------------------------------------
-
-export function findField(
-  def: CollectionDef,
-  fieldId: string,
-): FieldDef | undefined {
-  return def.fields.find((f) => f.id === fieldId);
 }

@@ -12,6 +12,7 @@ import {
   DEFAULT_HEADER_CONFIG,
   DEFAULT_SITE_CONFIG,
 } from "./site-config-types";
+import { tourDatesDef } from "./collections/test-fixtures";
 
 const TEST_SLUG = "publish-test";
 
@@ -302,8 +303,6 @@ describe("publish — multi-target API", () => {
 // ---------------------------------------------------------------------------
 // Collection target kinds (ADR-009)
 // ---------------------------------------------------------------------------
-
-import { tourDatesDef } from "./collections/test-fixtures";
 
 describe("publish — collection target kinds", () => {
   it("collection-def writes to <slug>/_collection.json in github mode", async () => {

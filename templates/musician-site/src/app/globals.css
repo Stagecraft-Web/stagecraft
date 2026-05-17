@@ -73,15 +73,3 @@
   }
 }
 
-/* Editor publish progress bar — fills to 95% over the expected build
-   duration, then holds. Asymptote is intentional: we never animate to
-   100%; the only thing that lets us declare "Live" is the public site
-   actually serving the new commit (publish state → "live"). */
-@keyframes stagecraftPublishProgress {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(0.95);
-  }
-}

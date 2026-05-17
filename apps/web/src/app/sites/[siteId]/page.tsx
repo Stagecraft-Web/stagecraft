@@ -70,7 +70,14 @@ interface Site {
   jobs: SiteJob[];
 }
 
-type DeployState = "queued" | "building" | "ready" | "error" | "unknown";
+type DeployState =
+  | "queued"
+  | "initializing"
+  | "building"
+  | "finalizing"
+  | "ready"
+  | "error"
+  | "unknown";
 
 interface DeployStatus {
   id: string | null;
@@ -276,21 +283,20 @@ export default function SiteDetailPage() {
   // render anything useful and the success banner would be misleading.
   //
   // Pre-fetch window: we land on /sites/[id], render once, then ~3s later
-  // the first deploy-status poll returns. Neither "ready" nor "building"
-  // is correct during that window — guessing wrong flashes the user's
-  // banner (green→yellow for fresh sites, yellow→green for already-live
-  // ones). Show a neutral "Checking…" state instead and switch to the
-  // real state once deployFetched flips true.
+  // the first deploy-status poll returns. Treat that window as "building"
+  // (rather than a transient "Checking…" label) — the most likely truth
+  // for a freshly-active site, and consistent with the in-flight states
+  // (queued / initializing / building / finalizing).
   const isCheckingStatus = isActive && !deployFetched;
-  const isBuilding = isActive && deployFetched && (deploy?.state === "queued" || deploy?.state === "building");
+  const isBuilding = isActive && deployFetched && deploy && IN_FLIGHT_STATES.has(deploy.state);
   const isDeployError = isActive && deployFetched && deploy?.state === "error";
   const isReady = isActive && deployFetched && deploy?.state === "ready";
 
-  const statusBg = isCreating || isBuilding
+  const statusBg = isCreating || isBuilding || isCheckingStatus
     ? "var(--color-warning-bg)"
     : isError || isDeployError
     ? "var(--color-error-bg)"
-    : isArchived || isCheckingStatus
+    : isArchived
     ? "var(--color-neutral-bg)"
     : "var(--color-success-bg)";
 
@@ -304,14 +310,16 @@ export default function SiteDetailPage() {
         {isCreating && latestJob?.type === "migrate_site" && "Migrating your site\u2026 Crawling pages and building your repo. This may take a minute."}
         {isCreating && latestJob?.type !== "migrate_site" && "Setting up your site\u2026 This may take a few minutes."}
         {site.status === "error" && `Something went wrong: ${latestJob?.errorMessage ?? "Unknown error"}`}
-        {isCheckingStatus && "Checking build status\u2026"}
-        {isBuilding && (deploy?.state === "queued" ? "First build queued\u2026 it'll start in a few seconds." : "Building your site\u2026 1\u20133 minutes for the first deploy.")}
+        {(isBuilding || isCheckingStatus) && "Building your site\u2026 1\u20133 minutes for the first deploy."}
         {isDeployError && `First deploy failed${deploy?.errorMessage ? `: ${deploy.errorMessage}` : "."} Check the deploy logs.`}
         {isReady && !needsRepoLink && "Your site is live!"}
         {isArchived && "This site is archived. The GitHub repo is read-only."}
-        {(isCreating || isBuilding) && (
+        {(isCreating || isBuilding || isCheckingStatus) && (
           <div style={{ marginTop: "0.5rem" }}>
-            <FirstDeployProgress phase={isCreating ? "creating" : deploy?.state === "queued" ? "queued" : "building"} />
+            <FirstDeployProgress
+              state={isCreating ? "creating" : deploy?.state ?? "queued"}
+              startedAt={deploy?.createdAt ?? latestJob?.createdAt ?? null}
+            />
           </div>
         )}
       </div>
@@ -573,18 +581,98 @@ export default function SiteDetailPage() {
   );
 }
 
-const DEPLOY_PHASES = [
-  { key: "creating", label: "Setting up", pct: 25 },
-  { key: "queued", label: "Build queued", pct: 40 },
-  { key: "building", label: "Building", pct: 80 },
-] as const;
+// Deploy phases that count as "in flight" — anything that should render
+// the progress bar rather than the final-state banner. Used both for
+// gating the banner branches and (indirectly) for choosing the bar
+// percentage. Module-scope so the component below and the page-level
+// gate share one source of truth.
+const IN_FLIGHT_STATES = new Set<DeployState>([
+  "queued",
+  "initializing",
+  "building",
+  "finalizing",
+]);
 
-function FirstDeployProgress({ phase }: { phase: "creating" | "queued" | "building" }) {
-  const activeIndex = DEPLOY_PHASES.findIndex((p) => p.key === phase);
-  const activePct = DEPLOY_PHASES[activeIndex]?.pct ?? 0;
+/**
+ * Where the progress bar sits for each phase. Reaching a stage means
+ * roughly that fraction of typical work is done — calibrated from a
+ * handful of observed builds, not from a real signal (neither Vercel
+ * nor Netlify expose a percentage). The bar asymptotes at 95% via the
+ * `finalizing` stage; only `ready` would push it to 100%, but at that
+ * point we render the success banner instead.
+ *
+ * `creating` is the platform's own work (createRepo, pushFiles, env
+ * vars, kick off first build); it precedes any provider state. Roughly
+ * 10s on average, which is why its baseline is small.
+ */
+const STAGE_PROGRESS: Record<DeployState | "creating", number> = {
+  creating: 0.05,
+  queued: 0.15,
+  initializing: 0.25,
+  building: 0.45,
+  finalizing: 0.90,
+  ready: 1.0,
+  error: 0,
+  unknown: 0.10,
+};
+
+/**
+ * User-visible label for each stage. Per intentional design we
+ * collapse `queued` and `initializing` into "Building" — the
+ * distinction between "waiting in queue" vs "VM spinning up" vs
+ * "build command running" isn't useful to the artist, and those two
+ * stages are usually <10s each. "Finalizing" gets its own label
+ * because it means almost-done (upload + alias swap + post-deploy
+ * plugins).
+ */
+function stageLabel(state: DeployState | "creating"): string {
+  switch (state) {
+    case "creating":
+      return "Preparing";
+    case "queued":
+    case "initializing":
+    case "building":
+      return "Building";
+    case "finalizing":
+      return "Finalizing";
+    case "ready":
+      return "Live";
+    case "error":
+      return "Failed";
+    default:
+      return "Working";
+  }
+}
+
+function useElapsed(startedAt: string | null): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  if (!startedAt) return null;
+  const startMs = new Date(startedAt).getTime();
+  if (Number.isNaN(startMs)) return null;
+  const seconds = Math.max(0, Math.floor((now - startMs) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
+}
+
+function FirstDeployProgress({
+  state,
+  startedAt,
+}: {
+  state: DeployState | "creating";
+  startedAt: string | null;
+}) {
+  const pct = (STAGE_PROGRESS[state] ?? 0.1) * 100;
+  const elapsed = useElapsed(startedAt);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
       <div
         aria-hidden
         style={{
@@ -597,21 +685,32 @@ function FirstDeployProgress({ phase }: { phase: "creating" | "queued" | "buildi
       >
         <div
           style={{
-            width: `${activePct}%`,
+            width: `${pct}%`,
             height: "100%",
             background: "var(--color-brand)",
             borderRadius: "var(--radius-sm)",
-            transition: "width 600ms ease",
+            // Smooth visual transition across stage jumps (e.g.
+            // building 45% → finalizing 90%). 800ms feels distinct
+            // without dragging.
+            transition: "width 800ms ease",
           }}
         />
       </div>
-      <div style={{ display: "flex", gap: "1rem", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-        {DEPLOY_PHASES.map((p, i) => (
-          <span key={p.key} style={{ opacity: i <= activeIndex ? 1 : 0.4, fontWeight: i === activeIndex ? 600 : 400 }}>
-            {i === activeIndex && <Spinner />}
-            {i < activeIndex ? "✓ " : ""}{p.label}
-          </span>
-        ))}
+      <div
+        role="status"
+        style={{
+          fontSize: "var(--font-size-xs)",
+          color: "var(--color-text-muted)",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.375rem",
+        }}
+      >
+        <Spinner />
+        <strong style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-text)" }}>
+          {stageLabel(state)}
+        </strong>
+        {elapsed ? <span>· {elapsed}</span> : null}
       </div>
     </div>
   );

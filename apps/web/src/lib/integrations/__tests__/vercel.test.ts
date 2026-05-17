@@ -477,16 +477,16 @@ describe("getLatestDeployment", () => {
     expect(d.createdAt).toBe(new Date(1700000000000).toISOString());
   });
 
-  it("normalizes Vercel readyStates to (queued | building | ready | error | unknown)", async () => {
+  it("normalizes Vercel readyStates to the DeployState enum", async () => {
     const cases: Array<[string, string]> = [
       ["READY", "ready"],
       ["ERROR", "error"],
       ["CANCELED", "error"],
       ["QUEUED", "queued"],
-      ["INITIALIZING", "building"],
+      ["INITIALIZING", "initializing"],
       ["BUILDING", "building"],
-      ["UPLOADING", "building"],
-      ["DEPLOYING", "building"],
+      ["UPLOADING", "finalizing"],
+      ["DEPLOYING", "finalizing"],
       ["WAT", "unknown"],
     ];
     for (const [raw, normalized] of cases) {

@@ -6,7 +6,14 @@ import { isPlatformConfigured, readEnv, type Env } from "./publish";
  * union — kept in sync by hand because the artist site can't import from
  * `apps/web` (different package boundary).
  */
-export type DeployState = "queued" | "building" | "ready" | "error" | "unknown";
+export type DeployState =
+  | "queued"
+  | "initializing"
+  | "building"
+  | "finalizing"
+  | "ready"
+  | "error"
+  | "unknown";
 
 export type DeployStatus = {
   id: string | null;

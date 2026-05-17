@@ -84,9 +84,10 @@ type CollectionDef = {
   fields: FieldDef[];
   slugSourceFieldId: FieldId | null;   // field used to derive slugs from; null = manual
   defaultSort: { fieldId: FieldId; direction: "asc" | "desc" } | null;
-  itemTemplate: PuckData;        // how one item renders (Puck-edited)
-  listTemplate: PuckData | null; // optional default list-view layout
-  isSingleton: boolean;          // true for settings/header/appearance: hides item-list UI
+  itemTemplate: PuckData | null;   // compact rendering for list contexts; excludes view blocks (§4)
+  detailTemplate: PuckData | null; // detail-page rendering at <urlPrefix>/<slug>; view blocks allowed
+  listTemplate: PuckData | null;   // optional default list-page layout (the wrapper around items)
+  isSingleton: boolean;            // true for settings/header/appearance: hides item-list UI
 };
 
 type FieldValue =
@@ -139,9 +140,17 @@ Pages stop being a special data path. The "pages" collection ships with:
   ],
   slugSourceFieldId: "fld_title",
   defaultSort: { fieldId: "fld_navOrder", direction: "asc" },
-  itemTemplate: <renders the body field>,
+  itemTemplate: <compact "page link" card for sitemap-style listings>,   // optional
+  detailTemplate: <Puck-edited surface that renders the body field>,
 }
 ```
+
+Pages today edit the body directly in a full Puck workspace. In the new
+model, the workspace is the detailTemplate editor with the body field
+"pinned" as its content surface — same UX, generic implementation
+underneath. The itemTemplate is optional: Pages rarely appear inside view
+blocks, but providing one (title + excerpt, say) enables a "Recent pages"
+or "Site map" view block if the artist wants one.
 
 The Pages collection retains its sidebar entry and its specialised "add
 page" affordance because it's the foundational surface — but it executes
@@ -161,16 +170,26 @@ in the admin sidebar.
 A future "Settings" surface can group several singleton collections under
 one screen without changing the storage model.
 
-### 4. Item template + data binding
+### 4. Item template, detail template, and data binding
 
-Every collection has an **item template** stored as Puck JSON. The
-template is composed from a curated *display block library* whose blocks
-support data binding:
+Every collection has up to two Puck-edited templates, both composed from
+the *display block library* whose blocks support data binding:
+
+- **`itemTemplate`** — how one item renders in **list contexts** (inside a
+  view block on another page; in the default list-page rendering). This
+  is the compact card / row layout. Display blocks only.
+- **`detailTemplate`** — how one item renders on its **detail page** at
+  `<urlPrefix>/<slug>`. Display blocks **plus** view blocks. This is
+  where the artist composes the full per-item page layout (the body of a
+  tour-date detail page, the layout of a release detail page, the body
+  of a Pages page).
+
+The display block library:
 
 - **Layout blocks**: Section, Stack (vertical / horizontal), Spacer, Columns
 - **Display blocks**: Text, RichText, Image, Button, Link, Embed, Audio
-- **Composition blocks**: Conditional (hide if bound field is empty —
-  resolved at render, not authored explicitly for v1)
+- **Composition**: implicit hide-if-empty on bindable props (no explicit
+  Conditional block in v1)
 
 Every bindable prop accepts either a literal value or a binding:
 
@@ -184,7 +203,8 @@ Concretely: a Text block's `content` is `Bindable<string>`. The artist
 toggles a small switch in the block's inspector between "literal" and
 "bind to field"; "bind to field" surfaces a dropdown of available fields
 of compatible type. An Image block's `src` is `Bindable<ImageMetadata>`,
-restricted to image fields. And so on.
+restricted to image fields. A "Render field" composition block resolves a
+`puckContent` or `richText` field at the chosen position. And so on.
 
 The **template renderer** walks the Puck JSON tree, resolves bindings
 against the item's `values`, and renders the result. A bound prop whose
@@ -192,17 +212,41 @@ field is empty causes the block to render nothing (implicit conditional
 rendering) — explicit `Conditional` blocks for richer rules can come
 later.
 
-The item-template editor is itself a Puck `<Puck>` instance with a
-template-specific config. It lives at
-`/admin/collections/<slug>/template`. Editing the template re-renders the
-preview against a representative item (the first item, or a placeholder
-if the collection is empty).
+The item-template and detail-template editors are both Puck `<Puck>`
+instances with template-specific configs. They live at
+`/admin/collections/<slug>/template/item` and `…/template/detail`.
+Editing either re-renders a preview against a representative item (the
+first item, or a placeholder if the collection is empty).
 
-**No recursive PuckContent.** PuckContent fields are only valid on pages
-(or any collection whose author wants to author a page-shaped body). Item
-templates are composed from the display block library, which does *not*
-include collection-view blocks. This guarantees no infinite-render cycles
-(a tour-date item's template can't embed a view of tour dates).
+**Cycle safety by structural rule.** The cycle worry is real (a tour-date
+itemTemplate that embeds a TourDatesView, which renders tour-date items
+via the same itemTemplate, recurses infinitely). The structural rule is
+simple:
+
+> **`itemTemplate` cannot contain view blocks. `detailTemplate` and any
+> rendered `puckContent` field can.**
+
+This makes cycles impossible by construction:
+
+- A view block always renders its source items via the source collection's
+  `itemTemplate`, which by rule cannot contain view blocks. Recursion
+  terminates after one level.
+- A `puckContent` field's contents are rendered only when the renderer is
+  in detail-template context (i.e. via a "Render field" block placed in a
+  detailTemplate, or via the body of the Pages collection's
+  detailTemplate). View blocks inside that puckContent recurse one level
+  into itemTemplates, which are again view-block-free.
+- An `itemTemplate` may bind a `puckContent` field — view blocks inside
+  that puckContent value are stripped at render time (runtime guard for
+  the niche case where someone constructs this configuration).
+- Cross-collection collectionRef chains that form a runtime cycle (release
+  A references release B references release A) are detected at render
+  time and rendered as a placeholder.
+
+Collections are **fully universal**: any collection can have items with
+puckContent fields edited in a full Puck workspace, any item can have a
+rich detail-page layout that embeds other collections' items, and per-item
+bodies behave the same on pages and on releases or shows or anywhere else.
 
 ### 5. View blocks on pages
 
@@ -266,7 +310,7 @@ richText for its Text blocks. Composition, not duplication.
 
 ```
 src/content/collections/<collection-slug>/
-  _collection.json          # CollectionDef (schema, item template, list template, settings)
+  _collection.json          # CollectionDef (schema, item + detail + list templates, settings)
   items/<item-slug>.json    # one Item per file
 ```
 
@@ -302,17 +346,18 @@ walking the collection registry, matching `urlPrefix` + `itemSlug`.
 
 ```
 /admin
-  /collections                       Index: list of all collections
-  /collections/<slug>                List view (or item editor if singleton)
-  /collections/<slug>/items/new      New item form
+  /collections                            Index: list of all collections
+  /collections/<slug>                     List view (or item editor if singleton)
+  /collections/<slug>/items/new           New item form
   /collections/<slug>/items/<itemSlug>    Item editor
-  /collections/<slug>/schema         Schema editor (fields)
-  /collections/<slug>/template       Item template editor (Puck)
-  /pages                             Pages list — view alias over /collections/pages
-  /pages/<slug>                      Page editor — view alias over /collections/pages/items/<slug>
-  /settings                          Settings — view alias over /collections/site/items/_singleton
-  /navigation                        Header & Nav — view alias over /collections/header
-  /appearance                        Appearance — view alias over /collections/appearance
+  /collections/<slug>/schema              Schema editor (fields)
+  /collections/<slug>/template/item       Item template editor (Puck, display blocks only)
+  /collections/<slug>/template/detail     Detail template editor (Puck, display + view blocks)
+  /pages                                  Pages list — view alias over /collections/pages
+  /pages/<slug>                           Page editor — view alias over /collections/pages/items/<slug>
+  /settings                               Settings — view alias over /collections/site/items/_singleton
+  /navigation                             Header & Nav — view alias over /collections/header
+  /appearance                             Appearance — view alias over /collections/appearance
 ```
 
 The **generic item editor** inspects the collection's field list and
@@ -323,14 +368,17 @@ CollectionRefField). If any field is `puckContent`, that field renders as
 a full Puck workspace (the canvas); other fields move into the right-hand
 inspector alongside Puck's per-block inspector. Pages get the same
 workspace they have today, automatically, because they're a collection
-with a `puckContent` body.
+with a `puckContent` body — and the same applies to any other collection
+the artist gives a `puckContent` field (e.g. a Release with a free-form
+notes body, a Tour-date with show notes).
 
 The **schema editor** lists fields with add / remove / rename / reorder /
 edit-type. It enforces guardrails (§11) for destructive changes.
 
-The **item template editor** is a Puck instance with the display block
-library + binding controls. It edits `_collection.json`'s `itemTemplate`
-field.
+The **template editors** are two Puck instances per collection, sharing
+the display block library. The item-template editor's config excludes
+view blocks (per §4); the detail-template editor's config includes them.
+Both edit fields on `_collection.json`.
 
 ### 10. Type-safety stance
 
@@ -447,7 +495,10 @@ Eight PRs, each independently reviewable and (where possible) mergeable:
    puckContent surface.)
 5. **Schema editor UI.** Add / remove / rename / reorder / type changes
    with guardrails. Existing pages collection becomes editable.
-6. **Item template Puck editor.** Per-collection layout designer.
+6. **Template Puck editors.** Per-collection layout designers for both
+   `itemTemplate` (display blocks only) and `detailTemplate` (display +
+   view blocks). Shared editor shell with config differing only in which
+   blocks are registered.
 7. **First non-pages collection: tour dates.** Validates the full stack.
    Includes the `TourDatesView` block on pages, with the "Manage" button
    for navigation.

@@ -120,6 +120,15 @@ export function ConnectResend({
     }
   }
 
+  const inputStyle = {
+    padding: "var(--space-2)",
+    fontFamily: "var(--font-mono)",
+    background: "var(--color-surface)",
+    color: "var(--color-text)",
+    border: "1px solid var(--color-border)",
+    borderRadius: "var(--radius-sm)",
+  } as const;
+
   if (connectedAdminEmail) {
     return (
       <div>
@@ -130,20 +139,20 @@ export function ConnectResend({
           type="button"
           onClick={handleDisconnect}
           disabled={pendingDisconnect}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: "var(--space-2)" }}
         >
           {pendingDisconnect ? "Disconnecting…" : "Disconnect"}
         </button>
         {error && (
-          <p style={{ color: "#cc0000", marginTop: 8, fontSize: 14 }}>{error}</p>
+          <p style={{ color: "var(--color-error)", marginTop: "var(--space-2)", fontSize: "var(--font-size-sm)" }}>{error}</p>
         )}
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <p style={{ color: "#555", fontSize: 14, marginTop: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+      <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)", marginTop: 0 }}>
         Generate an API key at{" "}
         <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer">
           resend.com/api-keys
@@ -152,9 +161,9 @@ export function ConnectResend({
       </p>
 
       {phase === "key" && (
-        <form onSubmit={handleSendCode} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Resend API key</span>
+        <form onSubmit={handleSendCode} style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+            <span style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)" }}>Resend API key</span>
             <input
               type="password"
               value={token}
@@ -167,12 +176,12 @@ export function ConnectResend({
               autoComplete="off"
               spellCheck={false}
               disabled={pending}
-              style={{ padding: 8, fontFamily: "monospace" }}
+              style={inputStyle}
             />
           </label>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Your Resend account email</span>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+            <span style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)" }}>Your Resend account email</span>
             <input
               type="email"
               value={adminEmail}
@@ -183,9 +192,9 @@ export function ConnectResend({
               placeholder="the email you signed up to Resend with"
               required
               disabled={pending}
-              style={{ padding: 8, fontFamily: "monospace" }}
+              style={inputStyle}
             />
-            <span style={{ fontSize: 12, color: "#666" }}>
+            <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
               Used as the admin sign-in for every artist site you create. We&rsquo;ll send a one-time code here through your Resend account to confirm it&rsquo;s reachable — Resend&rsquo;s sandbox sender only delivers to your own account email, so this also confirms the address is right.
             </span>
           </label>
@@ -193,7 +202,7 @@ export function ConnectResend({
           <button
             type="submit"
             disabled={pending || !token.trim() || !adminEmail.trim()}
-            style={{ marginTop: 4 }}
+            style={{ marginTop: "var(--space-1)" }}
           >
             {pending ? "Sending code…" : "Send verification code"}
           </button>
@@ -201,9 +210,9 @@ export function ConnectResend({
       )}
 
       {phase === "verify" && (
-        <form onSubmit={handleConfirmCode} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Verification code</span>
+        <form onSubmit={handleConfirmCode} style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+            <span style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)" }}>Verification code</span>
             <input
               type="text"
               value={code}
@@ -214,9 +223,9 @@ export function ConnectResend({
               inputMode="numeric"
               pattern="\d{6}"
               autoFocus
-              style={{ padding: 8, fontFamily: "monospace", letterSpacing: 4, fontSize: 18 }}
+              style={{ ...inputStyle, letterSpacing: 4, fontSize: "var(--font-size-lg)" }}
             />
-            <span style={{ fontSize: 12, color: "#666" }}>
+            <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
               Check <strong>{adminEmail}</strong> for the 6-digit code (expires in 10 min). Wrong inbox?{" "}
               <button
                 type="button"
@@ -225,7 +234,7 @@ export function ConnectResend({
                   setCode("");
                   setError(null);
                 }}
-                style={{ background: "none", border: "none", color: "#0070f3", padding: 0, cursor: "pointer" }}
+                style={{ background: "none", border: "none", color: "var(--color-brand)", padding: 0, cursor: "pointer" }}
               >
                 Go back and change email
               </button>
@@ -238,7 +247,7 @@ export function ConnectResend({
       )}
 
       {error && (
-        <p style={{ color: "#cc0000", marginTop: 4, fontSize: 14 }}>{error}</p>
+        <p style={{ color: "var(--color-error)", marginTop: "var(--space-1)", fontSize: "var(--font-size-sm)" }}>{error}</p>
       )}
     </div>
   );

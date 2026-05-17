@@ -41,8 +41,8 @@ export function ConnectNetlify({ connectedEmail }: ConnectNetlifyProps) {
         <p>
           Connected as <strong>{connectedEmail}</strong>
         </p>
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <a href="/api/integrations/netlify" style={{ fontSize: 14 }}>
+        <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+          <a href="/api/integrations/netlify" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-brand)" }}>
             Reconnect
           </a>
           <button
@@ -54,7 +54,7 @@ export function ConnectNetlify({ connectedEmail }: ConnectNetlifyProps) {
           </button>
         </div>
         {error && (
-          <p style={{ color: "#cc0000", marginTop: 8, fontSize: 14 }}>{error}</p>
+          <p style={{ color: "var(--color-error)", marginTop: "var(--space-2)", fontSize: "var(--font-size-sm)" }}>{error}</p>
         )}
       </div>
     );

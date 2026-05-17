@@ -29,15 +29,15 @@ export default async function OnboardingPage() {
   if (resend) redirect("/dashboard");
 
   return (
-    <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "system-ui" }}>
+    <main style={{ maxWidth: "var(--max-width-wide)", margin: "var(--space-10) auto", fontFamily: "var(--font-body)", color: "var(--color-text)" }}>
       <h1>Welcome to Stagecraft</h1>
-      <p style={{ color: "#555", fontSize: 14 }}>
+      <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
         One quick setup step. Stagecraft uses your own Resend account to send
         magic-link sign-in emails (and contact-form submissions) on the
         musician sites you create — we never send mail on your behalf, and
         your sites&rsquo; subscribers&rsquo; addresses never reach our servers.
       </p>
-      <p style={{ color: "#555", fontSize: 14 }}>
+      <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
         Don&rsquo;t have a Resend account?{" "}
         <a href="https://resend.com/signup" target="_blank" rel="noopener noreferrer">
           Sign up here
@@ -45,7 +45,7 @@ export default async function OnboardingPage() {
         — free tier covers everything you&rsquo;ll need.
       </p>
 
-      <section style={{ marginTop: 24, border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
+      <section style={{ marginTop: "var(--space-6)", border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)" }}>
         <h2 style={{ marginTop: 0 }}>Connect Resend</h2>
         <ConnectResend successRedirect="/dashboard" />
       </section>

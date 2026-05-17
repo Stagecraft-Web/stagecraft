@@ -274,17 +274,23 @@ export default function SiteDetailPage() {
   // Treat the first-build state the same as platform-side "creating":
   // until the deploy target says "ready", the production URL won't
   // render anything useful and the success banner would be misleading.
-  // Don't treat "not yet fetched" as building — that causes a flash of
-  // the building banner on every page load for sites that are already live.
+  //
+  // Pre-fetch window: we land on /sites/[id], render once, then ~3s later
+  // the first deploy-status poll returns. Neither "ready" nor "building"
+  // is correct during that window — guessing wrong flashes the user's
+  // banner (green→yellow for fresh sites, yellow→green for already-live
+  // ones). Show a neutral "Checking…" state instead and switch to the
+  // real state once deployFetched flips true.
+  const isCheckingStatus = isActive && !deployFetched;
   const isBuilding = isActive && deployFetched && (deploy?.state === "queued" || deploy?.state === "building");
-  const isDeployError = isActive && deploy?.state === "error";
-  const isReady = isActive && (deploy?.state === "ready" || (!deployFetched && site.productionUrl));
+  const isDeployError = isActive && deployFetched && deploy?.state === "error";
+  const isReady = isActive && deployFetched && deploy?.state === "ready";
 
   const statusBg = isCreating || isBuilding
     ? "var(--color-warning-bg)"
     : isError || isDeployError
     ? "var(--color-error-bg)"
-    : isArchived
+    : isArchived || isCheckingStatus
     ? "var(--color-neutral-bg)"
     : "var(--color-success-bg)";
 
@@ -298,6 +304,7 @@ export default function SiteDetailPage() {
         {isCreating && latestJob?.type === "migrate_site" && "Migrating your site\u2026 Crawling pages and building your repo. This may take a minute."}
         {isCreating && latestJob?.type !== "migrate_site" && "Setting up your site\u2026 This may take a few minutes."}
         {site.status === "error" && `Something went wrong: ${latestJob?.errorMessage ?? "Unknown error"}`}
+        {isCheckingStatus && "Checking build status\u2026"}
         {isBuilding && (deploy?.state === "queued" ? "First build queued\u2026 it'll start in a few seconds." : "Building your site\u2026 1\u20133 minutes for the first deploy.")}
         {isDeployError && `First deploy failed${deploy?.errorMessage ? `: ${deploy.errorMessage}` : "."} Check the deploy logs.`}
         {isReady && !needsRepoLink && "Your site is live!"}
@@ -417,7 +424,11 @@ export default function SiteDetailPage() {
               <tr>
                 <td style={{ padding: "0.5rem", fontWeight: "var(--font-weight-semibold)" }}>Production URL</td>
                 <td style={{ padding: "0.5rem" }}>
-                  {isReady ? (
+                  {/* Show the URL as a plain link both when confirmed live (isReady)
+                      and during the pre-fetch window (isCheckingStatus) — the
+                      muted "(available once the first build finishes)" treatment
+                      only applies when we have a firm "still building" signal. */}
+                  {isReady || isCheckingStatus ? (
                     <a href={site.productionUrl} target="_blank" rel="noopener noreferrer">{site.productionUrl}</a>
                   ) : (
                     <span style={{ color: "var(--color-text-faint)" }}>

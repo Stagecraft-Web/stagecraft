@@ -63,6 +63,14 @@ export default async function CatchAllPage({ params }: Props) {
   const rootProps = extractPageRootProps(pageData);
   const pageTitleBySlug = new Map(summaries.map((s) => [s.slug, s.title]));
 
+  // Visible nav = pages list filtered down by visibility + splash. The
+  // Pages list order (canonical `site.pageOrder` first, then alphabetical
+  // for new pages) IS the nav order; the eye-icon toggle on each row
+  // drives `isHiddenFromNav`.
+  const navItems = summaries
+    .filter((s) => !s.isSplashPage && !s.isHiddenFromNav)
+    .map((s) => s.slug);
+
   // Footer visibility: hidden if either the site-level toggle OR the
   // per-page toggle says hidden. Splash pages always hide both chrome
   // pieces because they're standalone full-bleed landings.
@@ -75,6 +83,7 @@ export default async function CatchAllPage({ params }: Props) {
         <Header
           artistName={site.artistName}
           header={header}
+          navItems={navItems}
           pageTitleBySlug={pageTitleBySlug}
         />
       )}

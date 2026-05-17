@@ -11,6 +11,7 @@ function renderHeader(
     <Header
       artistName="Sarah Chen"
       header={DEFAULT_HEADER_CONFIG}
+      navItems={["home", "about"]}
       pageTitleBySlug={new Map([["home", "Home"], ["about", "About"]])}
       {...override}
     />,
@@ -24,16 +25,14 @@ describe("<Header>", () => {
   });
 
   it("renders the page title for each nav slug, not the slug", () => {
-    const html = renderHeader({
-      header: { ...DEFAULT_HEADER_CONFIG, items: ["home", "about"] },
-    });
+    const html = renderHeader({ navItems: ["home", "about"] });
     expect(html).toContain(">Home<");
     expect(html).toContain(">About<");
   });
 
   it("falls back to the slug when the page title isn't known", () => {
     const html = renderHeader({
-      header: { ...DEFAULT_HEADER_CONFIG, items: ["mystery"] },
+      navItems: ["mystery"],
       pageTitleBySlug: new Map(),
     });
     expect(html).toContain(">mystery<");

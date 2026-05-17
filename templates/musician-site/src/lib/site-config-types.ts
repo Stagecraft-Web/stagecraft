@@ -76,6 +76,15 @@ export const siteConfigSchema = z.object({
   contactEmail: z.string().email("Contact email must be a valid email"),
   copyrightName: z.string().default(""),
   isFooterHidden: z.boolean().default(false),
+  // Canonical order of pages in the admin Pages list AND in the public
+  // header nav. Slugs not present here get appended alphabetically when
+  // surfaced, so a freshly-created page shows up at the end of the list
+  // without needing an explicit write here.
+  pageOrder: z.array(z.string().min(1)).default([]),
+  // Slugs hidden from the public header nav. Still reachable by URL —
+  // this is the "link-in-bio page" escape hatch the legacy template
+  // expressed through omission from `header.items`.
+  hiddenFromNav: z.array(z.string().min(1)).default([]),
 });
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 
@@ -89,6 +98,8 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   contactEmail: "contact@example.com",
   copyrightName: "",
   isFooterHidden: false,
+  pageOrder: [],
+  hiddenFromNav: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -158,9 +169,10 @@ export const headerConfigSchema = z.object({
   isHeaderTextUppercase: z.boolean().default(false),
   headerSubtitle: z.string().default(""),
   headerLayout: z.enum(HEADER_LAYOUTS).default("logo-left-nav-right"),
-  // Ordered list of page slugs in the nav. Slugs not in this list are
-  // accessible by URL but not surfaced in the nav (link-in-bio pages).
-  items: z.array(z.string().min(1)).default([]),
+  // Nav order + visibility moved to `siteConfig.pageOrder` /
+  // `siteConfig.hiddenFromNav` — the Pages list is the single editor for
+  // both. Zod drops unknown fields by default, so an `items` value left
+  // over from a previous version of header.json parses cleanly here.
 });
 export type HeaderConfig = z.infer<typeof headerConfigSchema>;
 
@@ -172,7 +184,6 @@ export const DEFAULT_HEADER_CONFIG: HeaderConfig = {
   isHeaderTextUppercase: false,
   headerSubtitle: "",
   headerLayout: "logo-left-nav-right",
-  items: ["home"],
 };
 
 // ---------------------------------------------------------------------------
@@ -392,10 +403,34 @@ export const pageSlugSchema = z
     "Slug must be lowercase letters, digits, and hyphens (start with a letter or digit)",
   );
 
+/**
+ * Pure reorder helper for the admin Pages list. Pulls `draggedSlug` out of
+ * its current position and inserts it immediately before `targetSlug`. The
+ * "insert before" model matches HTML5 drag-and-drop conventions and works
+ * symmetrically for upward and downward moves. Returns the input unchanged
+ * when either slug is missing.
+ */
+export function reorderPagesBefore<T extends { slug: string }>(
+  pages: readonly T[],
+  draggedSlug: string,
+  targetSlug: string,
+): T[] {
+  if (draggedSlug === targetSlug) return [...pages];
+  const dragged = pages.find((p) => p.slug === draggedSlug);
+  if (!dragged) return [...pages];
+  const without = pages.filter((p) => p.slug !== draggedSlug);
+  const targetIdx = without.findIndex((p) => p.slug === targetSlug);
+  if (targetIdx === -1) return [...pages];
+  return [...without.slice(0, targetIdx), dragged, ...without.slice(targetIdx)];
+}
+
 export const pageSummarySchema = z.object({
   slug: pageSlugSchema,
   title: z.string(),
   isSplashPage: z.boolean(),
+  // Mirrors `siteConfig.hiddenFromNav.includes(slug)` so the admin Pages
+  // list can render the eye-icon state without a second fetch.
+  isHiddenFromNav: z.boolean(),
 });
 export type PageSummary = z.infer<typeof pageSummarySchema>;
 

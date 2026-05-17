@@ -7,41 +7,79 @@ import { useState } from "react";
 import { TextField } from "@/components/admin/form";
 import {
   PAGE_SLUG_PATTERN,
+  reorderPagesBefore,
   slugifyTitle,
   type PageSummary,
+  type SiteConfig,
 } from "@/lib/site-config-types";
 
 type Props = {
   initialPages: PageSummary[];
+  initialSiteConfig: SiteConfig;
 };
 
 /**
- * Client island for the Pages panel:
- *   - lists every page (each row links to /admin/pages/<slug>)
- *   - has an inline "Add page" form with auto-slug suggestion
- *   - confirms before delete; refreshes the route on success
+ * Client island for the Pages panel.
  *
- * We re-fetch via `router.refresh()` rather than mutating local state so the
- * server component owns the canonical list — splash-page-first sort, missing
- * pages, etc. stay consistent without duplicating the logic here.
+ * What lives here that didn't before:
+ *   - Drag-reorder per row — order persists to `siteConfig.pageOrder`
+ *     and drives the public nav order.
+ *   - Eye toggle per row — flips `siteConfig.hiddenFromNav` membership
+ *     for that slug. Splash pages don't get a toggle (they override "/"
+ *     and shouldn't appear in the nav anyway).
+ *
+ * Mutations: drag/eye fire an immediate POST to `/api/save-config`
+ * (kind: site-config). The UI optimistically updates first; on save
+ * failure the row state reverts and we surface the error inline.
+ *
+ * Add-page no longer auto-jumps to the editor — it stays on this list so
+ * the artist can keep arranging order/visibility before opening Puck.
+ * Each row's "Edit" button is the deliberate path into the editor.
  */
-export function PagesPanel({ initialPages }: Props) {
+export function PagesPanel({ initialPages, initialSiteConfig }: Props) {
   const router = useRouter();
 
   const [pages, setPages] = useState(initialPages);
+  const [siteConfig, setSiteConfig] = useState(initialSiteConfig);
   const [newTitle, setNewTitle] = useState("");
   const [newSlug, setNewSlug] = useState("");
-  // The slug auto-populates from the title until the user types a slug
-  // explicitly, at which point we stop auto-syncing.
   const [hasSlugBeenEdited, setHasSlugBeenEdited] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
+  const [navError, setNavError] = useState<string | null>(null);
+  const [draggingSlug, setDraggingSlug] = useState<string | null>(null);
+  const [dragOverSlug, setDragOverSlug] = useState<string | null>(null);
 
   const effectiveSlug = hasSlugBeenEdited ? newSlug : slugifyTitle(newTitle);
   const isSlugValid = effectiveSlug.length > 0 && PAGE_SLUG_PATTERN.test(effectiveSlug);
   const isTitleValid = newTitle.trim().length > 0;
   const canCreate = isSlugValid && isTitleValid && !isCreating;
+
+  async function saveSiteConfig(next: SiteConfig): Promise<boolean> {
+    setNavError(null);
+    try {
+      const res = await fetch("/api/save-config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "site-config", data: next }),
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { ok: true }
+        | { ok: false; error: string }
+        | null;
+      if (!res.ok || !body || !body.ok) {
+        setNavError(
+          (body && "error" in body && body.error) || `Save failed (HTTP ${res.status})`,
+        );
+        return false;
+      }
+      return true;
+    } catch (cause) {
+      setNavError(cause instanceof Error ? cause.message : "Save failed");
+      return false;
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -59,22 +97,24 @@ export function PagesPanel({ initialPages }: Props) {
         | { ok: false; error: string }
         | null;
       if (!res.ok || !body || !body.ok) {
-        const message =
-          (body && "error" in body && body.error) || `Create failed (HTTP ${res.status})`;
-        setCreateError(message);
+        setCreateError(
+          (body && "error" in body && body.error) || `Create failed (HTTP ${res.status})`,
+        );
         return;
       }
-      // Reset form and update the list optimistically; router.refresh() pulls
-      // the canonical sorted view from the server too.
       setPages((current) => [
         ...current,
-        { slug: body.slug, title: newTitle.trim(), isSplashPage: false },
+        {
+          slug: body.slug,
+          title: newTitle.trim(),
+          isSplashPage: false,
+          isHiddenFromNav: false,
+        },
       ]);
       setNewTitle("");
       setNewSlug("");
       setHasSlugBeenEdited(false);
       router.refresh();
-      router.push(`/admin/pages/${body.slug}`);
     } catch (cause) {
       setCreateError(cause instanceof Error ? cause.message : "Create failed");
     } finally {
@@ -95,9 +135,60 @@ export function PagesPanel({ initialPages }: Props) {
         return;
       }
       setPages((current) => current.filter((p) => p.slug !== slug));
+      // Tidy up site config — drop the deleted slug from order + hidden lists
+      // so they don't accumulate dead references over time.
+      setSiteConfig((prev) => {
+        const next: SiteConfig = {
+          ...prev,
+          pageOrder: prev.pageOrder.filter((s) => s !== slug),
+          hiddenFromNav: prev.hiddenFromNav.filter((s) => s !== slug),
+        };
+        void saveSiteConfig(next);
+        return next;
+      });
       router.refresh();
     } finally {
       setDeletingSlug(null);
+    }
+  }
+
+  async function toggleHiddenFromNav(slug: string) {
+    const wasHidden = siteConfig.hiddenFromNav.includes(slug);
+    const nextHidden = wasHidden
+      ? siteConfig.hiddenFromNav.filter((s) => s !== slug)
+      : [...siteConfig.hiddenFromNav, slug];
+    const nextConfig: SiteConfig = { ...siteConfig, hiddenFromNav: nextHidden };
+    setSiteConfig(nextConfig);
+    setPages((current) =>
+      current.map((p) =>
+        p.slug === slug ? { ...p, isHiddenFromNav: !wasHidden } : p,
+      ),
+    );
+    const ok = await saveSiteConfig(nextConfig);
+    if (!ok) {
+      // Revert optimistic state on save failure so the UI matches disk.
+      setSiteConfig((prev) => ({ ...prev, hiddenFromNav: siteConfig.hiddenFromNav }));
+      setPages((current) =>
+        current.map((p) => (p.slug === slug ? { ...p, isHiddenFromNav: wasHidden } : p)),
+      );
+    }
+  }
+
+  async function reorderTo(draggedSlug: string, targetSlug: string) {
+    if (draggedSlug === targetSlug) return;
+    const reordered = reorderPagesBefore(pages, draggedSlug, targetSlug);
+    const previousPages = pages;
+    const previousOrder = siteConfig.pageOrder;
+    setPages(reordered);
+    const nextConfig: SiteConfig = {
+      ...siteConfig,
+      pageOrder: reordered.map((p) => p.slug),
+    };
+    setSiteConfig(nextConfig);
+    const ok = await saveSiteConfig(nextConfig);
+    if (!ok) {
+      setPages(previousPages);
+      setSiteConfig((prev) => ({ ...prev, pageOrder: previousOrder }));
     }
   }
 
@@ -124,96 +215,189 @@ export function PagesPanel({ initialPages }: Props) {
           </p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {pages.map((page, idx) => (
-              <li
-                key={page.slug}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-3)",
-                  padding: "var(--space-3) var(--space-4)",
-                  borderTop: idx === 0 ? "none" : "1px solid var(--color-border)",
-                }}
-              >
-                <Link
-                  href={`/admin/pages/${page.slug}`}
+            {pages.map((page, idx) => {
+              const isDragOver = dragOverSlug === page.slug && draggingSlug !== page.slug;
+              return (
+                <li
+                  key={page.slug}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", page.slug);
+                    setDraggingSlug(page.slug);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingSlug(null);
+                    setDragOverSlug(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (draggingSlug && draggingSlug !== page.slug) {
+                      setDragOverSlug(page.slug);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverSlug === page.slug) setDragOverSlug(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const slug = e.dataTransfer.getData("text/plain");
+                    setDragOverSlug(null);
+                    if (slug) void reorderTo(slug, page.slug);
+                  }}
+                  aria-label={`${page.title}, slug ${page.slug}`}
                   style={{
-                    flex: 1,
-                    color: "var(--color-text)",
-                    textDecoration: "none",
                     display: "flex",
-                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "var(--space-3)",
+                    padding: "var(--space-3) var(--space-4)",
+                    borderTop: idx === 0 ? "none" : "1px solid var(--color-border)",
+                    background: isDragOver
+                      ? "var(--color-surface-raised)"
+                      : "transparent",
+                    opacity: draggingSlug === page.slug ? 0.4 : 1,
+                    cursor: "default",
                   }}
                 >
                   <span
+                    aria-hidden="true"
+                    title="Drag to reorder"
                     style={{
-                      fontSize: "var(--font-size-base)",
-                      fontWeight: "var(--font-weight-semibold)" as unknown as number,
-                    }}
-                  >
-                    {page.title}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "var(--font-size-xs)",
+                      cursor: "grab",
                       color: "var(--color-text-muted)",
                       fontFamily: "var(--font-mono)",
+                      fontSize: "var(--font-size-lg)",
+                      userSelect: "none",
+                      padding: "0 var(--space-1)",
                     }}
                   >
-                    {page.isSplashPage ? "/" : `/${page.slug}`}
+                    ⋮⋮
                   </span>
-                </Link>
-                {page.isSplashPage ? (
-                  <span
-                    title="Splash page — takes over /"
+                  <Link
+                    href={`/admin/pages/${page.slug}`}
                     style={{
-                      fontSize: "var(--font-size-xs)",
-                      color: "var(--color-text-emphasis)",
-                      padding: "var(--space-1) var(--space-2)",
-                      background: "var(--color-surface-raised)",
+                      flex: 1,
+                      color: "var(--color-text)",
+                      textDecoration: "none",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "var(--font-size-base)",
+                        fontWeight: "var(--font-weight-semibold)" as unknown as number,
+                      }}
+                    >
+                      {page.title}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--color-text-muted)",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                    >
+                      {page.isSplashPage ? "/" : `/${page.slug}`}
+                    </span>
+                  </Link>
+                  {page.isSplashPage ? (
+                    <span
+                      title="Splash page — takes over /"
+                      style={{
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--color-text-emphasis)",
+                        padding: "var(--space-1) var(--space-2)",
+                        background: "var(--color-surface-raised)",
+                        borderRadius: "var(--radius-sm)",
+                      }}
+                    >
+                      Splash
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleHiddenFromNav(page.slug)}
+                      aria-label={
+                        page.isHiddenFromNav
+                          ? `Show ${page.title} in the navigation menu`
+                          : `Hide ${page.title} from the navigation menu`
+                      }
+                      aria-pressed={page.isHiddenFromNav}
+                      title={
+                        page.isHiddenFromNav
+                          ? "Hidden from nav — click to show"
+                          : "Visible in nav — click to hide"
+                      }
+                      style={{
+                        padding: "var(--space-1) var(--space-2)",
+                        border: "1px solid var(--color-border)",
+                        background: page.isHiddenFromNav
+                          ? "var(--color-surface)"
+                          : "var(--color-surface-raised)",
+                        color: page.isHiddenFromNav
+                          ? "var(--color-text-muted)"
+                          : "var(--color-text)",
+                        cursor: "pointer",
+                        borderRadius: "var(--radius-sm)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      {page.isHiddenFromNav ? <EyeOffIcon /> : <EyeIcon />}
+                    </button>
+                  )}
+                  <Link
+                    href={`/admin/pages/${page.slug}`}
+                    style={{
+                      padding: "var(--space-1) var(--space-3)",
+                      fontSize: "var(--font-size-sm)",
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text)",
+                      cursor: "pointer",
+                      borderRadius: "var(--radius-sm)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(page.slug)}
+                    disabled={deletingSlug === page.slug}
+                    aria-label={`Delete page ${page.slug}`}
+                    style={{
+                      padding: "var(--space-1) var(--space-3)",
+                      fontSize: "var(--font-size-sm)",
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text-error)",
+                      cursor: deletingSlug === page.slug ? "wait" : "pointer",
                       borderRadius: "var(--radius-sm)",
                     }}
                   >
-                    Splash
-                  </span>
-                ) : null}
-                <Link
-                  href={`/admin/pages/${page.slug}`}
-                  style={{
-                    padding: "var(--space-1) var(--space-3)",
-                    fontSize: "var(--font-size-sm)",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-text)",
-                    cursor: "pointer",
-                    borderRadius: "var(--radius-sm)",
-                    textDecoration: "none",
-                  }}
-                >
-                  Edit
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(page.slug)}
-                  disabled={deletingSlug === page.slug}
-                  aria-label={`Delete page ${page.slug}`}
-                  style={{
-                    padding: "var(--space-1) var(--space-3)",
-                    fontSize: "var(--font-size-sm)",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-text-error)",
-                    cursor: deletingSlug === page.slug ? "wait" : "pointer",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  {deletingSlug === page.slug ? "Deleting…" : "Delete"}
-                </button>
-              </li>
-            ))}
+                    {deletingSlug === page.slug ? "Deleting…" : "Delete"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
+
+      {navError ? (
+        <div
+          role="alert"
+          style={{
+            color: "var(--color-text-error)",
+            fontSize: "var(--font-size-sm)",
+          }}
+        >
+          {navError}
+        </div>
+      ) : null}
 
       <section
         aria-label="Add a page"
@@ -292,5 +476,43 @@ export function PagesPanel({ initialPages }: Props) {
         </form>
       </section>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
   );
 }

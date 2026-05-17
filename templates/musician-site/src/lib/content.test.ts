@@ -177,6 +177,58 @@ describe("listPageSummaries", () => {
     expect(ours.find((s) => s.slug === slugA)?.isSplashPage).toBe(false);
     expect(ours.find((s) => s.slug === slugA)?.title).toBe("Alpha");
   });
+
+  it("orders by siteConfig.pageOrder when present", async () => {
+    // Create three pages in alphabetical order, then set pageOrder
+    // explicitly to a non-alphabetical sequence. The listing should
+    // follow pageOrder, not the alphabetical fallback.
+    const slugs = [
+      testSlug("zzz-third"),
+      testSlug("aaa-first"),
+      testSlug("mmm-second"),
+    ];
+    for (const slug of slugs) await createPage(slug, emptyPageData(slug));
+
+    await writeSiteConfig({
+      ...DEFAULT_SITE_CONFIG,
+      pageOrder: [slugs[1], slugs[2], slugs[0]],
+    });
+
+    const summaries = await listPageSummaries();
+    const ours = summaries.filter((s) => slugs.includes(s.slug));
+    expect(ours.map((s) => s.slug)).toEqual([slugs[1], slugs[2], slugs[0]]);
+  });
+
+  it("appends unordered pages (not in pageOrder) alphabetically", async () => {
+    const ordered = testSlug("aaa-pinned");
+    const unorderedZ = testSlug("zzz-unpinned");
+    const unorderedM = testSlug("mmm-unpinned");
+    await createPage(ordered, emptyPageData("Pinned"));
+    await createPage(unorderedZ, emptyPageData("ZUnpinned"));
+    await createPage(unorderedM, emptyPageData("MUnpinned"));
+
+    await writeSiteConfig({ ...DEFAULT_SITE_CONFIG, pageOrder: [ordered] });
+
+    const summaries = await listPageSummaries();
+    const ours = summaries
+      .filter((s) => [ordered, unorderedZ, unorderedM].includes(s.slug))
+      .map((s) => s.slug);
+    // Pinned comes first, then unordered pages in alpha order.
+    expect(ours).toEqual([ordered, unorderedM, unorderedZ]);
+  });
+
+  it("populates isHiddenFromNav from siteConfig.hiddenFromNav", async () => {
+    const hidden = testSlug("hidden-page");
+    const visible = testSlug("visible-page");
+    await createPage(hidden, emptyPageData("Hidden"));
+    await createPage(visible, emptyPageData("Visible"));
+
+    await writeSiteConfig({ ...DEFAULT_SITE_CONFIG, hiddenFromNav: [hidden] });
+
+    const summaries = await listPageSummaries();
+    expect(summaries.find((s) => s.slug === hidden)?.isHiddenFromNav).toBe(true);
+    expect(summaries.find((s) => s.slug === visible)?.isHiddenFromNav).toBe(false);
+  });
 });
 
 describe("resolveRootPageSlug", () => {
@@ -237,7 +289,7 @@ describe("singleton reads return defaults when no file exists", () => {
   it("readHeaderConfig returns DEFAULT_HEADER_CONFIG", async () => {
     const cfg = await readHeaderConfig();
     expect(cfg.headerMode).toBe(DEFAULT_HEADER_CONFIG.headerMode);
-    expect(Array.isArray(cfg.items)).toBe(true);
+    expect(cfg.headerLayout).toBe(DEFAULT_HEADER_CONFIG.headerLayout);
   });
 
   it("readAppearance returns DEFAULT_APPEARANCE", async () => {
@@ -261,12 +313,12 @@ describe("write* + read* round-trip through disk", () => {
     const cfg = {
       ...DEFAULT_HEADER_CONFIG,
       headerMode: "transparent-static" as const,
-      items: ["home", "about"],
+      headerSubtitle: "Bandleader / Pianist",
     };
     await writeHeaderConfig(cfg);
     const out = await readHeaderConfig();
     expect(out.headerMode).toBe("transparent-static");
-    expect(out.items).toEqual(["home", "about"]);
+    expect(out.headerSubtitle).toBe("Bandleader / Pianist");
   });
 
   it("writeAppearance + readAppearance round-trip", async () => {

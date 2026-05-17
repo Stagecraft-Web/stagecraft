@@ -9,7 +9,6 @@ import {
   SelectField,
   TextField,
 } from "@/components/admin/form";
-import { ReorderableList } from "@/components/admin/ReorderableList";
 import { SaveBar } from "@/components/admin/SaveBar";
 import { useSettingsForm } from "@/components/admin/useSettingsForm";
 import { ImagePickerField } from "@/puck/ImagePickerField";
@@ -24,24 +23,22 @@ import {
   type HeaderConfig,
   type HeaderLayout,
   type HeaderMode,
-  type PageSummary,
 } from "@/lib/site-config-types";
 
 type Props = {
   initial: HeaderConfig;
-  availablePages: PageSummary[];
 };
 
 /**
- * Header & Navigation editor. Three groups:
+ * Header & Navigation editor. Two groups:
  *   1. Wordmark + sizing — drops in a brand image instead of the artist-name text.
  *   2. Header style — mode, layout, uppercase, subtitle, transparent-mode color.
- *   3. Navigation menu — pick which pages appear and in what order.
  *
- * The nav-items picker reads from the live page list (passed in) so renaming
- * a page or deleting one shows up here automatically.
+ * Nav order / per-page visibility live on the Pages list (drag-reorder +
+ * eye toggle there) — not here. The single editor for both makes the
+ * source-of-truth obvious and keeps this panel about chrome, not content.
  */
-export function NavigationForm({ initial, availablePages }: Props) {
+export function NavigationForm({ initial }: Props) {
   const form = useSettingsForm<HeaderConfig>({
     initial,
     endpoint: "/api/save-config",
@@ -52,19 +49,10 @@ export function NavigationForm({ initial, availablePages }: Props) {
     form.setValue((prev) => ({ ...prev, [key]: val }));
   }
 
-  // Pages that exist on disk but aren't in the nav. Excludes splash pages
-  // because those override "/" and never want a nav link to themselves.
-  const omittedPages = availablePages.filter(
-    (p) => !p.isSplashPage && !form.value.items.includes(p.slug),
-  );
-
-  const pageTitle = (slug: string) =>
-    availablePages.find((p) => p.slug === slug)?.title ?? slug;
-
   return (
     <AdminPanel
       title="Header & Navigation"
-      description="Wordmark, header style (mode + layout), and which pages appear in the navigation menu."
+      description="Wordmark and header chrome (mode + layout + subtitle). The nav order itself is set on the Pages list — drag rows to reorder, toggle the eye to hide a page from the nav."
       saveBar={<SaveBar {...form.saveBarProps} />}
     >
       <FieldGroup
@@ -139,73 +127,6 @@ export function NavigationForm({ initial, availablePages }: Props) {
         />
       </FieldGroup>
 
-      <FieldGroup
-        title="Navigation menu"
-        description="The pages listed below appear in the header navigation, in the order shown. Pages not in this list stay accessible by URL but aren't surfaced in the nav."
-      >
-        <Field label="Pages in the nav">
-          <ReorderableList<string>
-            items={form.value.items}
-            onChange={(next) => setField("items", next)}
-            renderLabel={(slug) => (
-              <span>
-                <strong>{pageTitle(slug)}</strong>
-                <span
-                  style={{
-                    marginLeft: "var(--space-2)",
-                    color: "var(--color-text-muted)",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "var(--font-size-xs)",
-                  }}
-                >
-                  /{slug}
-                </span>
-              </span>
-            )}
-            emptyState="No pages in the nav yet — pick from below to add one."
-          />
-        </Field>
-        {omittedPages.length > 0 ? (
-          <Field label="Add a page to the nav">
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "var(--space-2)",
-              }}
-            >
-              {omittedPages.map((p) => (
-                <button
-                  key={p.slug}
-                  type="button"
-                  onClick={() => setField("items", [...form.value.items, p.slug])}
-                  style={{
-                    padding: "var(--space-1) var(--space-3)",
-                    fontSize: "var(--font-size-sm)",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-text)",
-                    cursor: "pointer",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  + {p.title}
-                  <span
-                    style={{
-                      marginLeft: "var(--space-1)",
-                      color: "var(--color-text-muted)",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "var(--font-size-xs)",
-                    }}
-                  >
-                    /{p.slug}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Field>
-        ) : null}
-      </FieldGroup>
     </AdminPanel>
   );
 }

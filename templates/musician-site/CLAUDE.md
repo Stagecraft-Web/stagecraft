@@ -41,7 +41,9 @@ src/
       pages/page.tsx        Pages list — add / delete / open in editor
       pages/[slug]/page.tsx Puck editor for one page
       settings/page.tsx     Site Settings form (artistName, social, footer)
-      navigation/page.tsx   Header & Nav form (mode, layout, nav order)
+      navigation/page.tsx   Header & Nav form (mode, layout, subtitle).
+                            Nav order + per-page visibility live on the
+                            Pages list (drag handle + eye toggle per row).
       appearance/page.tsx   Colors + typography form
     api/
       publish/              Per-page publish (back-compat)
@@ -60,7 +62,6 @@ src/
       AdminAccountButton.tsx  signed-in avatar + sign-out menu
       form.tsx                TextField, SelectField, CheckboxField,
                               NumberField, ColorField, Field, FieldGroup
-      ReorderableList.tsx     ↑/↓/remove buttons for ordered slug lists
       SaveBar.tsx             sticky bottom save bar (idle/saving/saved/error)
       useSettingsForm.ts      dirty-tracking + POST hook (shared by all
                               singleton forms)
@@ -94,16 +95,20 @@ src/
 sections:
 
 - **Pages** — `/admin/pages` is the landing page. Lists every page on
-  disk, links each to the Puck editor, has an inline "Add page" form
-  (auto-slug from title) and per-row Delete. The Puck editor itself is
-  at `/admin/pages/<slug>` and fills the viewport.
+  disk; each row carries a drag handle (reorder = nav order +
+  Pages-list order, persisted to `siteConfig.pageOrder`), an eye toggle
+  (`siteConfig.hiddenFromNav`), an Edit button into Puck, and a Delete
+  button. Inline "Add page" form (auto-slug from title); after creating
+  a page the artist stays on the list — Edit opens the Puck editor at
+  `/admin/pages/<slug>` (which fills the viewport).
 - **Site Settings** — `/admin/settings` — Identity (artist name, site
   title, description, contact email), Social links (9 platforms),
   Footer (copyright holder, hide-footer site-wide).
 - **Header & Navigation** — `/admin/navigation` — Wordmark + sizing,
   Header style (mode, layout, uppercase, subtitle, transparent
-  foreground color), Navigation menu (which page slugs appear in the
-  header, in what order).
+  foreground color). Nav order + per-page nav visibility live on the
+  Pages list — the single editor for both keeps the source-of-truth
+  obvious.
 - **Appearance** — `/admin/appearance` — 9 named color tokens (each
   with a swatch + text input) and Typography (body font/weights +
   optional split heading font/weights).

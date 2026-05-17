@@ -15,6 +15,7 @@ import {
   isTransparentHeader,
   PAGE_SLUG_PATTERN,
   pageRootPropsSchema,
+  reorderPagesBefore,
   resolveLinkColor,
   siteConfigSchema,
   slugifyTitle,
@@ -57,6 +58,71 @@ describe("siteConfigSchema", () => {
     // Default socialLinks block populated from the platform list.
     expect(Object.keys(out.socialLinks).sort()).toEqual([...SOCIAL_PLATFORMS].sort());
   });
+
+  it("defaults pageOrder + hiddenFromNav to empty arrays", () => {
+    const out = siteConfigSchema.parse({
+      artistName: "Sarah",
+      siteTitle: "Sarah's Site",
+      contactEmail: "sarah@example.com",
+    });
+    expect(out.pageOrder).toEqual([]);
+    expect(out.hiddenFromNav).toEqual([]);
+  });
+
+  it("round-trips pageOrder + hiddenFromNav", () => {
+    const out = siteConfigSchema.parse({
+      ...DEFAULT_SITE_CONFIG,
+      pageOrder: ["home", "about", "tour"],
+      hiddenFromNav: ["about"],
+    });
+    expect(out.pageOrder).toEqual(["home", "about", "tour"]);
+    expect(out.hiddenFromNav).toEqual(["about"]);
+  });
+});
+
+describe("reorderPagesBefore", () => {
+  const pages = [
+    { slug: "a" },
+    { slug: "b" },
+    { slug: "c" },
+    { slug: "d" },
+  ];
+
+  it("moves an earlier item to a later position (drag down)", () => {
+    const out = reorderPagesBefore(pages, "a", "c");
+    expect(out.map((p) => p.slug)).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("moves a later item to an earlier position (drag up)", () => {
+    const out = reorderPagesBefore(pages, "d", "b");
+    expect(out.map((p) => p.slug)).toEqual(["a", "d", "b", "c"]);
+  });
+
+  it("moving an item before itself is a copy no-op", () => {
+    const out = reorderPagesBefore(pages, "b", "b");
+    expect(out.map((p) => p.slug)).toEqual(["a", "b", "c", "d"]);
+    // Returns a fresh array so React state updates don't see a stale ref.
+    expect(out).not.toBe(pages);
+  });
+
+  it("returns a copy unchanged when dragged slug is missing", () => {
+    const out = reorderPagesBefore(pages, "missing", "a");
+    expect(out.map((p) => p.slug)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("returns a copy unchanged when target slug is missing", () => {
+    const out = reorderPagesBefore(pages, "a", "missing");
+    expect(out.map((p) => p.slug)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("preserves the full row object (title, flags, etc.)", () => {
+    const richPages = [
+      { slug: "a", title: "Alpha", isHidden: false },
+      { slug: "b", title: "Bravo", isHidden: true },
+    ];
+    const out = reorderPagesBefore(richPages, "b", "a");
+    expect(out[0]).toEqual({ slug: "b", title: "Bravo", isHidden: true });
+  });
 });
 
 describe("headerConfigSchema", () => {
@@ -64,8 +130,15 @@ describe("headerConfigSchema", () => {
     const out = headerConfigSchema.parse(DEFAULT_HEADER_CONFIG);
     expect(out.headerMode).toBe("solid-sticky");
     expect(out.headerLayout).toBe("logo-left-nav-right");
-    expect(out.items).toEqual(["home"]);
     expect(out.wordmark).toBeNull();
+  });
+
+  it("silently drops a legacy `items` field — nav order moved to siteConfig", () => {
+    const out = headerConfigSchema.parse({
+      ...DEFAULT_HEADER_CONFIG,
+      items: ["home", "about"],
+    });
+    expect("items" in out).toBe(false);
   });
 
   it("rejects an unknown headerMode", () => {

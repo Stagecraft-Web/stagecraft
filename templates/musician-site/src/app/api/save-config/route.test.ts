@@ -105,11 +105,11 @@ describe("POST /api/save-config", () => {
 
   it("persists header-config", async () => {
     getSessionMock.mockResolvedValue({ email: "a@b.c" });
-    const data = { ...DEFAULT_HEADER_CONFIG, items: ["home", "about"] };
+    const data = { ...DEFAULT_HEADER_CONFIG, headerSubtitle: "Bandleader" };
     const res = await POST(postJson({ kind: "header-config", data }));
     expect(res.status).toBe(200);
     const onDisk = JSON.parse(await fs.readFile(HEADER_PATH, "utf-8"));
-    expect(onDisk.items).toEqual(["home", "about"]);
+    expect(onDisk.headerSubtitle).toBe("Bandleader");
   });
 
   it("persists appearance", async () => {

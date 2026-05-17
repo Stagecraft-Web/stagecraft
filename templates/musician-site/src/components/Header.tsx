@@ -29,10 +29,15 @@ const WORDMARK_HEIGHT_BY_ADJUST: Record<string, string> = {
 type Props = {
   artistName: string;
   header: HeaderConfig;
+  /**
+   * Ordered list of page slugs to render in the nav. Already filtered for
+   * visibility / splash pages by the caller — Header is a pure renderer.
+   */
+  navItems: readonly string[];
   pageTitleBySlug: Map<string, string>;
 };
 
-export function Header({ artistName, header, pageTitleBySlug }: Props) {
+export function Header({ artistName, header, navItems, pageTitleBySlug }: Props) {
   const wrapperStyle: CSSProperties = {
     width: "100%",
     background: isTransparentHeader(header.headerMode)
@@ -111,7 +116,7 @@ export function Header({ artistName, header, pageTitleBySlug }: Props) {
           fontSize: "var(--font-size-sm)",
         }}
       >
-        {header.items.map((slug) => (
+        {navItems.map((slug) => (
           <li key={slug}>
             <Link
               href={`/${slug}`}

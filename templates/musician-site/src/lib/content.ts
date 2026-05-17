@@ -187,19 +187,44 @@ export function extractPageRootProps(data: PageData): PageRootProps {
 }
 
 export async function listPageSummaries(): Promise<PageSummary[]> {
-  const slugs = await listPageSlugs();
+  const [slugs, site] = await Promise.all([listPageSlugs(), readSiteConfig()]);
   const summaries = await Promise.all(
     slugs.map(async (slug) => {
       const data = await readPage(slug);
       const props = extractPageRootProps(data);
-      return { slug, title: props.title, isSplashPage: props.isSplashPage };
+      return {
+        slug,
+        title: props.title,
+        isSplashPage: props.isSplashPage,
+        isHiddenFromNav: site.hiddenFromNav.includes(slug),
+      };
     }),
   );
-  // Splash pages float to the top so the admin makes the "/" override visible.
-  return summaries.sort((a, b) => {
+  return sortSummariesByPageOrder(summaries, site.pageOrder);
+}
+
+/**
+ * Sort summaries by the canonical `pageOrder` first, then alphabetically for
+ * anything not yet ordered (newly-created pages). Splash pages float to the
+ * top regardless of where they sit in `pageOrder` so the admin makes the "/"
+ * override visible — the user controls splash via the page-root toggle, not
+ * via reordering.
+ */
+function sortSummariesByPageOrder(
+  summaries: PageSummary[],
+  pageOrder: readonly string[],
+): PageSummary[] {
+  const orderIndex = new Map(pageOrder.map((slug, idx) => [slug, idx] as const));
+  const sorted = [...summaries].sort((a, b) => {
     if (a.isSplashPage !== b.isSplashPage) return a.isSplashPage ? -1 : 1;
+    const aIdx = orderIndex.get(a.slug);
+    const bIdx = orderIndex.get(b.slug);
+    if (aIdx !== undefined && bIdx !== undefined) return aIdx - bIdx;
+    if (aIdx !== undefined) return -1;
+    if (bIdx !== undefined) return 1;
     return a.slug.localeCompare(b.slug);
   });
+  return sorted;
 }
 
 /**

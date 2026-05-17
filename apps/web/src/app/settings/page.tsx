@@ -41,12 +41,12 @@ export default async function SettingsPage({
   const resendAdminEmail = resend?.providerAccountId ?? null;
 
   return (
-    <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "system-ui" }}>
+    <main style={{ maxWidth: "var(--max-width-wide)", margin: "var(--space-10) auto", fontFamily: "var(--font-body)", color: "var(--color-text)" }}>
       <h1>Settings</h1>
       <p><a href="/dashboard">&larr; Dashboard</a></p>
 
       {params.success && (
-        <div style={{ padding: 12, background: "#d4edda", borderRadius: 4, marginBottom: 16 }}>
+        <div style={{ padding: "var(--space-3)", background: "var(--color-success-bg)", color: "var(--color-success)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
           {params.success === "github_connected" && "GitHub connected successfully."}
           {params.success === "netlify_connected" && "Netlify connected successfully."}
           {params.success === "netlify_disconnected" && "Netlify disconnected."}
@@ -58,47 +58,47 @@ export default async function SettingsPage({
       )}
 
       {params.error && (
-        <div style={{ padding: 12, background: "#f8d7da", borderRadius: 4, marginBottom: 16 }}>
+        <div style={{ padding: "var(--space-3)", background: "var(--color-error-bg)", color: "var(--color-error)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-4)" }}>
           Connection failed. Please try again.
         </div>
       )}
 
-      <section style={{ marginTop: 32 }}>
+      <section style={{ marginTop: "var(--space-8)" }}>
         <h2>Integrations</h2>
-        <p style={{ color: "#555", fontSize: 14 }}>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>
           GitHub is required (the platform commits to your repo). For deploys, connect either Vercel or Netlify — Vercel is recommended for new sites because its API auto-resolves repo linking; Netlify needs manual GitHub-App setup per repo. Resend is required for magic-link sign-in on artist sites.
         </p>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <div style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", marginBottom: "var(--space-4)" }}>
           <h3>GitHub</h3>
           {github ? (
             <p>
               Connected as <strong>{(github.metadata as { login?: string })?.login ?? github.providerAccountId}</strong>
             </p>
           ) : (
-            <p style={{ color: "#666" }}>Sign in with GitHub to connect.</p>
+            <p style={{ color: "var(--color-text-muted)" }}>Sign in with GitHub to connect.</p>
           )}
         </div>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-          <h3>Vercel <span style={{ fontSize: 12, color: "#0070f3", fontWeight: 400 }}>(recommended)</span></h3>
+        <div style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", marginBottom: "var(--space-4)" }}>
+          <h3>Vercel <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-brand)", fontWeight: "var(--font-weight-normal)" }}>(recommended)</span></h3>
           <ConnectVercel connectedUsername={vercelUsername} />
         </div>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <div style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", marginBottom: "var(--space-4)" }}>
           <h3>Netlify</h3>
           <ConnectNetlify connectedEmail={netlifyEmail} />
         </div>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <h3>Resend <span style={{ fontSize: 12, color: "#666", fontWeight: 400 }}>(required for magic-link sign-in)</span></h3>
+        <div style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)" }}>
+          <h3>Resend <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", fontWeight: "var(--font-weight-normal)" }}>(required for magic-link sign-in)</span></h3>
           <ConnectResend connectedAdminEmail={resendAdminEmail} />
         </div>
 
         {githubAppInstallUrl && (
-          <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginTop: 16 }}>
+          <div style={{ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", marginTop: "var(--space-4)" }}>
             <h3>Stagecraft GitHub App</h3>
-            <p style={{ color: "#555", fontSize: 14, marginTop: 4 }}>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)", marginTop: "var(--space-1)" }}>
               Installing the Stagecraft App on your GitHub account lets the platform
               manage repos without a per-site connection step. Select &ldquo;All repositories&rdquo;
               for the smoothest experience.
@@ -107,7 +107,7 @@ export default async function SettingsPage({
               href={githubAppInstallUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontWeight: 600 }}
+              style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-brand)" }}
             >
               Install Stagecraft App &rarr;
             </a>

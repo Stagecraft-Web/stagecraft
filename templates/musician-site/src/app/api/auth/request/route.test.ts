@@ -46,17 +46,19 @@ describe("POST /api/auth/request", () => {
     expect(sendMagicLinkMock).not.toHaveBeenCalled();
   });
 
-  describe("dev-mode warnings", () => {
-    it("warns when ADMIN_EMAIL is unset (dev only)", async () => {
+  describe("dev-mode fallback", () => {
+    it("sends a magic link to any email when ADMIN_EMAIL is unset (dev only)", async () => {
       vi.stubEnv("NODE_ENV", "development");
       const warnSpy = vi.spyOn(console, "warn");
       vi.resetModules();
       const { POST: devPost } = await import("./route");
       await devPost(buildRequest("anything@example.com"));
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("ADMIN_EMAIL is not set"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("ADMIN_EMAIL not set"));
+      expect(sendMagicLinkMock).toHaveBeenCalledTimes(1);
+      expect(sendMagicLinkMock.mock.calls[0][0]).toBe("anything@example.com");
     });
 
-    it("warns when email mismatches (dev only)", async () => {
+    it("warns and does not send when email mismatches ADMIN_EMAIL (dev only)", async () => {
       vi.stubEnv("NODE_ENV", "development");
       process.env.ADMIN_EMAIL = "allowed@example.com";
       const warnSpy = vi.spyOn(console, "warn");
@@ -64,15 +66,17 @@ describe("POST /api/auth/request", () => {
       const { POST: devPost } = await import("./route");
       await devPost(buildRequest("other@example.com"));
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("doesn't match"));
+      expect(sendMagicLinkMock).not.toHaveBeenCalled();
     });
 
-    it("does not warn in production", async () => {
+    it("silently no-ops in production when ADMIN_EMAIL is unset", async () => {
       vi.stubEnv("NODE_ENV", "production");
       const warnSpy = vi.spyOn(console, "warn");
       vi.resetModules();
       const { POST: prodPost } = await import("./route");
       await prodPost(buildRequest("anything@example.com"));
       expect(warnSpy).not.toHaveBeenCalled();
+      expect(sendMagicLinkMock).not.toHaveBeenCalled();
     });
   });
 });

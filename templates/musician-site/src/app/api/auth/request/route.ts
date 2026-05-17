@@ -13,15 +13,17 @@ export async function POST(request: Request) {
 
   const allowed = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   if (!allowed) {
-    if (isDev) {
-      console.warn(
-        "[auth] ADMIN_EMAIL is not set — magic-link requests will silently no-op. " +
-          "Add ADMIN_EMAIL to .env.local (see .env.example).",
-      );
+    if (!isDev) {
+      // Production: silently no-op to avoid signalling that the site
+      // is misconfigured.
+      return sentRedirect;
     }
-    return sentRedirect;
-  }
-  if (email !== allowed) {
+    console.warn(
+      "[auth] ADMIN_EMAIL not set — dev fallback: sending magic link to " +
+        `"${email}". Set ADMIN_EMAIL in .env.local for production-style ` +
+        "lock-down to a single allowed email.",
+    );
+  } else if (email !== allowed) {
     if (isDev) {
       console.warn(
         `[auth] Email "${email}" doesn't match ADMIN_EMAIL ("${allowed}"). ` +

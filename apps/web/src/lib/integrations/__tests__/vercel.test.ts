@@ -452,6 +452,9 @@ describe("deleteProject", () => {
 
 describe("getLatestDeployment", () => {
   it("returns the most recent deployment normalized to {state, url, id}", async () => {
+    // Freshly-created deployment so the Vercel "finalizing" time
+    // heuristic doesn't fire and shift BUILDING → "finalizing".
+    const now = Date.now();
     let capturedUrl = "";
     mockFetch((url) => {
       capturedUrl = url;
@@ -459,8 +462,8 @@ describe("getLatestDeployment", () => {
         status: 200,
         body: {
           deployments: [
-            { uid: "dpl_1", readyState: "BUILDING", url: "site-x.vercel.app", created: 1700000000000 },
-            { uid: "dpl_0", readyState: "READY", url: "site-x-old.vercel.app", created: 1699000000000 },
+            { uid: "dpl_1", readyState: "BUILDING", url: "site-x.vercel.app", created: now },
+            { uid: "dpl_0", readyState: "READY", url: "site-x-old.vercel.app", created: now - 1_000 },
           ],
         },
       };
@@ -474,10 +477,15 @@ describe("getLatestDeployment", () => {
     expect(d.id).toBe("dpl_1");
     expect(d.state).toBe("building");
     expect(d.url).toBe("https://site-x.vercel.app");
-    expect(d.createdAt).toBe(new Date(1700000000000).toISOString());
+    expect(d.createdAt).toBe(new Date(now).toISOString());
   });
 
   it("normalizes Vercel readyStates to the DeployState enum", async () => {
+    // Use a freshly-created deployment so the Vercel `finalizing`
+    // time-heuristic (BUILDING for >35s → "finalizing") doesn't fire
+    // and confuse the BUILDING → "building" assertion. The heuristic
+    // gets its own test below.
+    const now = Date.now();
     const cases: Array<[string, string]> = [
       ["READY", "ready"],
       ["ERROR", "error"],
@@ -492,11 +500,44 @@ describe("getLatestDeployment", () => {
     for (const [raw, normalized] of cases) {
       mockFetch(() => ({
         status: 200,
-        body: { deployments: [{ uid: "dpl_x", readyState: raw, url: "x.vercel.app", created: 1 }] },
+        body: { deployments: [{ uid: "dpl_x", readyState: raw, url: "x.vercel.app", created: now }] },
       }));
       const d = await getLatestDeployment("user-1", "prj_abc");
       expect(d.state, `${raw} → ${normalized}`).toBe(normalized);
     }
+  });
+
+  it("upgrades long-running BUILDING to 'finalizing' (Vercel API doesn't expose the real finalize phase)", async () => {
+    // Vercel's /v6/deployments only returns QUEUED|INITIALIZING|BUILDING|
+    // READY|ERROR|CANCELED — UPLOADING and DEPLOYING are internal phases
+    // we never see. Without this heuristic, Vercel users would sit on
+    // "Building…" for the whole deploy then snap straight to "Live!".
+    const oldEnough = Date.now() - 40_000; // 40s > 35s threshold
+    mockFetch(() => ({
+      status: 200,
+      body: { deployments: [{ uid: "dpl_x", readyState: "BUILDING", url: "x.vercel.app", created: oldEnough }] },
+    }));
+    const d = await getLatestDeployment("user-1", "prj_abc");
+    expect(d.state).toBe("finalizing");
+  });
+
+  it("doesn't fire the finalizing heuristic on fresh BUILDING deployments", async () => {
+    const fresh = Date.now() - 5_000; // 5s < 35s threshold
+    mockFetch(() => ({
+      status: 200,
+      body: { deployments: [{ uid: "dpl_x", readyState: "BUILDING", url: "x.vercel.app", created: fresh }] },
+    }));
+    const d = await getLatestDeployment("user-1", "prj_abc");
+    expect(d.state).toBe("building");
+  });
+
+  it("doesn't fire the heuristic when `created` is missing (graceful fallback)", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { deployments: [{ uid: "dpl_x", readyState: "BUILDING", url: "x.vercel.app" }] },
+    }));
+    const d = await getLatestDeployment("user-1", "prj_abc");
+    expect(d.state).toBe("building");
   });
 
   it("returns a queued/null deploy when the project has no deployments yet", async () => {

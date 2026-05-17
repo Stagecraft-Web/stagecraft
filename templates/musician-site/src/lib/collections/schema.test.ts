@@ -19,7 +19,10 @@ import {
   type FieldDef,
   type FieldValue,
 } from "./schema";
-import { tourDatesDef } from "./test-fixtures";
+import { FIXTURE_TIMESTAMP, tourDatesDef } from "./test-fixtures";
+
+/** Spread into in-line item-file literals so tests don't repeat them. */
+const TS = { createdAt: FIXTURE_TIMESTAMP, updatedAt: FIXTURE_TIMESTAMP };
 
 // ---------------------------------------------------------------------------
 // Compile-time exhaustiveness — the tests "pass" by typechecking. Any new
@@ -260,10 +263,11 @@ describe("systemLocked", () => {
 });
 
 describe("itemFileShellSchema", () => {
-  it("accepts the {id, values} envelope with any FieldValue inside", () => {
+  it("accepts the wrapper envelope with any FieldValue inside", () => {
     expect(
       itemFileShellSchema.parse({
         id: "item_x",
+        ...TS,
         values: {
           f_a: { type: "text", value: "hi" },
           f_b: { type: "number", value: 5 },
@@ -273,13 +277,29 @@ describe("itemFileShellSchema", () => {
   });
 
   it("rejects a payload missing the id", () => {
-    expect(itemFileShellSchema.safeParse({ values: {} }).success).toBe(false);
+    expect(itemFileShellSchema.safeParse({ ...TS, values: {} }).success).toBe(false);
+  });
+
+  it("rejects a payload missing timestamps", () => {
+    expect(itemFileShellSchema.safeParse({ id: "x", values: {} }).success).toBe(false);
+  });
+
+  it("rejects timestamps that don't parse as ISO 8601", () => {
+    expect(
+      itemFileShellSchema.safeParse({
+        id: "x",
+        createdAt: "not-a-date",
+        updatedAt: FIXTURE_TIMESTAMP,
+        values: {},
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects a payload whose values contain a non-FieldValue shape", () => {
     expect(
       itemFileShellSchema.safeParse({
         id: "x",
+        ...TS,
         values: { f_a: "not wrapped in a FieldValue discriminator" },
       }).success,
     ).toBe(false);
@@ -489,6 +509,7 @@ describe("buildFieldValueZodSchema (per-field constraints)", () => {
 
 describe("collectionDefSchema", () => {
   const baseDef = {
+    schemaVersion: 1 as const,
     slug: "tour-dates",
     singularName: "tour date",
     pluralName: "tour dates",
@@ -594,19 +615,28 @@ describe("buildItemFileSchema", () => {
     expect(
       buildItemFileSchema([{ id: "f_t", key: "title", type: "text", required: true }]).parse({
         id: "item_123",
+        ...TS,
         values: { f_t: { type: "text", value: "Hello" } },
       }),
     ).toBeDefined();
   });
 
   it("rejects an item without an id", () => {
-    expect(buildItemFileSchema([]).safeParse({ values: {} }).success).toBe(false);
+    expect(buildItemFileSchema([]).safeParse({ ...TS, values: {} }).success).toBe(false);
+  });
+
+  it("rejects an item without timestamps", () => {
+    expect(buildItemFileSchema([]).safeParse({ id: "x", values: {} }).success).toBe(false);
   });
 
   it("rejects when a required field is missing", () => {
     const schema = buildItemFileSchema(fields);
     expect(
-      schema.safeParse({ id: "x", values: { f_count: { type: "number", value: 5 } } }).success,
+      schema.safeParse({
+        id: "x",
+        ...TS,
+        values: { f_count: { type: "number", value: 5 } },
+      }).success,
     ).toBe(false);
   });
 
@@ -614,6 +644,7 @@ describe("buildItemFileSchema", () => {
     const schema = buildItemFileSchema(fields);
     const parsed = schema.parse({
       id: "x",
+      ...TS,
       values: {
         f_title: { type: "text", value: "Hello" },
         f_count: { type: "number", value: 5 },
@@ -627,6 +658,7 @@ describe("buildItemFileSchema", () => {
     expect(
       schema.safeParse({
         id: "x",
+        ...TS,
         values: {
           f_title: { type: "text", value: "x".repeat(60) },
           f_count: { type: "number", value: 5 },
@@ -636,6 +668,7 @@ describe("buildItemFileSchema", () => {
     expect(
       schema.safeParse({
         id: "x",
+        ...TS,
         values: {
           f_title: { type: "text", value: "ok" },
           f_count: { type: "number", value: 1000 },
@@ -648,6 +681,7 @@ describe("buildItemFileSchema", () => {
     const schema = buildItemFileSchema(fields);
     const parsed = schema.parse({
       id: "x",
+      ...TS,
       values: {
         f_title: { type: "text", value: "Hello" },
         f_count: { type: "number", value: 5 },

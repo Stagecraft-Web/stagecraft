@@ -12,7 +12,10 @@ import {
   DEFAULT_HEADER_CONFIG,
   DEFAULT_SITE_CONFIG,
 } from "./site-config-types";
-import { tourDatesDef } from "./collections/test-fixtures";
+import { FIXTURE_TIMESTAMP, tourDatesDef } from "./collections/test-fixtures";
+
+/** Spread into in-line item-file literals so tests don't repeat them. */
+const TS = { createdAt: FIXTURE_TIMESTAMP, updatedAt: FIXTURE_TIMESTAMP };
 
 const TEST_SLUG = "publish-test";
 
@@ -364,7 +367,7 @@ describe("publish — collection target kinds", () => {
           kind: "collection-item",
           collectionSlug: "tour-dates",
           itemSlug: "paris-2026",
-          data: { id: "item_p", values: {} },
+          data: { id: "item_p", ...TS, values: {} },
         },
       ],
       authorEmail: "a@e.com",
@@ -478,7 +481,7 @@ describe("publish — collection target kinds", () => {
           kind: "collection-item",
           collectionSlug: "tour-dates",
           itemSlug: "paris-2026",
-          data: { id: "item_p", values: { f_date: { type: "date", value: "2026-07-15" } } },
+          data: { id: "item_p", ...TS, values: { f_date: { type: "date", value: "2026-07-15" } } },
         },
         {
           kind: "collection-order",
@@ -522,7 +525,7 @@ describe("publish — collection target kinds", () => {
           kind: "collection-item",
           collectionSlug: "tour-dates",
           itemSlug: "paris-2026",
-          data: { id: "i", values: {} },
+          data: { id: "i", ...TS, values: {} },
         },
         {
           kind: "collection-order",

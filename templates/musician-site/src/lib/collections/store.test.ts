@@ -25,7 +25,8 @@ import {
   writeSingleton,
 } from "./index";
 import type { CollectionDef, Item } from "./index";
-import { tourDateItem, tourDatesDef } from "./test-fixtures";
+import { CURRENT_COLLECTION_SCHEMA_VERSION } from "./schema";
+import { FIXTURE_TIMESTAMP, tourDateItem, tourDatesDef } from "./test-fixtures";
 
 let TMP_CONTENT_DIR: string;
 
@@ -148,7 +149,37 @@ describe("item operations", () => {
     await writeCollectionDef("tour-dates", def);
     const item = tourDateItem("paris-2026", "2026-07-15", "La Cigale", "Paris");
     await writeItem("tour-dates", "paris-2026", item, def);
-    expect(await readItem("tour-dates", "paris-2026", def)).toEqual(item);
+    // updatedAt is rewritten to "now" on every write (see writeItem doc).
+    // Compare everything except the timestamp the store owns.
+    const round = await readItem("tour-dates", "paris-2026", def);
+    expect(round).toMatchObject({
+      id: item.id,
+      slug: item.slug,
+      createdAt: item.createdAt,
+      values: item.values,
+    });
+    expect(Date.parse(round!.updatedAt)).toBeGreaterThanOrEqual(Date.parse(item.updatedAt));
+  });
+
+  it("writeItem refreshes updatedAt to now (createdAt is preserved)", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const item = tourDateItem("berlin-2026", "2026-07-20", "Bar", "Berlin");
+    await writeItem("tour-dates", "berlin-2026", item, def);
+    const after = await readItem("tour-dates", "berlin-2026", def);
+    expect(after!.createdAt).toBe(item.createdAt);
+    expect(after!.updatedAt).not.toBe(item.updatedAt);
+  });
+
+  it("createItem sets createdAt to now (not the caller-supplied value)", async () => {
+    const def = tourDatesDef();
+    await writeCollectionDef("tour-dates", def);
+    const item = tourDateItem("london-2026", "2026-07-25", "Bar", "London");
+    await createItem("tour-dates", "london-2026", item, def);
+    const after = await readItem("tour-dates", "london-2026", def);
+    // createItem overrode the fixture timestamp with "now"
+    expect(after!.createdAt).not.toBe(item.createdAt);
+    expect(Date.parse(after!.createdAt)).toBeGreaterThanOrEqual(Date.parse(item.createdAt));
   });
 
   it("writeItem refuses an item whose slug doesn't match the target", async () => {
@@ -170,6 +201,8 @@ describe("item operations", () => {
     const bad: Item = {
       id: "item_bad",
       slug: "bad",
+      createdAt: FIXTURE_TIMESTAMP,
+      updatedAt: FIXTURE_TIMESTAMP,
       values: {
         // Missing required f_venue, f_city, f_status.
         f_date: { type: "date", value: "2026-07-15" },
@@ -219,6 +252,8 @@ describe("item operations", () => {
       itemPath,
       JSON.stringify({
         id: "item_p",
+        createdAt: FIXTURE_TIMESTAMP,
+        updatedAt: FIXTURE_TIMESTAMP,
         values: {
           f_date: { type: "date", value: "2026-07-15" },
           f_venue: { type: "text", value: "X" },
@@ -328,6 +363,7 @@ describe("ordering files", () => {
 describe("singletons", () => {
   function siteSettingsDef(): CollectionDef {
     return {
+      schemaVersion: CURRENT_COLLECTION_SCHEMA_VERSION,
       slug: "site",
       singularName: "site settings",
       pluralName: "site settings",
@@ -344,16 +380,22 @@ describe("singletons", () => {
     };
   }
 
-  it("write and read a singleton", async () => {
+  it("write and read a singleton (timestamps are normalised on write)", async () => {
     const def = siteSettingsDef();
     await writeCollectionDef("site", def);
     const item: Item = {
       id: "item_site",
       slug: SINGLETON_ITEM_SLUG,
+      createdAt: FIXTURE_TIMESTAMP,
+      updatedAt: FIXTURE_TIMESTAMP,
       values: { f_name: { type: "text", value: "Test Artist" } },
     };
     await writeSingleton("site", item, def);
-    expect(await readSingleton("site", def)).toEqual(item);
+    const round = await readSingleton("site", def);
+    expect(round).toMatchObject({ id: item.id, slug: item.slug, values: item.values });
+    // updatedAt was rewritten to "now" — it must parse as a valid date
+    // and be no older than the original.
+    expect(Date.parse(round!.updatedAt)).toBeGreaterThanOrEqual(Date.parse(FIXTURE_TIMESTAMP));
   });
 
   it("readSingleton returns null when no singleton exists yet", async () => {

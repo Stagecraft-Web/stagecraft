@@ -180,6 +180,9 @@ export const fieldDefSchema = z.discriminatedUnion("type", [
     ...baseFieldShape,
     type: z.literal("multiSelect"),
     options: z.array(selectOptionSchema).min(1),
+    /** Inclusive bounds on the number of selected options. Optional. */
+    minItems: z.number().int().nonnegative().optional(),
+    maxItems: z.number().int().positive().optional(),
   }),
   z.object({
     ...baseFieldShape,
@@ -379,14 +382,14 @@ export function buildFieldValueZodSchema(field: FieldDef): ZodTypeAny {
     }
     case "multiSelect": {
       const allowed = field.options.map((o) => o.value);
-      return z.object({
-        type: z.literal("multiSelect"),
-        value: z
-          .array(z.string())
-          .refine((arr) => arr.every((v) => allowed.includes(v)), {
-            message: `every value must be one of: ${allowed.join(", ")}`,
-          }),
-      });
+      let inner = z
+        .array(z.string())
+        .refine((arr) => arr.every((v) => allowed.includes(v)), {
+          message: `every value must be one of: ${allowed.join(", ")}`,
+        });
+      if (field.minItems !== undefined) inner = inner.min(field.minItems);
+      if (field.maxItems !== undefined) inner = inner.max(field.maxItems);
+      return z.object({ type: z.literal("multiSelect"), value: inner });
     }
     case "date": {
       // ISO 8601 — date-only (YYYY-MM-DD) or datetime depending on includeTime.
@@ -468,8 +471,36 @@ export type CollectionSort = z.infer<typeof collectionSortSchema>;
  * must reference real fields, detailUrlPrefix must start with `/` — are
  * enforced via `superRefine`.
  */
+/**
+ * Current `CollectionDef` shape version. Bumped on breaking model
+ * changes; the migration runner (deferred) keys off this to rewrite
+ * old `_collection.json` files before consumers see them. Always
+ * present on v1 files so future migrations have a reliable starting
+ * point instead of inferring "what version is this" from missing-field
+ * heuristics.
+ */
+export const CURRENT_COLLECTION_SCHEMA_VERSION = 1;
+
+/**
+ * Field types whose stored value can be slugified for use as an item's
+ * URL slug. Pointing `slugSourceFieldId` at any other field type fails
+ * `_collection.json` validation — the slug-derivation function
+ * (PR 4 territory) would have no string to work with.
+ */
+const SLUG_SOURCE_COMPATIBLE_TYPES = new Set<FieldType>([
+  "text",
+  "longText",
+  "select",
+  "url",
+  "email",
+  "date",
+  "number",
+]);
+
 export const collectionDefSchema = z
   .object({
+    schemaVersion: z.literal(CURRENT_COLLECTION_SCHEMA_VERSION),
+
     // Identity
     slug: slugSchema,
     singularName: z.string().min(1),
@@ -523,12 +554,24 @@ export const collectionDefSchema = z
       }
       keys.add(field.key);
     }
-    if (def.slugSourceFieldId && !ids.has(def.slugSourceFieldId)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["slugSourceFieldId"],
-        message: `slugSourceFieldId references unknown field: ${def.slugSourceFieldId}`,
-      });
+    if (def.slugSourceFieldId) {
+      const sourceField = def.fields.find((f) => f.id === def.slugSourceFieldId);
+      if (!sourceField) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slugSourceFieldId"],
+          message: `slugSourceFieldId references unknown field: ${def.slugSourceFieldId}`,
+        });
+      } else if (!SLUG_SOURCE_COMPATIBLE_TYPES.has(sourceField.type)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slugSourceFieldId"],
+          message: `slugSourceFieldId must reference a field whose value can be slugified; ` +
+            `field "${sourceField.key}" has type "${sourceField.type}" which can't be (allowed: ${[
+              ...SLUG_SOURCE_COMPATIBLE_TYPES,
+            ].join(", ")})`,
+        });
+      }
     }
     if (def.defaultSort?.mode === "fieldSort" && !ids.has(def.defaultSort.fieldId)) {
       ctx.addIssue({
@@ -558,26 +601,47 @@ export function findField(def: CollectionDef, fieldId: FieldId): FieldDef | unde
 // ---------------------------------------------------------------------------
 
 /**
- * One entry in a collection — in-memory shape including the URL slug.
- * On disk, items are stored at `items/<slug>.json` containing only
- * `{ id, values }` — the slug is derived from the filename so a rename
- * is a single file-system operation, not a content edit.
+ * ISO 8601 datetime (e.g. `2026-05-17T18:30:00.000Z`). Validated via
+ * `Date.parse` round-trip rather than a regex so we accept the full
+ * ISO 8601 surface — timezones, fractional seconds, etc.
  */
-export type Item = {
-  id: ItemId;
-  /** URL slug; matches the filename (without `.json`) it was loaded from. */
-  slug: string;
-  values: Record<FieldId, FieldValue>;
-};
+const isoDateTimeSchema = z
+  .string()
+  .min(1)
+  .refine((s) => !Number.isNaN(Date.parse(s)), {
+    message: "must be an ISO 8601 datetime",
+  });
 
-/** On-disk shape of an item file (slug is implicit from the filename). */
+/**
+ * On-disk shape of an item file (slug is implicit from the filename).
+ *
+ * `createdAt` / `updatedAt` are system-owned timestamps — the store
+ * sets `updatedAt` to "now" on every write and `createdAt` to "now"
+ * when an item is first created. Consumers should treat any caller-
+ * supplied `updatedAt` as advisory; the store will override.
+ *
+ * Adding them in v1 (rather than later via backfill) avoids needing a
+ * migration pass over every committed item across every artist repo.
+ */
 export type ItemFile = {
   id: ItemId;
+  createdAt: string;
+  updatedAt: string;
   values: Record<FieldId, FieldValue>;
 };
 
 /**
- * Structural shell of an `ItemFile` — `{ id, values }` only, without
+ * One entry in a collection — in-memory shape including the URL slug.
+ * The slug is derived from the filename so a rename is a single
+ * file-system operation, not a content edit.
+ */
+export type Item = ItemFile & {
+  /** URL slug; matches the filename (without `.json`) it was loaded from. */
+  slug: string;
+};
+
+/**
+ * Structural shell of an `ItemFile` — the wrapper shape without
  * per-field constraints. Used by the publish layer to reject obviously
  * malformed payloads (missing id, wrong wrapper, a whole CollectionDef
  * pasted by mistake) without needing the originating CollectionDef.
@@ -588,6 +652,8 @@ export type ItemFile = {
  */
 export const itemFileShellSchema = z.object({
   id: z.string().min(1),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
   values: z.record(z.string(), fieldValueSchema),
 });
 
@@ -614,6 +680,8 @@ function buildValuesSchema(
 export function buildItemFileSchema(fields: FieldDef[]): z.ZodType<ItemFile> {
   return z.object({
     id: z.string().min(1),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema,
     values: buildValuesSchema(fields),
   });
 }

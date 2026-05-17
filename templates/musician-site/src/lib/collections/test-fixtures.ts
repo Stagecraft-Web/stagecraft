@@ -10,7 +10,7 @@
  * leaking state into sibling tests.
  */
 
-import type { CollectionDef, Item } from "./schema";
+import { CURRENT_COLLECTION_SCHEMA_VERSION, type CollectionDef, type Item } from "./schema";
 
 /**
  * A representative tour-dates collection. Five fields covering most
@@ -20,6 +20,7 @@ import type { CollectionDef, Item } from "./schema";
  */
 export function tourDatesDef(): CollectionDef {
   return {
+    schemaVersion: CURRENT_COLLECTION_SCHEMA_VERSION,
     slug: "tour-dates",
     singularName: "tour date",
     pluralName: "tour dates",
@@ -48,11 +49,23 @@ export function tourDatesDef(): CollectionDef {
   };
 }
 
-/** A populated tour-date item, with all required fields set. */
+/**
+ * Deterministic timestamp used by every fixture item so tests can
+ * round-trip with stable values. The store overrides `updatedAt` on
+ * write, so consumers shouldn't rely on this value surviving a save.
+ */
+export const FIXTURE_TIMESTAMP = "2026-05-17T18:00:00.000Z";
+
+/**
+ * A populated tour-date item, with all required fields set.
+ */
+
 export function tourDateItem(slug: string, date: string, venue: string, city: string): Item {
   return {
     id: `item_${slug}`,
     slug,
+    createdAt: FIXTURE_TIMESTAMP,
+    updatedAt: FIXTURE_TIMESTAMP,
     values: {
       f_date: { type: "date", value: date },
       f_venue: { type: "text", value: venue },

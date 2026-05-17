@@ -116,10 +116,18 @@ Defined here once; used throughout the rest of the ADR.
   Collection block.
 - **Current-item context.** The item being rendered by the surrounding
   template. Threaded through the renderer so that Collection-block
-  filters can reference the current item via
-  `{ kind: "currentItem", field: … }` (§5.1). For Pages, the page
-  itself is the current item; for any other collection's
-  detailTemplate, the item being shown.
+  filters can reference the current item via `currentItemId` or
+  `currentItemField` (§5.1). For Pages, the page itself is the
+  current item; for any other collection's detailTemplate, the item
+  being shown.
+- **schemaVersion.** `CollectionDef.schemaVersion` — always `1` on
+  v1-shaped files. Bumped on breaking model changes so a future
+  migration runner can rewrite older shapes deterministically rather
+  than inferring "what version is this" from missing-field heuristics.
+- **System timestamps.** `Item.createdAt` and `Item.updatedAt` —
+  store-owned ISO 8601 strings. `createItem` sets both to "now";
+  every `writeItem` rewrites `updatedAt`. Callers can't override;
+  the store always normalises.
 - **systemLocked.** Flag on a `FieldDef` marking it as non-editable by
   the artist (cannot be deleted, renamed, or retyped via the schema
   editor). Used for prebaked fields the renderer or routing depends on,
@@ -156,7 +164,7 @@ type FieldDef =
   | { /* base */ type: "number"; required: boolean; min?: number; max?: number; step?: number }
   | { /* base */ type: "boolean"; default?: boolean }
   | { /* base */ type: "select"; required: boolean; options: SelectOption[] }
-  | { /* base */ type: "multiSelect"; options: SelectOption[] }
+  | { /* base */ type: "multiSelect"; options: SelectOption[]; minItems?: number; maxItems?: number }
   | { /* base */ type: "date"; required: boolean; includeTime?: boolean }
   | { /* base */ type: "url"; required: boolean }
   | { /* base */ type: "email"; required: boolean }
@@ -168,13 +176,25 @@ type FieldDef =
   | { /* base */ type: "puckContent" };                      // full Puck block layout
 
 type CollectionDef = {
-  slug: string;                       // "pages" | "tourDates" | "releases" | …
+  // Always 1 on v1 files. Bumped on breaking model changes; the
+  // migration runner (deferred) keys off this to rewrite older shapes
+  // before consumers see them. Forces every committed file to declare
+  // its version explicitly — future migrations don't have to infer.
+  schemaVersion: 1;
+
+  slug: string;                       // "pages" | "tour-dates" | "releases" | …
   singularName: string;               // "page" | "tour date"
   pluralName: string;                 // "pages" | "tour dates"
 
   // ── Schema ──────────────────────────────────────────────────────
   fields: FieldDef[];
-  slugSourceFieldId: FieldId | null;  // field used to derive slugs from; null = manual
+  /**
+   * Field whose value derives an item's URL slug. Must reference a
+   * field whose stored value is slugifiable: text / longText / select
+   * / url / email / date / number. Pointing at puckContent / image /
+   * etc. fails CollectionDef validation.
+   */
+  slugSourceFieldId: FieldId | null;
 
   // ── Routing ─────────────────────────────────────────────────────
   // Detail pages are independent of listTemplate. A collection can be
@@ -217,12 +237,26 @@ type FieldValue =
   | { type: "multiCollectionRef"; value: ItemId[] }              // ordered; target collection comes from FieldDef
   | { type: "puckContent"; value: PuckData };
 
-type Item = {
+type ItemFile = {
   id: string;                     // stable; never reused
-  slug: string;                   // URL slug; unique within collection
+  createdAt: string;              // ISO 8601; set by createItem
+  updatedAt: string;              // ISO 8601; rewritten by every writeItem
   values: Record<FieldId, FieldValue>;
 };
+
+// In-memory shape includes the URL slug (derived from the filename).
+type Item = ItemFile & { slug: string };
 ```
+
+**System-owned timestamps.** `createdAt` and `updatedAt` ship in v1
+rather than being added later, because backfilling them across every
+artist's committed item history would be lossy (the original times
+aren't recoverable from git history alone). The store owns them: every
+`writeItem` rewrites `updatedAt`, and `createItem` sets both. Callers
+provide them in the `Item` shape but the store always normalises on
+write — there's no "save with my own updatedAt" API. Future binding
+support (PR 2) will let templates display them as pseudo-fields
+(`_createdAt`, `_updatedAt`) without storing them inside `values`.
 
 `FieldDef` and `FieldValue` are exhaustive discriminated unions: every
 consumer that walks fields or values gets compile-time exhaustiveness
@@ -487,7 +521,8 @@ render. Its on-disk shape is a small expression tree:
 ```ts
 type FilterValue =
   | { kind: "literal"; value: unknown }
-  | { kind: "currentItem"; field: FieldId | "_id" };   // resolved at render
+  | { kind: "currentItemId" }                          // resolves to currentItem.id
+  | { kind: "currentItemField"; fieldId: FieldId };    // resolves to currentItem.values[fieldId]
 
 type FilterClause =
   | { field: FieldId; op: "equals" | "notEquals"; value: FilterValue }
@@ -502,12 +537,17 @@ type Filter =
   | { any: FilterClause[] };  // OR
 ```
 
-`{ kind: "currentItem"; field: FieldId | "_id" }` is the central
-mechanism that makes contextual rendering work. The renderer threads a
-**current-item context** through every template — when rendering a
-detail page, `currentItem` is the item being shown; when rendering a
-Page, `currentItem` is that Page (Pages are items in the unified
-model, so the context is always defined for any template).
+The three-arm `FilterValue` discriminator (rather than a single
+`currentItem` variant with a sentinel `field: "_id"`) avoids a
+collision class: a real `FieldId` could be `_id`, since the FieldId
+pattern is "any non-empty string." Splitting `currentItemId` from
+`currentItemField` makes the semantics explicit and migration-safe.
+
+The renderer threads a **current-item context** through every
+template — when rendering a detail page, `currentItem` is the item
+being shown; when rendering a Page, `currentItem` is that Page (Pages
+are items in the unified model, so the context is always defined for
+any template).
 
 This unlocks the patterns the platform needs:
 
@@ -515,7 +555,7 @@ This unlocks the patterns the platform needs:
 // Tracks on the album detail page (intrinsic child→parent relationship)
 filter: { all: [{
   field: "f_belongsToAlbum", op: "equals",
-  value: { kind: "currentItem", field: "_id" },
+  value: { kind: "currentItemId" },
 }]}
 
 // "More releases by me" on a release detail page
@@ -524,7 +564,7 @@ filter: { all: [{ excludeCurrentItem: true }] }
 // "More shows on this tour"
 filter: { all: [{
   field: "f_tourLeg", op: "equals",
-  value: { kind: "currentItem", field: "f_tourLeg" },
+  value: { kind: "currentItemField", fieldId: "f_tourLeg" },
 }]}
 
 // "Upcoming shows" (no current-item dependency)
@@ -549,7 +589,7 @@ truth.
 | `number`             | `number`                                     | optional `min` / `max` / `step`               |
 | `boolean`            | `boolean`                                    |                                               |
 | `select`             | `string`                                     | options on the field def                      |
-| `multiSelect`        | `string[]`                                   | options on the field def                      |
+| `multiSelect`        | `string[]`                                   | options + optional `minItems` / `maxItems`    |
 | `date`               | ISO 8601 `string`                            | optional `includeTime`                        |
 | `url`                | `string`                                     | validated as URL                              |
 | `email`              | `string`                                     | validated as email                            |
@@ -881,73 +921,173 @@ breadth on the same foundation.
 
 ## Known limitations and deferred work
 
-The v1 design is deliberately scoped. The list below tracks the gaps
-we know we'll hit and the rough plan for addressing each. These are
-not bugs in the model; they're scope boundaries.
+The v1 design is deliberately scoped. Each entry below has a
+**trigger** — the condition that should pull it forward — so we don't
+end up debating "is now the right time" without a reference point.
+
+### Schema and data shape
 
 - **Nested-record fields (`array<{...}>`).** No way to model an
-  array of structured sub-objects (e.g. `release.tracks` as an
-  in-document array of `{title, duration}` rows). The v1 path for
-  tracks is a separate `tracks` collection plus either a filtered
-  Collection block on the album (intrinsic membership) or a
-  `multiCollectionRef` (per-album curation). Revisit if usage shows
-  the per-collection overhead is meaningfully worse than inline
-  arrays would be.
+  in-document array of structured sub-objects (e.g. `release.tracks`
+  as an array of `{title, duration}` rows). The v1 path for tracks
+  is a separate `tracks` collection plus either a filtered Collection
+  block on the album (intrinsic membership) or a `multiCollectionRef`
+  (per-album curation).
+  *Trigger:* a prebaked collection ships where the workaround
+  (separate sub-collection) demonstrably degrades the artist
+  experience for >2 documented use cases. Adding nested types
+  recursively affects FieldDef/FieldValue/renderer/editor — sized as
+  its own ADR-amending PR when triggered.
+
+- **Schema-migration framework.** `schemaVersion: 1` is on every
+  CollectionDef from day one (the cheap part). The runner that
+  reads an older schemaVersion and rewrites it forward isn't built.
+  *Trigger:* the first time we want to ship a `schemaVersion: 2`
+  change. Until then, every `_collection.json` is v1 and the
+  framework would just be ceremony.
+
+- **System pseudo-fields in templates.** `createdAt` / `updatedAt`
+  exist on every item but the binding layer (PR 2) needs to expose
+  them as `_createdAt` / `_updatedAt` pseudo-fields so templates can
+  show "Updated 3 days ago." Out of foundation scope; PR 2's
+  binding resolver picks them up.
+
+### Cross-collection consistency
 
 - **Cross-collection ref integrity.** Deleting an item leaves dangling
-  refs. v1 doesn't enforce or surface this — the renderer treats
-  missing refs as "not present" (block doesn't render). A future pass
-  should add a back-ref index built at write time so the schema and
-  item editors can warn before delete.
+  refs in other collections. v1's renderer treats missing refs as
+  "not present" (block doesn't render); the schema/item editors don't
+  warn before delete. The deferred fix is a back-ref index built at
+  write time so editors can show "X items reference this item."
+  *Trigger:* first artist support case caused by a silently-broken
+  ref. The index is cheap to maintain incrementally once added but
+  requires a full backfill the first time, so getting in front of
+  this is mildly easier-now than later — pull forward if we expect
+  ref usage to be heavy early.
 
-- **Image lifecycle for items.** Images attached to an item are
-  written under `public/images/<contentSlug>/<imageId>/`. Deleting
-  the item doesn't garbage-collect its images. v1 accepts the
-  drift; a periodic GC pass (script or build-time hook) can prune
-  orphans later without touching this model.
+- **URL preservation on rename.** Renaming an item changes its slug
+  and therefore its URL. External links break silently. v1 accepts
+  this. The deferred fix is a `_redirects.json` per collection that
+  records `oldSlug → newSlug` mappings and a redirect handler in the
+  public catch-all.
+  *Trigger:* the first artist who renames a tour-date or release with
+  external links and asks where the redirect is.
 
-- **Counting affected items for guardrails.** Schema-change guardrails
-  in §11 ("N items have data in this field") require enumerating
-  every item to count. v1 does the obvious `listItemsInOrder + filter`
-  on each schema-editor mount. Acceptable for small collections;
-  introduce a per-collection summary cache when needed.
+### Editing surface
+
+- **Slug-generation algorithm.** "Title → kebab-case-with-collision-
+  suffix" is not standardised in the foundation. PR 4's "new item"
+  flow will implement it (steal from the existing pages slug logic).
+  *Trigger:* PR 4 lands.
 
 - **Concurrent editing.** Single-editor assumption (ADR-007 §7).
   Two browser tabs, two band members, or one stale tab can silently
   clobber each other on save. v1 relies on the artist not opening
-  two editors at once. The platform-level fix is per-item ETags + a
-  CAS save endpoint; lands when we see real collisions.
+  two editors at once. The platform-level fix is per-item ETags
+  (the file's `updatedAt` is the natural version stamp) + a CAS save
+  endpoint.
+  *Trigger:* the first incident where two collaborators report
+  losing each other's edits. The `updatedAt` foundation makes the
+  ETag check a thin layer when needed.
 
-- **Schema-version forward compat.** If the platform ships a new field
-  type and an artist's `_collection.json` already uses it, an older
-  deployment of the artist's site can't read it. v1 fails the build
-  loudly. A backward-compatible "skip unknown field types" mode is
-  possible but defers data loss to read time, which is worse.
+- **Drafts beyond single-editor `localStorage`.** Carry-over from
+  ADR-007 §7. v1 keeps the localStorage drafts model; per-item drafts
+  surviving across devices land later (probably as a
+  `drafts/<item-slug>` branch in the artist repo).
+  *Trigger:* multi-device editing becomes a stated requirement.
+
+### Performance
+
+- **Counting affected items for guardrails.** Schema-change guardrails
+  in §11 ("N items have data in this field") require enumerating
+  every item to count. v1 does the obvious `listItemsInOrder + filter`
+  on each schema-editor mount.
+  *Trigger:* any single collection grows past ~100 items in the
+  wild, or schema-editor open latency becomes user-noticeable.
+
+- **id → slug index for collectionRef resolution.** Rendering a
+  collectionRef requires looking up the item by id; v1 does this
+  via list+scan within the target collection. Acceptable while
+  collections stay small.
+  *Trigger:* any collection that's heavily referenced (e.g. a
+  `tracks` collection referenced from every release's
+  `multiCollectionRef`) exceeds ~100 items. The fix is a
+  `_id-index.json` per collection, maintained on write.
+
+- **Pagination / search on public list pages.** Not in v1. List pages
+  render every matching item. For collections that grow large, the
+  artist authors filtering manually with separate pages.
+  *Trigger:* the first collection that ships >50 items per list
+  page in production. The Collection block already filters / sorts /
+  limits, so the addition is a `cursor` field and a "Load more"
+  block primitive.
+
+- **Image lifecycle for items.** Images attached to an item via the
+  upload flow live under `public/images/<contentSlug>/<imageId>/`.
+  PR 4 wires the upload flow to items by setting
+  `contentSlug = "<collection-slug>/<item-slug>"`, which means
+  deleting an item naturally implies a directory deletion the GC
+  pass can target. v1 accepts the drift between item deletion and
+  image deletion.
+  *Trigger:* either a prune script lands as a maintenance one-off,
+  or image storage starts costing money worth reducing.
+
+### Routing and renderer
 
 - **Filter UI breadth.** §5.1's filter shape supports the common
   cases. More exotic predicates (string-pattern match, date ranges
   spanning fields, joined filters across multiple collections) can
   be added without changing the on-disk shape — extend `FilterClause`.
+  *Trigger:* an artist hits a missing predicate. Add the variant.
 
-- **Drafts beyond single-editor `localStorage`.** Carry-over from
-  ADR-007 §7. v1 keeps the same localStorage drafts model; per-item
-  drafts that survive across devices land later (probably as a
-  `drafts/<item-slug>` branch in the artist repo).
-
-- **Pagination / search on public list pages.** Not in v1. List pages
-  render every matching item. For collections that grow large, the
-  artist authors filtering manually with separate pages. Real
-  pagination + search is a future enhancement to the Collection
-  block + view rendering.
+- **Schema-version forward compat at the deployment level.** A
+  platform ship that adds a new field type can't be consumed by an
+  artist's site that's on an older deployment of the runtime. v1
+  fails the build loudly rather than silently dropping unknown
+  types.
+  *Trigger:* the first time a platform ship lands a new field type
+  AND an artist's deployment has lagged. Likely solved by tying
+  platform releases to artist-site rebuilds.
 
 - **i18n / localized content.** Not addressed. The model would
   accommodate it via a `locale` field on items + locale-aware
   routing, but neither is in v1.
+  *Trigger:* internationalisation becomes a product requirement.
+  Out of scope until then.
 
-- **Drag-corner resizing of Primitive blocks** (mentioned in earlier
-  drafts). Deferred indefinitely — Puck's canvas doesn't natively
-  support per-block resize, and the existing token-driven style knobs
-  cover most needs.
+### Editor capabilities
+
+- **Drag-corner resizing of Primitive blocks.** Deferred
+  indefinitely — Puck's canvas doesn't natively support per-block
+  resize, and the existing token-driven style knobs cover most needs.
+  *Trigger:* would require a meaningful product case to justify the
+  rebuild.
+
+### Easier-now-than-later summary
+
+The items where the cost asymmetry is real (modest now, painful or
+lossy later) and already addressed in v1:
+
+- **`schemaVersion` on every CollectionDef** — costs nothing now;
+  forgetting now means future migrations have to infer "what version
+  is this?" from missing-field heuristics.
+- **`createdAt` / `updatedAt` on every Item** — costs nothing now;
+  forgetting means the timestamps are unrecoverable from git history
+  for items committed before the change.
+- **`currentItemId` vs `currentItemField` filter discriminator** —
+  the sentinel-string alternative (`_id`) could collide with a real
+  FieldId. Fixing the on-disk shape later means a one-off migration
+  pass over every artist's collection files.
+
+The items where the cost asymmetry exists but we've chosen to wait:
+
+- **Back-ref index for ref integrity** — first add is cheap, retrofit
+  needs a backfill. Listed as "trigger: first support case."
+- **id-index for ref resolution** — same trade. Listed as "trigger:
+  any heavily-referenced collection passes ~100 items."
+
+These two are explicit "we'll pay the migration cost when we hit the
+trigger" rather than "we couldn't be bothered."
 
 ## Consequences
 

@@ -167,13 +167,20 @@ async function readItemWithSchema(
   const file = fileSchema.parse(raw);
   // The on-disk file omits the slug — derive it from the filename so
   // renames are a single fs operation, not a content edit.
-  return { id: file.id, slug: itemSlug, values: file.values };
+  return { ...file, slug: itemSlug };
 }
 
 /**
  * Write an item. Validates against the collection's schema and ensures
  * the item's own `slug` matches the target slug (which becomes the
  * filename).
+ *
+ * **System-owned timestamps.** `updatedAt` is always set to "now" by
+ * this function regardless of the caller-supplied value. `createdAt`
+ * is preserved from the caller (and from any existing item file —
+ * the typical pattern is to read an item, mutate values, and pass it
+ * back here). Use `createItem` for first-time creation so `createdAt`
+ * gets set to now as well.
  */
 export async function writeItem(
   collectionSlug: string,
@@ -190,14 +197,25 @@ export async function writeItem(
   }
   const file: ItemFile = buildItemFileSchema(def.fields).parse({
     id: item.id,
+    createdAt: item.createdAt,
+    updatedAt: nowIso(),
     values: item.values,
   });
   await writeJson(itemLocalPath(collectionSlug, itemSlug), file);
 }
 
+/** Wall-clock current time as an ISO 8601 string. Extracted for tests. */
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 /**
  * Create a new item, failing if an item with that slug already exists.
  * Used by API routes that don't want to silently clobber on `POST`.
+ *
+ * Sets `createdAt` to "now" regardless of the caller-supplied value —
+ * "this is a new item" is the source of truth for the timestamp.
+ * `writeItem` then sets `updatedAt` to the same instant.
  */
 export async function createItem(
   collectionSlug: string,
@@ -210,7 +228,7 @@ export async function createItem(
   if (existing !== null) {
     throw new ItemExistsError(collectionSlug, itemSlug);
   }
-  await writeItem(collectionSlug, itemSlug, item, def);
+  await writeItem(collectionSlug, itemSlug, { ...item, createdAt: nowIso() }, def);
 }
 
 export async function deleteItem(

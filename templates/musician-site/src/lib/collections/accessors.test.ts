@@ -24,8 +24,16 @@ import {
 import type { Item } from "./schema";
 import { asImageId } from "../image-types";
 
+import { FIXTURE_TIMESTAMP } from "./test-fixtures";
+
 function makeItem(values: Item["values"]): Item {
-  return { id: "item_test", slug: "test", values };
+  return {
+    id: "item_test",
+    slug: "test",
+    createdAt: FIXTURE_TIMESTAMP,
+    updatedAt: FIXTURE_TIMESTAMP,
+    values,
+  };
 }
 
 describe("typed accessors — happy path", () => {

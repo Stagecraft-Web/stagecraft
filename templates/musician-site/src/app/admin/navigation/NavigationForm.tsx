@@ -12,6 +12,7 @@ import {
 import { ReorderableList } from "@/components/admin/ReorderableList";
 import { SaveBar } from "@/components/admin/SaveBar";
 import { useSettingsForm } from "@/components/admin/useSettingsForm";
+import { ImagePickerField } from "@/puck/ImagePickerField";
 import {
   HEADER_LAYOUTS,
   HEADER_LAYOUT_LABELS,
@@ -68,37 +69,17 @@ export function NavigationForm({ initial, availablePages }: Props) {
     >
       <FieldGroup
         title="Wordmark"
-        description="An image used in place of the artist-name text in the header. Leave unset to use the text name from Site Settings."
+        description="An image shown in the header instead of the artist-name text. Upload here; remove to fall back to the text name from Site Settings."
       >
-        <p
-          style={{
-            fontSize: "var(--font-size-sm)",
-            color: "var(--color-text-muted)",
-            marginTop: 0,
-          }}
+        <Field
+          label="Wordmark image"
+          description="PNG / SVG / JPG with transparency. Sized via the slider below."
         >
-          {form.value.wordmark
-            ? `Current wordmark: ${form.value.wordmark.alt} (${form.value.wordmark.width}×${form.value.wordmark.height})`
-            : "No wordmark set. Upload one from any Image block in the page editor, then come back and paste its ID here — or simply leave the text name in place."}
-        </p>
-        {form.value.wordmark ? (
-          <button
-            type="button"
-            onClick={() => setField("wordmark", null)}
-            style={{
-              padding: "var(--space-1) var(--space-3)",
-              fontSize: "var(--font-size-sm)",
-              border: "1px solid var(--color-border)",
-              background: "var(--color-surface)",
-              color: "var(--color-text)",
-              cursor: "pointer",
-              borderRadius: "var(--radius-sm)",
-              marginBottom: "var(--space-4)",
-            }}
-          >
-            Remove wordmark
-          </button>
-        ) : null}
+          <ImagePickerField
+            value={form.value.wordmark}
+            onChange={(next) => setField("wordmark", next)}
+          />
+        </Field>
         <SelectField<string>
           id="wordmarkSizeAdjust"
           label="Wordmark size"

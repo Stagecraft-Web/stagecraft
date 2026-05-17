@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type SearchParams = { error?: string; sent?: string };
 
 export default async function LoginPage({
@@ -20,7 +22,7 @@ export default async function LoginPage({
         <h1>Check your email</h1>
         <p>If that email is allowed for this site, a sign-in link is on its way. The link expires in 10 minutes.</p>
         <p>
-          <a href="/admin/login">Back to sign in</a>
+          <Link href="/admin/login">Back to sign in</Link>
         </p>
       </main>
     );

@@ -1,0 +1,215 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { getSessionMock } = vi.hoisted(() => ({ getSessionMock: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ getSession: getSessionMock }));
+
+const { publishMock } = vi.hoisted(() => ({ publishMock: vi.fn() }));
+vi.mock("@/lib/publish", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/publish")>("@/lib/publish");
+  return { ...actual, publish: publishMock };
+});
+
+import { GET, POST } from "./route";
+import { DELETE } from "./[slug]/route";
+
+const TEST_SLUG = "api-test-page";
+
+// Worker-scoped tmpdir keeps these tests isolated from other test files that
+// touch the same on-disk paths. The seed page "home" matches what tests
+// expect to find by default.
+let TMP_CONTENT_DIR: string;
+let TMP_PAGES_DIR: string;
+let TEST_FILE: string;
+
+const HOME_FIXTURE = {
+  content: [],
+  root: { props: { title: "Home", isSplashPage: false, isFooterHidden: false } },
+};
+
+beforeAll(async () => {
+  TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-pagesapi-"));
+  TMP_PAGES_DIR = path.join(TMP_CONTENT_DIR, "pages");
+  await fs.mkdir(TMP_PAGES_DIR, { recursive: true });
+  TEST_FILE = path.join(TMP_PAGES_DIR, `${TEST_SLUG}.json`);
+});
+
+afterAll(async () => {
+  await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
+});
+
+beforeEach(async () => {
+  getSessionMock.mockReset();
+  publishMock.mockReset();
+  publishMock.mockResolvedValue({ commitSha: null, mode: "local" });
+  process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
+  // Seed the tmpdir with a home page so tests that expect it pass.
+  await fs.writeFile(
+    path.join(TMP_PAGES_DIR, "home.json"),
+    JSON.stringify(HOME_FIXTURE, null, 2) + "\n",
+    "utf-8",
+  );
+});
+
+afterEach(async () => {
+  await fs.rm(TEST_FILE, { force: true });
+});
+
+describe("GET /api/pages", () => {
+  it("returns 401 without session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the pages list when signed in", async () => {
+    getSessionMock.mockResolvedValue({ email: "artist@example.com" });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.pages)).toBe(true);
+    // home.json is checked into the repo, so it should appear.
+    expect(body.pages.find((p: { slug: string }) => p.slug === "home")).toBeTruthy();
+  });
+});
+
+describe("POST /api/pages", () => {
+  it("returns 401 without session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ slug: TEST_SLUG, title: "Test" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects malformed JSON body", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: "not json",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects uppercase slug", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ slug: "BadSlug", title: "Bad" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("creates a new page, writes it to disk, and publishes", async () => {
+    getSessionMock.mockResolvedValue({ email: "artist@example.com" });
+    publishMock.mockResolvedValue({ commitSha: "abc", mode: "github" });
+
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ slug: TEST_SLUG, title: "Tour 2026" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.slug).toBe(TEST_SLUG);
+
+    const written = JSON.parse(await fs.readFile(TEST_FILE, "utf-8"));
+    expect(written.root.props.title).toBe("Tour 2026");
+
+    expect(publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [expect.objectContaining({ kind: "page", slug: TEST_SLUG })],
+        commitSubject: `Create page ${TEST_SLUG}`,
+      }),
+    );
+  });
+
+  it("returns 409 when the slug already exists", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    // home is already checked into the repo.
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ slug: "home", title: "Home" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(409);
+  });
+
+  it("returns ok with publishWarning when local write succeeds but publish fails", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    const { PublishError } = await vi.importActual<typeof import("@/lib/publish")>(
+      "@/lib/publish",
+    );
+    publishMock.mockRejectedValue(new PublishError("github-failed", "boom"));
+
+    const req = new Request("https://x/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ slug: TEST_SLUG, title: "x" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.publishWarning).toContain("boom");
+    // Disk state still reflects the create.
+    const written = JSON.parse(await fs.readFile(TEST_FILE, "utf-8"));
+    expect(written.root.props.title).toBe("x");
+  });
+});
+
+describe("DELETE /api/pages/[slug]", () => {
+  it("returns 401 without session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const res = await DELETE(new Request("https://x"), {
+      params: Promise.resolve({ slug: TEST_SLUG }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for an invalid slug", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    const res = await DELETE(new Request("https://x"), {
+      params: Promise.resolve({ slug: "BAD-SLUG" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the page is missing", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    const res = await DELETE(new Request("https://x"), {
+      params: Promise.resolve({ slug: "page-that-does-not-exist-anywhere" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("deletes the file and emits a delete-page publish target", async () => {
+    getSessionMock.mockResolvedValue({ email: "a@b.c" });
+    // Create a page first.
+    await fs.writeFile(
+      TEST_FILE,
+      JSON.stringify({ content: [], root: { props: { title: "delete me" } } }),
+      "utf-8",
+    );
+
+    const res = await DELETE(new Request("https://x"), {
+      params: Promise.resolve({ slug: TEST_SLUG }),
+    });
+    expect(res.status).toBe(200);
+    await expect(fs.access(TEST_FILE)).rejects.toThrow();
+
+    expect(publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [{ kind: "delete-page", slug: TEST_SLUG }],
+        commitSubject: `Delete page ${TEST_SLUG}`,
+      }),
+    );
+  });
+});

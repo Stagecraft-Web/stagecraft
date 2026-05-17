@@ -1,9 +1,15 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 import type { Data } from "@measured/puck";
 
 import type { BlockProps } from "@/puck/config";
 
+import {
+  contentDir,
+  readdirFiltered,
+  readJson,
+  unlinkIfExists,
+  writeJson,
+} from "./fs-helpers";
 import {
   appearanceSchema,
   DEFAULT_APPEARANCE,
@@ -21,15 +27,6 @@ import {
   type SiteConfig,
 } from "./site-config-types";
 
-/**
- * Resolve the content directory dynamically on every call so tests can
- * point each worker at its own tmpdir via `STAGECRAFT_CONTENT_DIR` and
- * avoid clobbering each other's on-disk state. Production sets neither
- * var and the default `<cwd>/src/content` is used.
- */
-function contentDir(): string {
-  return process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
-}
 function pagesDir(): string {
   return path.join(contentDir(), "pages");
 }
@@ -50,39 +47,6 @@ export function pageRepoPath(slug: string): string {
 // ---------------------------------------------------------------------------
 // Pages (Puck JSON files)
 // ---------------------------------------------------------------------------
-
-/**
- * Stringify content with the canonical formatting (2-space indent + trailing
- * newline) so re-saves produce minimal diffs.
- */
-export function stringifyContent(value: unknown): string {
-  return JSON.stringify(value, null, 2) + "\n";
-}
-
-async function readJson<T>(file: string): Promise<T | null> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(file, "utf-8");
-  } catch (cause) {
-    if (isNotFound(cause)) return null;
-    throw cause;
-  }
-  // A zero-byte file isn't a valid JSON payload but isn't worth crashing
-  // the public renderer over either — treat it the same as missing and
-  // let the caller fall back to its default. Persists across restarts of
-  // a half-failed write.
-  if (raw.trim().length === 0) return null;
-  return JSON.parse(raw) as T;
-}
-
-function isNotFound(cause: unknown): boolean {
-  return Boolean(
-    cause &&
-      typeof cause === "object" &&
-      "code" in cause &&
-      (cause as { code: string }).code === "ENOENT",
-  );
-}
 
 export async function readPage(slug: string): Promise<PageData> {
   pageSlugSchema.parse(slug);
@@ -105,19 +69,12 @@ export async function readPageOrNull(slug: string): Promise<PageData | null> {
 
 export async function writePage(slug: string, data: PageData): Promise<void> {
   pageSlugSchema.parse(slug);
-  const file = path.join(pagesDir(), `${slug}.json`);
-  await fs.mkdir(pagesDir(), { recursive: true });
-  await fs.writeFile(file, stringifyContent(data), "utf-8");
+  await writeJson(path.join(pagesDir(), `${slug}.json`), data);
 }
 
 export async function deletePage(slug: string): Promise<void> {
   pageSlugSchema.parse(slug);
-  const file = path.join(pagesDir(), `${slug}.json`);
-  try {
-    await fs.unlink(file);
-  } catch (cause) {
-    if (!isNotFound(cause)) throw cause;
-  }
+  await unlinkIfExists(path.join(pagesDir(), `${slug}.json`));
 }
 
 export class PageNotFoundError extends Error {
@@ -157,17 +114,11 @@ export function emptyPageData(title: string): PageData {
 }
 
 export async function listPageSlugs(): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(pagesDir(), { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith(".json"))
-      .map((e) => e.name.replace(/\.json$/, ""))
-      .filter((slug) => PAGE_SLUG_PATTERN.test(slug))
-      .sort();
-  } catch (cause) {
-    if (isNotFound(cause)) return [];
-    throw cause;
-  }
+  return readdirFiltered(pagesDir(), (e) => {
+    if (!e.isFile() || !e.name.endsWith(".json")) return null;
+    const slug = e.name.replace(/\.json$/, "");
+    return PAGE_SLUG_PATTERN.test(slug) ? slug : null;
+  });
 }
 
 /**
@@ -264,9 +215,7 @@ export async function readSiteConfig(): Promise<SiteConfig> {
 }
 
 export async function writeSiteConfig(config: SiteConfig): Promise<void> {
-  const parsed = siteConfigSchema.parse(config);
-  await fs.mkdir(configDir(), { recursive: true });
-  await fs.writeFile(path.join(configDir(), "site.json"), stringifyContent(parsed), "utf-8");
+  await writeJson(path.join(configDir(), "site.json"), siteConfigSchema.parse(config));
 }
 
 export async function readHeaderConfig(): Promise<HeaderConfig> {
@@ -278,9 +227,7 @@ export async function readHeaderConfig(): Promise<HeaderConfig> {
 }
 
 export async function writeHeaderConfig(config: HeaderConfig): Promise<void> {
-  const parsed = headerConfigSchema.parse(config);
-  await fs.mkdir(configDir(), { recursive: true });
-  await fs.writeFile(path.join(configDir(), "header.json"), stringifyContent(parsed), "utf-8");
+  await writeJson(path.join(configDir(), "header.json"), headerConfigSchema.parse(config));
 }
 
 export async function readAppearance(): Promise<Appearance> {
@@ -292,7 +239,5 @@ export async function readAppearance(): Promise<Appearance> {
 }
 
 export async function writeAppearance(config: Appearance): Promise<void> {
-  const parsed = appearanceSchema.parse(config);
-  await fs.mkdir(configDir(), { recursive: true });
-  await fs.writeFile(path.join(configDir(), "appearance.json"), stringifyContent(parsed), "utf-8");
+  await writeJson(path.join(configDir(), "appearance.json"), appearanceSchema.parse(config));
 }

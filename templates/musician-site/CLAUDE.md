@@ -69,14 +69,33 @@ src/
     config.tsx              Puck Config — blocks, root fields, render
     ImagePickerField.tsx    Custom field for image picking
   lib/
+    fs-helpers.ts           Shared filesystem primitives used by every
+                            content-store layer + publish:
+                            contentDir, localPathForRepoPath,
+                            readJson, writeJson, unlinkIfExists,
+                            readdirFiltered, stringifyContent, isNotFound
     content.ts              Read/write helpers for pages + singletons +
                             multi-page summary listings
     site-config-types.ts    Zod schemas for site / header / appearance
                             singletons and pages list contract
+    collections/            ADR-009 Collection abstraction (foundation
+                            only — no UI yet):
+                              schema.ts   Zod schemas as SSOT; TS types
+                                          inferred via z.infer
+                              store.ts    Filesystem layer (uses
+                                          fs-helpers)
+                              accessors.ts Runtime-narrowing field
+                                          accessors (getText, getImage,
+                                          ...)
+                              index.ts    Public API
+                              test-fixtures.ts  Shared fixtures
+                                          (tourDatesDef, tourDateItem)
     publish.ts              Multi-target publish flow (page,
                             site-config, header-config, appearance,
-                            delete-page) over the broker → GitHub path
-                            with dev-disk fallback
+                            delete-page; plus collection-def,
+                            collection-item, collection-order,
+                            delete-collection-item) over the broker →
+                            GitHub path with dev-disk fallback
     git-commit.ts           Octokit blob/tree/commit/update-ref helper;
                             supports `deletePaths` for page deletion
     auth.ts                 JWT signing/verifying for magic links +
@@ -119,13 +138,32 @@ settings (title, isSplashPage, isFooterHidden) live on the Puck `root`
 fields and surface in the editor's right-hand inspector when no block
 is selected.
 
-## Content collections (releases, tour dates, posts, store items)
+## Collections (ADR-009)
 
-Not yet ported. When they land, structured content stays in JSON /
-Markdown files validated by Zod schemas in `src/lib/schemas.ts` (per
-ADR-007 §3 — collections keep the Zod SSOT discipline). Puck blocks
-that consume those collections (e.g. a `TourDates` block listing
-upcoming shows) read them at render time.
+The template is moving to a unified **Collection** abstraction where
+pages, singletons, tour dates, releases, posts, store items, photos, and
+videos are all instances of the same type. Each Collection owns its
+schema, items, and Puck-edited templates. Full design in
+`docs/adr/009-unified-collection-model.md`.
+
+Shipping order (per ADR-009 §15):
+
+1. **Foundation** *(current PR)* — types, dynamic Zod builder, item
+   store, runtime-narrowing accessors, publish target kinds. Lives at
+   `src/lib/collections/`. No UI; no public renderer changes; nothing
+   currently consumes it.
+2. Item template renderer + data binding primitives.
+3. Pages migration (Pages becomes a Collection).
+4. Generic item editor.
+5. Schema editor UI.
+6. Template Puck editors (item + detail).
+7. First non-pages collection (tour dates) end-to-end.
+8. Prebaked collections (releases, posts, store items, photos, videos).
+
+Until PR 3 lands, pages and singletons keep their existing storage
+(`src/content/pages/`, `src/content/config/`) and existing code paths
+(`content.ts`, `site-config-types.ts`). The new `collections/` module is
+parallel — empty on disk by default and unreachable from any UI.
 
 ## Design tokens
 

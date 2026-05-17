@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -7,8 +5,24 @@ import {
   HEADER_CONFIG_REPO_PATH,
   pageRepoPath,
   SITE_CONFIG_REPO_PATH,
-  stringifyContent,
 } from "./content";
+import {
+  collectionDefRepoPath,
+  collectionDefSchema,
+  itemFileShellSchema,
+  itemRepoPath,
+  itemSlugSchema,
+  orderFileSchema,
+  orderRepoPath,
+  slugSchema,
+  type CollectionDef,
+} from "./collections";
+import {
+  localPathForRepoPath,
+  stringifyContent,
+  unlinkIfExists,
+  writeText,
+} from "./fs-helpers";
 import { commitFiles, type FileToCommit } from "./git-commit";
 import {
   appearanceSchema,
@@ -20,27 +34,6 @@ import {
   type SiteConfig,
 } from "./site-config-types";
 import { publishTokenResponseSchema } from "./publish-types";
-
-/**
- * Repo paths (`src/content/...`) are always written under the platform's
- * content directory. Production: `<cwd>/src/content`. Tests can set
- * `STAGECRAFT_CONTENT_DIR` to point each worker at its own tmpdir so the
- * `npm run test` step doesn't race across files.
- *
- * Repo paths outside `src/content/` (none today, but kept open for future
- * targets like static images) fall back to a plain `<cwd>/<path>` mapping.
- */
-const REPO_CONTENT_PREFIX = "src/content/";
-
-function localPathForRepoPath(repoPath: string): string {
-  if (repoPath.startsWith(REPO_CONTENT_PREFIX)) {
-    const tail = repoPath.slice(REPO_CONTENT_PREFIX.length);
-    const root =
-      process.env.STAGECRAFT_CONTENT_DIR ?? path.join(process.cwd(), "src/content");
-    return path.join(root, tail);
-  }
-  return path.join(process.cwd(), repoPath);
-}
 
 export class PublishError extends Error {
   constructor(
@@ -59,13 +52,29 @@ export class PublishError extends Error {
 /**
  * Targets the publish flow can write. Each target maps to a known repo path
  * and a known on-disk JSON shape so the API can validate before committing.
+ *
+ * The `collection-*` kinds (ADR-009) extend the same machinery: each
+ * resolves to a path under `src/content/collections/<slug>/...`. Item
+ * payloads are validated against the collection's dynamic schema at the
+ * API-route level (since validation requires reading the collection
+ * def); this layer only enforces the structural shape.
  */
 export type PublishTarget =
   | { kind: "page"; slug: string; data: unknown }
   | { kind: "site-config"; data: SiteConfig }
   | { kind: "header-config"; data: HeaderConfig }
   | { kind: "appearance"; data: Appearance }
-  | { kind: "delete-page"; slug: string };
+  | { kind: "delete-page"; slug: string }
+  | { kind: "collection-def"; collectionSlug: string; data: CollectionDef }
+  | {
+      kind: "collection-item";
+      collectionSlug: string;
+      itemSlug: string;
+      /** Pre-validated against the collection's schema by the caller. */
+      data: unknown;
+    }
+  | { kind: "delete-collection-item"; collectionSlug: string; itemSlug: string }
+  | { kind: "collection-order"; collectionSlug: string; data: string[] };
 
 export type PublishArgs = {
   targets: PublishTarget[];
@@ -197,6 +206,51 @@ function planFiles(targets: PublishTarget[]): {
         deletePaths.push(pageRepoPath(slug));
         break;
       }
+      case "collection-def": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const parsed = collectionDefSchema.parse(target.data);
+        if (parsed.slug !== collectionSlug) {
+          throw new Error(
+            `collection-def: def.slug (${parsed.slug}) must match collectionSlug (${collectionSlug})`,
+          );
+        }
+        writes.push({
+          path: collectionDefRepoPath(collectionSlug),
+          content: stringifyContent(parsed),
+        });
+        break;
+      }
+      case "collection-item": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const itemSlug = itemSlugSchema.parse(target.itemSlug);
+        // Per-field validation (maxLength, options, etc.) requires the
+        // CollectionDef and happens at the API-route level. Here we
+        // enforce the structural shell — `{ id, values }` — so a
+        // malformed payload (missing id, wrong wrapper, an entire
+        // CollectionDef pasted by mistake) fails before commit rather
+        // than at the next read.
+        const shellChecked = itemFileShellSchema.parse(target.data);
+        writes.push({
+          path: itemRepoPath(collectionSlug, itemSlug),
+          content: stringifyContent(shellChecked),
+        });
+        break;
+      }
+      case "delete-collection-item": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const itemSlug = itemSlugSchema.parse(target.itemSlug);
+        deletePaths.push(itemRepoPath(collectionSlug, itemSlug));
+        break;
+      }
+      case "collection-order": {
+        const collectionSlug = slugSchema.parse(target.collectionSlug);
+        const parsed = orderFileSchema.parse(target.data);
+        writes.push({
+          path: orderRepoPath(collectionSlug),
+          content: stringifyContent(parsed),
+        });
+        break;
+      }
     }
   }
 
@@ -213,24 +267,35 @@ function summariseTargets(targets: PublishTarget[]): string {
   if (targets.some((t) => t.kind === "site-config")) parts.push("site settings");
   if (targets.some((t) => t.kind === "header-config")) parts.push("header & navigation");
   if (targets.some((t) => t.kind === "appearance")) parts.push("appearance");
+  const collectionDefs = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-def" }> => t.kind === "collection-def")
+    .map((t) => t.collectionSlug);
+  if (collectionDefs.length) parts.push(`collection defs: ${collectionDefs.join(", ")}`);
+  const collectionItems = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-item" }> => t.kind === "collection-item")
+    .map((t) => `${t.collectionSlug}/${t.itemSlug}`);
+  if (collectionItems.length) parts.push(`items: ${collectionItems.join(", ")}`);
+  const orders = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "collection-order" }> => t.kind === "collection-order")
+    .map((t) => t.collectionSlug);
+  if (orders.length) parts.push(`order: ${orders.join(", ")}`);
   const deletes = targets
-    .filter((t): t is { kind: "delete-page"; slug: string } => t.kind === "delete-page")
+    .filter((t): t is Extract<PublishTarget, { kind: "delete-page" }> => t.kind === "delete-page")
     .map((t) => t.slug);
   if (deletes.length) parts.push(`delete: ${deletes.join(", ")}`);
+  const itemDeletes = targets
+    .filter((t): t is Extract<PublishTarget, { kind: "delete-collection-item" }> => t.kind === "delete-collection-item")
+    .map((t) => `${t.collectionSlug}/${t.itemSlug}`);
+  if (itemDeletes.length) parts.push(`delete items: ${itemDeletes.join(", ")}`);
   return parts.length ? `Update ${parts.join(" + ")}` : "Update content";
 }
 
 async function writeLocal(targets: PublishTarget[]): Promise<PublishResult> {
   const { writes, deletePaths } = planFiles(targets);
-  for (const file of writes) {
-    const abs = localPathForRepoPath(file.path);
-    await fs.mkdir(path.dirname(abs), { recursive: true });
-    await fs.writeFile(abs, file.content, "utf-8");
-  }
-  for (const repoPath of deletePaths) {
-    const abs = localPathForRepoPath(repoPath);
-    await fs.rm(abs, { force: true });
-  }
+  await Promise.all(
+    writes.map((file) => writeText(localPathForRepoPath(file.path), file.content)),
+  );
+  await Promise.all(deletePaths.map((p) => unlinkIfExists(localPathForRepoPath(p))));
   return { commitSha: null, mode: "local" };
 }
 

@@ -12,6 +12,10 @@ import {
   DEFAULT_HEADER_CONFIG,
   DEFAULT_SITE_CONFIG,
 } from "./site-config-types";
+import { FIXTURE_TIMESTAMP, tourDatesDef } from "./collections/test-fixtures";
+
+/** Spread into in-line item-file literals so tests don't repeat them. */
+const TS = { createdAt: FIXTURE_TIMESTAMP, updatedAt: FIXTURE_TIMESTAMP };
 
 const TEST_SLUG = "publish-test";
 
@@ -296,5 +300,250 @@ describe("publish — multi-target API", () => {
     });
     const message = commitFilesMock.mock.calls[0][0].message as string;
     expect(message).toMatch(/^Custom subject line/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collection target kinds (ADR-009)
+// ---------------------------------------------------------------------------
+
+describe("publish — collection target kinds", () => {
+  it("collection-def writes to <slug>/_collection.json in github mode", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("commit-sha");
+    await publish({
+      targets: [
+        { kind: "collection-def", collectionSlug: "tour-dates", data: tourDatesDef() },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const files = commitFilesMock.mock.calls[0][0].files as { path: string }[];
+    expect(files[0].path).toBe("src/content/collections/tour-dates/_collection.json");
+  });
+
+  it("collection-def rejects an invalid def at the publish layer", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    const bad = tourDatesDef();
+    bad.fields = [
+      { id: "dup", key: "a", type: "text", required: true },
+      { id: "dup", key: "b", type: "text", required: true },
+    ];
+    bad.slugSourceFieldId = null;
+    bad.defaultSort = null;
+    await expect(
+      publish({
+        targets: [{ kind: "collection-def", collectionSlug: "tour-dates", data: bad }],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("collection-def rejects a slug mismatch", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-def",
+            collectionSlug: "tour-dates",
+            data: { ...tourDatesDef(), slug: "different" },
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("collection-item writes to items/<itemSlug>.json", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("commit-sha");
+    await publish({
+      targets: [
+        {
+          kind: "collection-item",
+          collectionSlug: "tour-dates",
+          itemSlug: "paris-2026",
+          data: { id: "item_p", ...TS, values: {} },
+        },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const files = commitFilesMock.mock.calls[0][0].files as { path: string }[];
+    expect(files[0].path).toBe(
+      "src/content/collections/tour-dates/items/paris-2026.json",
+    );
+  });
+
+  it("collection-item rejects a payload missing the id (structural guard)", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-item",
+            collectionSlug: "tour-dates",
+            itemSlug: "paris-2026",
+            data: { values: {} },
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("collection-item rejects a CollectionDef pasted in by mistake", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-item",
+            collectionSlug: "tour-dates",
+            itemSlug: "paris-2026",
+            data: tourDatesDef(),
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("delete-collection-item adds to deletePaths instead of writes", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("commit-sha");
+    await publish({
+      targets: [
+        {
+          kind: "delete-collection-item",
+          collectionSlug: "tour-dates",
+          itemSlug: "paris-2026",
+        },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const args = commitFilesMock.mock.calls[0][0] as { files: unknown[]; deletePaths: string[] };
+    expect(args.files).toEqual([]);
+    expect(args.deletePaths).toEqual([
+      "src/content/collections/tour-dates/items/paris-2026.json",
+    ]);
+  });
+
+  it("collection-order writes the order list to items/_order.json", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("commit-sha");
+    await publish({
+      targets: [
+        {
+          kind: "collection-order",
+          collectionSlug: "tour-dates",
+          data: ["paris-2026", "berlin-2026"],
+        },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const files = commitFilesMock.mock.calls[0][0].files as { path: string; content: string }[];
+    expect(files[0].path).toBe("src/content/collections/tour-dates/items/_order.json");
+    expect(JSON.parse(files[0].content)).toEqual(["paris-2026", "berlin-2026"]);
+  });
+
+  it("collection-order rejects invalid slugs in the list", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await expect(
+      publish({
+        targets: [
+          {
+            kind: "collection-order",
+            collectionSlug: "tour-dates",
+            data: ["valid", "NOT-VALID"],
+          },
+        ],
+        authorEmail: "a@e.com",
+      }),
+    ).rejects.toThrow();
+    expect(commitFilesMock).not.toHaveBeenCalled();
+  });
+
+  it("dev fallback writes collection-def, items, and order to disk", async () => {
+    // No platform configuration → local writes.
+    await publish({
+      targets: [
+        { kind: "collection-def", collectionSlug: "tour-dates", data: tourDatesDef() },
+        {
+          kind: "collection-item",
+          collectionSlug: "tour-dates",
+          itemSlug: "paris-2026",
+          data: { id: "item_p", ...TS, values: { f_date: { type: "date", value: "2026-07-15" } } },
+        },
+        {
+          kind: "collection-order",
+          collectionSlug: "tour-dates",
+          data: ["paris-2026"],
+        },
+      ],
+      authorEmail: "a@e.com",
+    });
+    expect(commitFilesMock).not.toHaveBeenCalled();
+    const defOnDisk = JSON.parse(
+      await fs.readFile(
+        path.join(TMP_CONTENT_DIR, "collections/tour-dates/_collection.json"),
+        "utf-8",
+      ),
+    );
+    expect(defOnDisk.slug).toBe("tour-dates");
+    const itemOnDisk = JSON.parse(
+      await fs.readFile(
+        path.join(TMP_CONTENT_DIR, "collections/tour-dates/items/paris-2026.json"),
+        "utf-8",
+      ),
+    );
+    expect(itemOnDisk.id).toBe("item_p");
+    const orderOnDisk = JSON.parse(
+      await fs.readFile(
+        path.join(TMP_CONTENT_DIR, "collections/tour-dates/items/_order.json"),
+        "utf-8",
+      ),
+    );
+    expect(orderOnDisk).toEqual(["paris-2026"]);
+  });
+
+  it("summariseTargets covers each collection target kind", async () => {
+    configurePlatform();
+    commitFilesMock.mockResolvedValue("sha");
+    await publish({
+      targets: [
+        { kind: "collection-def", collectionSlug: "tour-dates", data: tourDatesDef() },
+        {
+          kind: "collection-item",
+          collectionSlug: "tour-dates",
+          itemSlug: "paris-2026",
+          data: { id: "i", ...TS, values: {} },
+        },
+        {
+          kind: "collection-order",
+          collectionSlug: "tour-dates",
+          data: ["paris-2026"],
+        },
+        {
+          kind: "delete-collection-item",
+          collectionSlug: "tour-dates",
+          itemSlug: "old-show",
+        },
+      ],
+      authorEmail: "a@e.com",
+    });
+    const message = commitFilesMock.mock.calls[0][0].message as string;
+    expect(message).toContain("collection defs: tour-dates");
+    expect(message).toContain("items: tour-dates/paris-2026");
+    expect(message).toContain("order: tour-dates");
+    expect(message).toContain("delete items: tour-dates/old-show");
   });
 });

@@ -14,6 +14,7 @@ vi.mock("@/lib/publish", async () => {
 
 import { GET, POST } from "./route";
 import { DELETE } from "./[slug]/route";
+import { PAGES_FIELD_IDS } from "@/lib/collections/seeds";
 
 const TEST_SLUG = "api-test-page";
 
@@ -21,19 +22,28 @@ const TEST_SLUG = "api-test-page";
 // touch the same on-disk paths. The seed page "home" matches what tests
 // expect to find by default.
 let TMP_CONTENT_DIR: string;
-let TMP_PAGES_DIR: string;
-let TEST_FILE: string;
+let PAGES_ITEMS_DIR: string;
+let TEST_ITEM_PATH: string;
+let HOME_ITEM_PATH: string;
 
-const HOME_FIXTURE = {
-  content: [],
-  root: { props: { title: "Home", isSplashPage: false, isFooterHidden: false } },
+const HOME_FIXTURE_ITEM = {
+  id: "item_home_fixture",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  values: {
+    [PAGES_FIELD_IDS.title]: { type: "text", value: "Home" },
+    [PAGES_FIELD_IDS.isSplashPage]: { type: "boolean", value: false },
+    [PAGES_FIELD_IDS.isFooterHidden]: { type: "boolean", value: false },
+    [PAGES_FIELD_IDS.showInNav]: { type: "boolean", value: true },
+    [PAGES_FIELD_IDS.body]: { type: "puckContent", value: { content: [], root: { props: {} } } },
+  },
 };
 
 beforeAll(async () => {
   TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-pagesapi-"));
-  TMP_PAGES_DIR = path.join(TMP_CONTENT_DIR, "pages");
-  await fs.mkdir(TMP_PAGES_DIR, { recursive: true });
-  TEST_FILE = path.join(TMP_PAGES_DIR, `${TEST_SLUG}.json`);
+  PAGES_ITEMS_DIR = path.join(TMP_CONTENT_DIR, "collections/pages/items");
+  TEST_ITEM_PATH = path.join(PAGES_ITEMS_DIR, `${TEST_SLUG}.json`);
+  HOME_ITEM_PATH = path.join(PAGES_ITEMS_DIR, "home.json");
 });
 
 afterAll(async () => {
@@ -46,15 +56,12 @@ beforeEach(async () => {
   publishMock.mockResolvedValue({ commitSha: null, mode: "local" });
   process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
   // Seed the tmpdir with a home page so tests that expect it pass.
-  await fs.writeFile(
-    path.join(TMP_PAGES_DIR, "home.json"),
-    JSON.stringify(HOME_FIXTURE, null, 2) + "\n",
-    "utf-8",
-  );
+  await fs.mkdir(PAGES_ITEMS_DIR, { recursive: true });
+  await fs.writeFile(HOME_ITEM_PATH, JSON.stringify(HOME_FIXTURE_ITEM, null, 2) + "\n", "utf-8");
 });
 
 afterEach(async () => {
-  await fs.rm(TEST_FILE, { force: true });
+  await fs.rm(path.join(TMP_CONTENT_DIR, "collections"), { recursive: true, force: true });
 });
 
 describe("GET /api/pages", () => {
@@ -71,7 +78,7 @@ describe("GET /api/pages", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.pages)).toBe(true);
-    // home.json is checked into the repo, so it should appear.
+    // home is seeded above, so it should appear.
     expect(body.pages.find((p: { slug: string }) => p.slug === "home")).toBeTruthy();
   });
 });
@@ -121,12 +128,21 @@ describe("POST /api/pages", () => {
     expect(body.ok).toBe(true);
     expect(body.slug).toBe(TEST_SLUG);
 
-    const written = JSON.parse(await fs.readFile(TEST_FILE, "utf-8"));
-    expect(written.root.props.title).toBe("Tour 2026");
+    // On disk: the page item carries title under the canonical field id.
+    const written = JSON.parse(await fs.readFile(TEST_ITEM_PATH, "utf-8"));
+    expect(written.values[PAGES_FIELD_IDS.title].value).toBe("Tour 2026");
 
+    // Publish was called with a `collection-item` target for the
+    // pages collection.
     expect(publishMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        targets: [expect.objectContaining({ kind: "page", slug: TEST_SLUG })],
+        targets: [
+          expect.objectContaining({
+            kind: "collection-item",
+            collectionSlug: "pages",
+            itemSlug: TEST_SLUG,
+          }),
+        ],
         commitSubject: `Create page ${TEST_SLUG}`,
       }),
     );
@@ -134,7 +150,7 @@ describe("POST /api/pages", () => {
 
   it("returns 409 when the slug already exists", async () => {
     getSessionMock.mockResolvedValue({ email: "a@b.c" });
-    // home is already checked into the repo.
+    // home is already seeded.
     const req = new Request("https://x/api/pages", {
       method: "POST",
       body: JSON.stringify({ slug: "home", title: "Home" }),
@@ -160,8 +176,8 @@ describe("POST /api/pages", () => {
     expect(body.ok).toBe(true);
     expect(body.publishWarning).toContain("boom");
     // Disk state still reflects the create.
-    const written = JSON.parse(await fs.readFile(TEST_FILE, "utf-8"));
-    expect(written.root.props.title).toBe("x");
+    const written = JSON.parse(await fs.readFile(TEST_ITEM_PATH, "utf-8"));
+    expect(written.values[PAGES_FIELD_IDS.title].value).toBe("x");
   });
 });
 
@@ -190,12 +206,23 @@ describe("DELETE /api/pages/[slug]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("deletes the file and emits a delete-page publish target", async () => {
+  it("deletes the file and emits a delete-collection-item publish target", async () => {
     getSessionMock.mockResolvedValue({ email: "a@b.c" });
-    // Create a page first.
+    // Create a valid page item first.
     await fs.writeFile(
-      TEST_FILE,
-      JSON.stringify({ content: [], root: { props: { title: "delete me" } } }),
+      TEST_ITEM_PATH,
+      JSON.stringify({
+        id: "item_delete_me",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        values: {
+          [PAGES_FIELD_IDS.title]: { type: "text", value: "delete me" },
+          [PAGES_FIELD_IDS.body]: {
+            type: "puckContent",
+            value: { content: [], root: { props: {} } },
+          },
+        },
+      }),
       "utf-8",
     );
 
@@ -203,11 +230,13 @@ describe("DELETE /api/pages/[slug]", () => {
       params: Promise.resolve({ slug: TEST_SLUG }),
     });
     expect(res.status).toBe(200);
-    await expect(fs.access(TEST_FILE)).rejects.toThrow();
+    await expect(fs.access(TEST_ITEM_PATH)).rejects.toThrow();
 
     expect(publishMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        targets: [{ kind: "delete-page", slug: TEST_SLUG }],
+        targets: [
+          { kind: "delete-collection-item", collectionSlug: "pages", itemSlug: TEST_SLUG },
+        ],
         commitSubject: `Delete page ${TEST_SLUG}`,
       }),
     );

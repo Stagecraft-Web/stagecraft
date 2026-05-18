@@ -79,7 +79,8 @@ src/
     site-config-types.ts    Zod schemas for site / header / appearance
                             singletons and pages list contract
     collections/            ADR-009 Collection abstraction (foundation
-                            + template renderer — no editor UI yet):
+                            + template renderer + PR 3 wrappers — no
+                            generic editor UI yet):
                               schema.ts   Zod schemas as SSOT; TS types
                                           inferred via z.infer
                               store.ts    Filesystem layer (uses
@@ -87,6 +88,15 @@ src/
                               accessors.ts Runtime-narrowing field
                                           accessors (getText, getImage,
                                           ...)
+                              seeds.ts    Prebaked CollectionDefs for
+                                          pages / site / header /
+                                          appearance + their field-id
+                                          maps
+                              migrate-from-legacy.ts
+                                          Pure converters between the
+                                          legacy PageData/SiteConfig/
+                                          HeaderConfig/Appearance
+                                          shapes and the new Item shape
                               template/   PR 2 — template renderer.
                                             Walker resolves Bindables
                                             top-down; Puck's <Render>

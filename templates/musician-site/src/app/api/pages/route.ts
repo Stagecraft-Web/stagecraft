@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth";
+import { readItem } from "@/lib/collections";
+import { pagesCollectionDef } from "@/lib/collections/seeds";
 import {
   emptyPageData,
   listPageSummaries,
@@ -59,10 +61,26 @@ export async function POST(request: Request) {
   // prod the same write is followed by a GitHub commit so the new page is
   // immediately deployable.
   await writePage(slug, data);
+  // Re-read so the publish target carries the canonical id + timestamps
+  // the collection store just stamped on the new item.
+  const item = await readItem("pages", slug, pagesCollectionDef);
+  if (!item) return err(500, "Page disappeared between write and publish");
 
   try {
     const result = await publish({
-      targets: [{ kind: "page", slug, data }],
+      targets: [
+        {
+          kind: "collection-item",
+          collectionSlug: "pages",
+          itemSlug: slug,
+          data: {
+            id: item.id,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            values: item.values,
+          },
+        },
+      ],
       authorEmail: session.email,
       commitSubject: `Create page ${slug}`,
     });

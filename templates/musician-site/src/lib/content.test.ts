@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  __resetBootstrapCacheForTests,
   deletePage,
   emptyPageData,
   extractPageRootProps,
@@ -21,6 +22,7 @@ import {
   writeSiteConfig,
   type PageData,
 } from "./content";
+import { PAGES_FIELD_IDS } from "./collections/seeds";
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_HEADER_CONFIG,
@@ -30,59 +32,70 @@ import {
 /**
  * Tests run against an isolated tmpdir (pointed at via STAGECRAFT_CONTENT_DIR)
  * so parallel test files (e.g. publish.test.ts) can't race on the same
- * `src/content/...` files. The seed mirrors the checked-in shape — home.json
- * plus an empty config/ — so tests that assume "home exists" keep working.
+ * `src/content/...` files. The seed mirrors the checked-in shape — a single
+ * `home` item at the post-PR-3 location — so tests that assume "home
+ * exists" keep working.
  */
-const HOME_FIXTURE: PageData = {
-  content: [
-    {
-      type: "Heading",
-      props: { id: "heading-1", text: "Welcome", level: "h1", textAlign: "center" },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-  ],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  root: { props: { title: "Home", isSplashPage: false, isFooterHidden: false } } as any,
+const HOME_ITEM_FIXTURE = {
+  id: "item_home_fixture",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  values: {
+    [PAGES_FIELD_IDS.title]: { type: "text", value: "Home" },
+    [PAGES_FIELD_IDS.isSplashPage]: { type: "boolean", value: false },
+    [PAGES_FIELD_IDS.isFooterHidden]: { type: "boolean", value: false },
+    [PAGES_FIELD_IDS.showInNav]: { type: "boolean", value: true },
+    [PAGES_FIELD_IDS.body]: {
+      type: "puckContent",
+      value: {
+        content: [
+          {
+            type: "Heading",
+            props: { id: "heading-1", text: "Welcome", level: "h1", textAlign: "center" },
+          },
+        ],
+        root: { props: {} },
+      },
+    },
+  },
 };
 
 let TMP_CONTENT_DIR: string;
-let TMP_PAGES_DIR: string;
+let PAGES_ITEMS_DIR: string;
 
 beforeAll(async () => {
   TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-content-"));
-  TMP_PAGES_DIR = path.join(TMP_CONTENT_DIR, "pages");
-  await fs.mkdir(TMP_PAGES_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(TMP_PAGES_DIR, "home.json"),
-    JSON.stringify(HOME_FIXTURE, null, 2) + "\n",
-    "utf-8",
-  );
+  PAGES_ITEMS_DIR = path.join(TMP_CONTENT_DIR, "collections/pages/items");
 });
 
 afterAll(async () => {
   await fs.rm(TMP_CONTENT_DIR, { recursive: true, force: true });
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   process.env.STAGECRAFT_CONTENT_DIR = TMP_CONTENT_DIR;
+  // Reset the per-content-dir bootstrap cache so each test re-runs
+  // the def-seeding step against the (re-cleared) tmpdir.
+  __resetBootstrapCacheForTests();
+  await fs.rm(path.join(TMP_CONTENT_DIR, "collections"), { recursive: true, force: true });
+  await fs.mkdir(PAGES_ITEMS_DIR, { recursive: true });
+  await fs.writeFile(
+    path.join(PAGES_ITEMS_DIR, "home.json"),
+    JSON.stringify(HOME_ITEM_FIXTURE, null, 2) + "\n",
+    "utf-8",
+  );
 });
 
 function testSlug(name: string): string {
-  // Slug must match /^[a-z0-9][a-z0-9-]*$/.
   return `${name}-${Math.random().toString(36).slice(2, 8)}`.toLowerCase();
 }
 
 const createdSlugs = new Set<string>();
 
 afterEach(async () => {
-  await Promise.all(
-    [...createdSlugs].map((slug) =>
-      fs.rm(path.join(TMP_PAGES_DIR, `${slug}.json`), { force: true }),
-    ),
-  );
+  // The full-content-dir wipe in beforeEach handles cleanup, but
+  // empty the bookkeeping set so test names don't leak.
   createdSlugs.clear();
-  // Clear any config singletons a test wrote so the next test starts clean.
-  await fs.rm(path.join(TMP_CONTENT_DIR, "config"), { recursive: true, force: true });
 });
 
 async function createPage(slug: string, data: PageData) {

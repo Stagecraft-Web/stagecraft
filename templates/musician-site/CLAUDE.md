@@ -87,23 +87,28 @@ src/
                               accessors.ts Runtime-narrowing field
                                           accessors (getText, getImage,
                                           ...)
-                              template/   PR 2 — template renderer:
+                              template/   PR 2 — template renderer.
+                                            Walker resolves Bindables
+                                            top-down; Puck's <Render>
+                                            then renders the resolved
+                                            data. Block components
+                                            are pure (no context, no
+                                            "use client"), see only
+                                            literal props.
                                 binding.ts    Bindable<T> resolution
                                               (resolveBindable,
                                               resolveStringBindable)
-                                context.tsx   ItemProvider /
-                                              useItemContext for the
-                                              current-item context
                                 primitives.tsx  Primitive block library
                                               (Section, Stack, Text,
                                               Image, Button, Link,
                                               RichTextRender) +
                                               PRIMITIVE_BLOCKS registry
+                                              (frozen).
+                                puck-config.ts  templatePuckConfig
+                                              built from the registry
                                 tiptap-render.tsx  Tiptap doc → React
-                                renderer.tsx  <TemplateRenderer>
-                                              walks a template and
-                                              renders blocks against
-                                              an item
+                                renderer.tsx  <TemplateRenderer> +
+                                              `resolveTemplate` walker
                               index.ts    Public API
                               test-fixtures.ts  Shared fixtures
                                           (tourDatesDef, tourDateItem)

@@ -1,97 +1,165 @@
 /**
  * The Primitive block library.
  *
- * Each export is a React component that:
+ * Each export pairs:
  *
- *   1. Reads the surrounding item context via `useItemContext()`.
- *   2. Resolves its `Bindable<T>` props against that item via
- *      `resolveBindable` (binding.ts).
- *   3. Renders the result with CSS-custom-property styling (per
- *      CLAUDE.md §7 — no hard-coded hex / px / weights).
+ *   - A `resolve*Props` function that takes the on-disk prop shape
+ *     (with `Bindable<T>` fields) and an item, and returns a flat
+ *     resolved-props object. The function is given a `recurse` callback
+ *     for slot fields so nested blocks resolve top-down.
  *
- * Layout primitives (Section, Stack) accept a `children: BlockInstance[]`
- * slot and dispatch nested blocks via `<BlockList>`. The slot field
- * lives on the on-disk data; the editor in PR 6 maps Puck's slot
- * authoring affordance to this same shape.
+ *   - A pure React component that takes the resolved props and renders.
+ *     Components don't know about Bindables — by the time they run,
+ *     every prop is its final value.
  *
- * Field-render primitives (RichTextRender) take a fieldId directly
- * (never a Bindable — there's no literal alternative; the whole point
- * is to render a field's rich value at a position).
+ * The `<TemplateRenderer>` walks a template once (top-down), calls the
+ * appropriate `resolve*Props` on each block, builds a new Puck data tree
+ * with literal values everywhere, and hands it to Puck's `<Render>`.
+ * Puck then renders each block by calling its component with the
+ * resolved props — and natively handles slot fields by wrapping the
+ * slot content into a `SlotComponent` that the component calls.
  *
- * Implicit hide-if-empty: any Bindable prop that resolves to `undefined`
- * causes the surrounding block to render nothing — the "hide ticket
- * button if there's no ticket URL" pattern from ADR §4.1.
+ * Implicit hide-if-empty (ADR §4.1): a `Bindable` prop that resolves
+ * to `undefined` causes the surrounding block to render nothing. The
+ * components apply this rule per-prop.
  */
 
-"use client";
-
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
+import type { SlotComponent } from "@measured/puck";
 
 import { Image as PublicImage } from "@/components/Image";
+import type { ImageMetadata } from "@/lib/image-types";
 
-import { resolveBindable, resolveBinding, resolveStringBindable } from "./binding";
-import { useItemContext } from "./context";
+import {
+  resolveBindable,
+  resolveBinding,
+  resolveStringBindable,
+} from "./binding";
 import { renderTiptap } from "./tiptap-render";
 import type { BlockInstance } from "./types";
-import type { Bindable, FieldId } from "../schema";
+import type { Bindable, FieldId, Item, TiptapJSON } from "../schema";
 
 // ---------------------------------------------------------------------------
-// BlockList — renders an array of nested blocks. Used by layout primitives
-// for their `children` slot, and by the top-level TemplateRenderer.
+// Block-registry types
 // ---------------------------------------------------------------------------
-
-export type BlockRegistry = Record<string, (props: Record<string, unknown>) => ReactNode>;
 
 /**
- * A small registry consumers can extend (e.g. PR 7 adds Collection
- * blocks). Exported for the renderer; tests build their own subsets.
+ * Context passed to every `resolve*Props` function during walk. The
+ * `recurse` callback resolves a nested block — used by layout
+ * primitives whose `children` slot stores `BlockInstance[]` inline on
+ * the parent's props.
  */
-export const PRIMITIVE_BLOCKS: BlockRegistry = {
-  // populated below after each component is defined
+export type ResolveContext = {
+  item: Item;
+  recurse: (block: BlockInstance) => BlockInstance;
 };
 
-export function BlockList({
-  blocks,
-  registry = PRIMITIVE_BLOCKS,
-}: {
-  blocks: BlockInstance[] | undefined;
-  registry?: BlockRegistry;
-}): ReactNode {
-  if (!blocks || blocks.length === 0) return null;
-  return (
-    <>
-      {blocks.map((block, i) => {
-        const Render = registry[block.type];
-        if (!Render) {
-          // Unknown block type — render nothing rather than crashing.
-          // The editor (PR 6) won't let the artist author an unknown
-          // block; this branch covers a template that pre-dates a
-          // block deletion or a Puck plugin removal.
-          return null;
-        }
-        return <BlockSlot key={i} render={Render} props={block.props} />;
-      })}
-    </>
-  );
-}
+/**
+ * One registry entry.
+ *
+ * Three type parameters reflect the three shapes a block's props take
+ * over the pipeline:
+ *
+ *   RawProps    — what's stored on disk (Bindable<T> fields, slots
+ *                 stored inline as BlockInstance[]).
+ *   DataProps   — what `resolveProps` returns (literal values,
+ *                 BlockInstance[] still inline). This is what
+ *                 `<TemplateRenderer>` hands to Puck's `<Render>`.
+ *   RenderProps — what `Component` receives. Same as `DataProps`
+ *                 except slot fields have been wrapped by Puck into
+ *                 `SlotComponent` functions.
+ *
+ * For blocks without slot fields, DataProps and RenderProps are the
+ * same. For Section / Stack they differ at the `children` field.
+ */
+export type BlockEntry<
+  RawProps extends object = object,
+  DataProps extends object = object,
+  RenderProps extends object = DataProps,
+> = {
+  /** Pure React component. Sees `RenderProps` (slots wrapped). */
+  Component: (props: RenderProps) => ReactNode;
+  /** Walks raw props and produces resolved data for Puck Render. */
+  resolveProps: (rawProps: RawProps, ctx: ResolveContext) => DataProps;
+  /**
+   * Puck `fields` config — what the editor (PR 6) shows when this
+   * block is selected. For PR 2 we only need slot fields declared so
+   * Puck's `<Render>` wraps them in `SlotComponent`. PR 6 fills in
+   * the rest (binding-aware custom fields).
+   */
+  fields: Record<string, { type: string; [k: string]: unknown }>;
+};
 
 /**
- * Wrapper around an individual registry entry. Exists so the consumer
- * sees a stable React element with `key` set, rather than calling each
- * render function directly inside `.map()`.
+ * The default block registry — what `<TemplateRenderer>` uses unless a
+ * caller supplies an extended one (e.g. PR 7's Collection blocks).
+ *
+ * Built declaratively and frozen so it can't be mutated at runtime.
  */
-function BlockSlot({
-  render,
-  props,
-}: {
-  render: (props: Record<string, unknown>) => ReactNode;
-  props: Record<string, unknown>;
-}): ReactNode {
-  return <>{render(props)}</>;
+export const PRIMITIVE_BLOCKS: Readonly<Record<string, BlockEntry>> = Object.freeze({
+  Section: makeEntry<SectionRawProps, SectionDataProps, SectionRenderProps>({
+    Component: Section,
+    resolveProps: resolveSectionProps,
+    fields: {
+      width: { type: "select" },
+      padding: { type: "select" },
+      children: { type: "slot" },
+    },
+  }),
+  Stack: makeEntry<StackRawProps, StackDataProps, StackRenderProps>({
+    Component: Stack,
+    resolveProps: resolveStackProps,
+    fields: {
+      direction: { type: "select" },
+      gap: { type: "select" },
+      align: { type: "select" },
+      justify: { type: "select" },
+      children: { type: "slot" },
+    },
+  }),
+  Text: makeEntry<TextRawProps, TextProps>({
+    Component: Text,
+    resolveProps: resolveTextProps,
+    fields: { content: { type: "text" }, variant: { type: "select" }, align: { type: "select" } },
+  }),
+  Image: makeEntry<ImageRawProps, ImageProps>({
+    Component: ImageBlock,
+    resolveProps: resolveImageProps,
+    fields: { src: { type: "custom" }, altOverride: { type: "text" } },
+  }),
+  Button: makeEntry<ButtonRawProps, ButtonProps>({
+    Component: Button,
+    resolveProps: resolveButtonProps,
+    fields: { label: { type: "text" }, href: { type: "text" }, variant: { type: "select" } },
+  }),
+  Link: makeEntry<LinkRawProps, LinkProps>({
+    Component: Link,
+    resolveProps: resolveLinkProps,
+    fields: { label: { type: "text" }, href: { type: "text" } },
+  }),
+  RichTextRender: makeEntry<RichTextRenderRawProps, RichTextRenderProps>({
+    Component: RichTextRender,
+    resolveProps: resolveRichTextRenderProps,
+    fields: { field: { type: "select" } },
+  }),
+});
+
+/**
+ * Identity helper that exists only to bind the per-entry generics
+ * without forcing the registry literal to spell them out everywhere.
+ */
+function makeEntry<
+  RawProps extends object,
+  DataProps extends object,
+  RenderProps extends object = DataProps,
+>(
+  entry: BlockEntry<RawProps, DataProps, RenderProps>,
+): BlockEntry {
+  return entry as unknown as BlockEntry;
 }
 
 // ---------------------------------------------------------------------------
-// Section — top-level wrapper with width + padding controls
+// Section — layout wrapper with width + padding
 // ---------------------------------------------------------------------------
 
 export const SECTION_WIDTHS = ["narrow", "default", "wide", "full"] as const;
@@ -113,26 +181,45 @@ const SECTION_PADDING_VALUE: Record<SectionPadding, string> = {
   large: "var(--space-16) var(--space-4)",
 };
 
-export type SectionProps = {
+type SectionRawProps = {
   width?: SectionWidth;
   padding?: SectionPadding;
-  blocks?: BlockInstance[];
+  children?: BlockInstance[];
+};
+/** Walker output: `children` is still the inline BlockInstance[]. */
+type SectionDataProps = {
+  width: SectionWidth;
+  padding: SectionPadding;
+  children: BlockInstance[];
+};
+/** Component input: Puck has wrapped `children` into a SlotComponent. */
+type SectionRenderProps = {
+  width: SectionWidth;
+  padding: SectionPadding;
+  children: SlotComponent;
 };
 
-export function Section(props: Record<string, unknown>): ReactNode {
-  const { width = "default", padding = "default", blocks } = props as SectionProps;
-  const style: CSSProperties = {
-    maxWidth: SECTION_MAX_WIDTH[width],
-    margin: "0 auto",
-    padding: SECTION_PADDING_VALUE[padding],
+function resolveSectionProps(raw: SectionRawProps, ctx: ResolveContext): SectionDataProps {
+  return {
+    width: raw.width ?? "default",
+    padding: raw.padding ?? "default",
+    children: Array.isArray(raw.children) ? raw.children.map(ctx.recurse) : [],
   };
+}
+
+function Section({ width, padding, children: Children }: SectionRenderProps): ReactNode {
   return (
-    <section style={style}>
-      <BlockList blocks={blocks} />
+    <section
+      style={{
+        maxWidth: SECTION_MAX_WIDTH[width],
+        margin: "0 auto",
+        padding: SECTION_PADDING_VALUE[padding],
+      }}
+    >
+      <Children />
     </section>
   );
 }
-PRIMITIVE_BLOCKS.Section = Section;
 
 // ---------------------------------------------------------------------------
 // Stack — flex container, vertical or horizontal
@@ -157,50 +244,67 @@ const STACK_GAP_VALUE: Record<StackGap, string> = {
   large: "var(--space-8)",
 };
 
-const STACK_JUSTIFY_VALUE: Record<StackJustification, CSSProperties["justifyContent"]> = {
-  start: "flex-start",
-  center: "center",
-  end: "flex-end",
-  between: "space-between",
-};
-
-const STACK_ALIGN_VALUE: Record<StackAlignment, CSSProperties["alignItems"]> = {
+const STACK_ALIGN_VALUE: Record<StackAlignment, string> = {
   start: "flex-start",
   center: "center",
   end: "flex-end",
   stretch: "stretch",
 };
 
-export type StackProps = {
+const STACK_JUSTIFY_VALUE: Record<StackJustification, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+  between: "space-between",
+};
+
+type StackRawProps = {
   direction?: StackDirection;
   gap?: StackGap;
   align?: StackAlignment;
   justify?: StackJustification;
-  blocks?: BlockInstance[];
+  children?: BlockInstance[];
+};
+type StackDataProps = {
+  direction: StackDirection;
+  gap: StackGap;
+  align: StackAlignment;
+  justify: StackJustification;
+  children: BlockInstance[];
+};
+type StackRenderProps = {
+  direction: StackDirection;
+  gap: StackGap;
+  align: StackAlignment;
+  justify: StackJustification;
+  children: SlotComponent;
 };
 
-export function Stack(props: Record<string, unknown>): ReactNode {
-  const {
-    direction = "vertical",
-    gap = "default",
-    align = "stretch",
-    justify = "start",
-    blocks,
-  } = props as StackProps;
-  const style: CSSProperties = {
-    display: "flex",
-    flexDirection: direction === "vertical" ? "column" : "row",
-    gap: STACK_GAP_VALUE[gap],
-    alignItems: STACK_ALIGN_VALUE[align],
-    justifyContent: STACK_JUSTIFY_VALUE[justify],
+function resolveStackProps(raw: StackRawProps, ctx: ResolveContext): StackDataProps {
+  return {
+    direction: raw.direction ?? "vertical",
+    gap: raw.gap ?? "default",
+    align: raw.align ?? "stretch",
+    justify: raw.justify ?? "start",
+    children: Array.isArray(raw.children) ? raw.children.map(ctx.recurse) : [],
   };
+}
+
+function Stack({ direction, gap, align, justify, children: Children }: StackRenderProps): ReactNode {
   return (
-    <div style={style}>
-      <BlockList blocks={blocks} />
+    <div
+      style={{
+        display: "flex",
+        flexDirection: direction === "vertical" ? "column" : "row",
+        gap: STACK_GAP_VALUE[gap],
+        alignItems: STACK_ALIGN_VALUE[align],
+        justifyContent: STACK_JUSTIFY_VALUE[justify],
+      }}
+    >
+      <Children />
     </div>
   );
 }
-PRIMITIVE_BLOCKS.Stack = Stack;
 
 // ---------------------------------------------------------------------------
 // Text — single text block, bindable content
@@ -212,7 +316,7 @@ export type TextVariant = (typeof TEXT_VARIANTS)[number];
 export const TEXT_ALIGNS = ["start", "center", "end"] as const;
 export type TextAlign = (typeof TEXT_ALIGNS)[number];
 
-const TEXT_VARIANT_STYLE: Record<TextVariant, CSSProperties> = {
+const TEXT_VARIANT_STYLE: Record<TextVariant, React.CSSProperties> = {
   body: { fontSize: "var(--font-size-base)" },
   small: { fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" },
   lead: { fontSize: "var(--font-size-lg)" },
@@ -224,56 +328,61 @@ const TEXT_VARIANT_STYLE: Record<TextVariant, CSSProperties> = {
   },
 };
 
-export type TextProps = {
+type TextRawProps = {
   content: Bindable<string>;
   variant?: TextVariant;
   align?: TextAlign;
 };
-
-export function Text(props: Record<string, unknown>): ReactNode {
-  const { item } = useItemContext();
-  const { content, variant = "body", align = "start" } = props as TextProps;
-  // Text accepts any string-valued field type — see STRING_VALUED_FIELD_TYPES
-  // in ./binding.ts. The editor's binding picker enforces this set at
-  // authoring time; the resolver re-checks defensively.
-  const resolved = resolveStringBindable(content, item);
-  if (resolved === undefined || resolved === "") return null;
-  const style: CSSProperties = {
-    ...TEXT_VARIANT_STYLE[variant],
-    textAlign: align,
-    margin: 0,
-  };
-  return <p style={style}>{resolved}</p>;
-}
-PRIMITIVE_BLOCKS.Text = Text;
-
-// ---------------------------------------------------------------------------
-// Image — image with optional alt override (default alt comes from
-// the ImageMetadata's own `alt` field).
-// ---------------------------------------------------------------------------
-
-export type ImageBlockProps = {
-  src: Bindable<unknown>;          // ImageMetadata at the type level; widened to unknown
-                                   // because the literal arm doesn't easily express the
-                                   // full shape. Resolver re-narrows.
-  altOverride?: Bindable<string>;
+type TextProps = {
+  content: string | undefined;
+  variant: TextVariant;
+  align: TextAlign;
 };
 
-export function Image(props: Record<string, unknown>): ReactNode {
-  const { item } = useItemContext();
-  const { src, altOverride } = props as ImageBlockProps;
-  const resolvedSrc = resolveBindable(src as Bindable<never>, item, "image");
-  if (resolvedSrc === undefined) return null;
-  const altOverrideResolved = altOverride
-    ? resolveStringBindable(altOverride, item)
-    : undefined;
-  const metadata =
-    altOverrideResolved !== undefined && altOverrideResolved !== ""
-      ? { ...resolvedSrc, alt: altOverrideResolved }
-      : resolvedSrc;
-  return <PublicImage image={metadata} />;
+function resolveTextProps(raw: TextRawProps, ctx: ResolveContext): TextProps {
+  return {
+    content: resolveStringBindable(raw.content, ctx.item),
+    variant: raw.variant ?? "body",
+    align: raw.align ?? "start",
+  };
 }
-PRIMITIVE_BLOCKS.Image = Image;
+
+function Text({ content, variant, align }: TextProps): ReactNode {
+  if (content === undefined || content === "") return null;
+  return (
+    <p style={{ ...TEXT_VARIANT_STYLE[variant], textAlign: align, margin: 0 }}>{content}</p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image — image with optional alt override
+// ---------------------------------------------------------------------------
+
+type ImageRawProps = {
+  src: Bindable<ImageMetadata>;
+  altOverride?: Bindable<string>;
+};
+type ImageProps = {
+  src: ImageMetadata | undefined;
+  altOverride: string | undefined;
+};
+
+function resolveImageProps(raw: ImageRawProps, ctx: ResolveContext): ImageProps {
+  return {
+    src: resolveBindable(raw.src, ctx.item, "image"),
+    altOverride: raw.altOverride ? resolveStringBindable(raw.altOverride, ctx.item) : undefined,
+  };
+}
+
+function ImageBlock({ src, altOverride }: ImageProps): ReactNode {
+  if (src === undefined) return null;
+  // altOverride wins when set and non-empty; otherwise fall back to the
+  // image's stored alt. The stored alt is required at upload time so
+  // there's always a value here.
+  const image =
+    altOverride !== undefined && altOverride !== "" ? { ...src, alt: altOverride } : src;
+  return <PublicImage image={image} />;
+}
 
 // ---------------------------------------------------------------------------
 // Button — bindable label and href
@@ -282,7 +391,7 @@ PRIMITIVE_BLOCKS.Image = Image;
 export const BUTTON_VARIANTS = ["primary", "secondary", "outline"] as const;
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 
-const BUTTON_VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
+const BUTTON_VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
   primary: {
     background: "var(--color-action)",
     color: "var(--color-action-fg)",
@@ -300,7 +409,7 @@ const BUTTON_VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
   },
 };
 
-const BUTTON_BASE_STYLE: CSSProperties = {
+const BUTTON_BASE_STYLE: React.CSSProperties = {
   display: "inline-block",
   padding: "var(--space-2) var(--space-4)",
   borderRadius: "var(--radius)",
@@ -308,74 +417,79 @@ const BUTTON_BASE_STYLE: CSSProperties = {
   fontWeight: "var(--font-weight-semibold)" as unknown as number,
 };
 
-export type ButtonProps = {
+type ButtonRawProps = {
   label: Bindable<string>;
   href: Bindable<string>;
   variant?: ButtonVariant;
 };
+type ButtonProps = {
+  label: string | undefined;
+  href: string | undefined;
+  variant: ButtonVariant;
+};
 
-export function Button(props: Record<string, unknown>): ReactNode {
-  const { item } = useItemContext();
-  const { label, href, variant = "primary" } = props as ButtonProps;
-  const resolvedLabel = resolveStringBindable(label, item);
-  const resolvedHref = resolveStringBindable(href, item);
-  if (
-    resolvedLabel === undefined ||
-    resolvedLabel === "" ||
-    resolvedHref === undefined ||
-    resolvedHref === ""
-  ) {
-    return null;
-  }
-  const style: CSSProperties = { ...BUTTON_BASE_STYLE, ...BUTTON_VARIANT_STYLE[variant] };
+function resolveButtonProps(raw: ButtonRawProps, ctx: ResolveContext): ButtonProps {
+  return {
+    label: resolveStringBindable(raw.label, ctx.item),
+    href: resolveStringBindable(raw.href, ctx.item),
+    variant: raw.variant ?? "primary",
+  };
+}
+
+function Button({ label, href, variant }: ButtonProps): ReactNode {
+  if (label === undefined || label === "" || href === undefined || href === "") return null;
   return (
-    <a href={resolvedHref} style={style}>
-      {resolvedLabel}
+    <a href={href} style={{ ...BUTTON_BASE_STYLE, ...BUTTON_VARIANT_STYLE[variant] }}>
+      {label}
     </a>
   );
 }
-PRIMITIVE_BLOCKS.Button = Button;
 
 // ---------------------------------------------------------------------------
 // Link — plain inline link
 // ---------------------------------------------------------------------------
 
-export type LinkProps = {
+type LinkRawProps = {
   label: Bindable<string>;
   href: Bindable<string>;
 };
+type LinkProps = {
+  label: string | undefined;
+  href: string | undefined;
+};
 
-export function Link(props: Record<string, unknown>): ReactNode {
-  const { item } = useItemContext();
-  const { label, href } = props as LinkProps;
-  const resolvedLabel = resolveStringBindable(label, item);
-  const resolvedHref = resolveStringBindable(href, item);
-  if (
-    resolvedLabel === undefined ||
-    resolvedLabel === "" ||
-    resolvedHref === undefined ||
-    resolvedHref === ""
-  ) {
-    return null;
-  }
-  return <a href={resolvedHref}>{resolvedLabel}</a>;
+function resolveLinkProps(raw: LinkRawProps, ctx: ResolveContext): LinkProps {
+  return {
+    label: resolveStringBindable(raw.label, ctx.item),
+    href: resolveStringBindable(raw.href, ctx.item),
+  };
 }
-PRIMITIVE_BLOCKS.Link = Link;
+
+function Link({ label, href }: LinkProps): ReactNode {
+  if (label === undefined || label === "" || href === undefined || href === "") return null;
+  return <a href={href}>{label}</a>;
+}
 
 // ---------------------------------------------------------------------------
-// RichTextRender — renders a richText field's Tiptap doc at this position
+// RichTextRender — render a richText field's Tiptap doc at this position
 // ---------------------------------------------------------------------------
 
-export type RichTextRenderProps = {
+type RichTextRenderRawProps = {
   /** Field id pointing at a richText field on the current collection. */
   field: FieldId;
 };
+type RichTextRenderProps = {
+  doc: TiptapJSON | undefined;
+};
 
-export function RichTextRender(props: Record<string, unknown>): ReactNode {
-  const { item } = useItemContext();
-  const { field } = props as RichTextRenderProps;
-  const doc = resolveBinding(field, item, "richText");
+function resolveRichTextRenderProps(
+  raw: RichTextRenderRawProps,
+  ctx: ResolveContext,
+): RichTextRenderProps {
+  return { doc: resolveBinding(raw.field, ctx.item, "richText") };
+}
+
+function RichTextRender({ doc }: RichTextRenderProps): ReactNode {
   if (doc === undefined) return null;
   return renderTiptap(doc);
 }
-PRIMITIVE_BLOCKS.RichTextRender = RichTextRender;

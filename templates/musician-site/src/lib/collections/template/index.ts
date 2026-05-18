@@ -6,8 +6,8 @@
  */
 
 export * from "./binding";
-export * from "./context";
 export * from "./primitives";
+export * from "./puck-config";
 export * from "./renderer";
 export * from "./tiptap-render";
 export type { BlockInstance, Template } from "./types";

@@ -138,6 +138,11 @@ export function resolveBinding<K extends keyof ResolvedTypeFor>(
  * only fields of these types. At runtime we re-check defensively: a
  * field whose type isn't on this list resolves to `undefined` (and
  * warns).
+ *
+ * **Adding a new string-valued field type:** keep this list in sync.
+ * Adding a `phoneNumber` field type, for example, should also append
+ * `"phoneNumber"` here so Text blocks can bind to it. The static
+ * check in tests doesn't catch a missing entry — be deliberate.
  */
 export const STRING_VALUED_FIELD_TYPES = [
   "text",

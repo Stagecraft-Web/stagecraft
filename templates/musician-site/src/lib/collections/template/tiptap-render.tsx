@@ -72,6 +72,7 @@ function renderNode(node: TiptapNode, key: number): ReactNode {
       // dropping silently.
       return <p key={key}>{renderInline([node])}</p>;
     default:
+      warnUnknownNode(node.type, "node");
       // Unknown block-level node: try to render its content if any,
       // otherwise skip entirely.
       if (node.content) return <div key={key}>{renderNodes(node.content)}</div>;
@@ -125,9 +126,27 @@ function wrapWithMark(
       );
     }
     default:
+      warnUnknownNode(mark.type, "mark");
       // Unknown mark — render the inner text without any wrapping.
       return inner;
   }
+}
+
+/**
+ * Warn once per unique unknown node/mark name. A custom Tiptap
+ * extension that the renderer doesn't support shouldn't crash the
+ * site, but the artist shouldn't be left wondering why their content
+ * is silently disappearing either.
+ */
+const warnedUnknownNames = new Set<string>();
+function warnUnknownNode(name: string, kind: "node" | "mark"): void {
+  if (typeof console === "undefined") return;
+  const key = `${kind}:${name}`;
+  if (warnedUnknownNames.has(key)) return;
+  warnedUnknownNames.add(key);
+  console.warn(
+    `[collections] renderTiptap: unknown ${kind} type "${name}" — content rendered without formatting`,
+  );
 }
 
 function clampHeadingLevel(raw: unknown): 1 | 2 | 3 | 4 | 5 | 6 {

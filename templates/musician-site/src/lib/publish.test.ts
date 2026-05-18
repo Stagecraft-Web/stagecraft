@@ -7,11 +7,6 @@ const { commitFilesMock } = vi.hoisted(() => ({ commitFilesMock: vi.fn() }));
 vi.mock("./git-commit", () => ({ commitFiles: commitFilesMock }));
 
 import { PublishError, publish, publishPage, isPlatformConfigured } from "./publish";
-import {
-  DEFAULT_APPEARANCE,
-  DEFAULT_HEADER_CONFIG,
-  DEFAULT_SITE_CONFIG,
-} from "./site-config-types";
 import { FIXTURE_TIMESTAMP, tourDatesDef } from "./collections/test-fixtures";
 
 /** Spread into in-line item-file literals so tests don't repeat them. */
@@ -23,13 +18,14 @@ const TEST_SLUG = "publish-test";
 // so parallel test files can't clobber each other's site.json / page files
 // — see the matching pattern in content.test.ts.
 let TMP_CONTENT_DIR: string;
+/** Where the pages collection writes a test page item (PR 3 layout). */
 let TEST_FILE: string;
 
 const ORIGINAL_ENV = { ...process.env };
 
 beforeAll(async () => {
   TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-publish-"));
-  TEST_FILE = path.join(TMP_CONTENT_DIR, "pages", `${TEST_SLUG}.json`);
+  TEST_FILE = path.join(TMP_CONTENT_DIR, "collections/pages/items", `${TEST_SLUG}.json`);
 });
 
 afterAll(async () => {
@@ -90,20 +86,26 @@ describe("isPlatformConfigured", () => {
 });
 
 describe("publishPage — dev fallback (no platform configured)", () => {
-  it("writes JSON to local disk and returns mode=local", async () => {
+  it("writes the page as a collection item and returns mode=local", async () => {
     const result = await publishPage({
       pageSlug: TEST_SLUG,
-      data: { content: [], root: {} },
+      data: { content: [], root: { props: { title: "Test" } } },
       authorEmail: "a@e.com",
     });
     expect(result.mode).toBe("local");
     expect(result.commitSha).toBeNull();
-    const written = await fs.readFile(TEST_FILE, "utf-8");
-    expect(JSON.parse(written)).toEqual({ content: [], root: {} });
+    // On disk: pages collection's items dir, item file in the new shape.
+    const written = JSON.parse(await fs.readFile(TEST_FILE, "utf-8"));
+    expect(written.id).toMatch(/^item_/);
+    expect(written.values).toBeDefined();
   });
 
   it("does not call commitFiles in dev fallback", async () => {
-    await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
+    await publishPage({
+      pageSlug: TEST_SLUG,
+      data: { content: [], root: { props: { title: "x" } } },
+      authorEmail: "a@e.com",
+    });
     expect(commitFilesMock).not.toHaveBeenCalled();
   });
 });
@@ -115,7 +117,7 @@ describe("publishPage — broker + GitHub path", () => {
 
     const result = await publishPage({
       pageSlug: TEST_SLUG,
-      data: { hello: "world" },
+      data: { content: [], root: { props: { title: "world" } } },
       authorEmail: "artist@example.com",
       authorName: "Real Artist",
     });
@@ -128,7 +130,9 @@ describe("publishPage — broker + GitHub path", () => {
         repo: "site",
         branch: "main",
         files: [
-          expect.objectContaining({ path: `src/content/pages/${TEST_SLUG}.json` }),
+          expect.objectContaining({
+            path: `src/content/collections/pages/items/${TEST_SLUG}.json`,
+          }),
         ],
         author: { name: "Real Artist", email: "artist@example.com" },
       }),
@@ -138,7 +142,7 @@ describe("publishPage — broker + GitHub path", () => {
   it("forwards Authorization Bearer secret to the broker", async () => {
     configurePlatform();
     commitFilesMock.mockResolvedValue("sha");
-    await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
+    await publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" });
     const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(fetchCall[0]).toBe("https://platform.example.com/api/publish-token");
     expect(fetchCall[1].headers.authorization).toBe("Bearer broker-secret");
@@ -149,7 +153,7 @@ describe("publishPage — broker + GitHub path", () => {
     configurePlatform();
     process.env.STAGECRAFT_PLATFORM_URL = "https://platform.example.com/";
     commitFilesMock.mockResolvedValue("sha");
-    await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
+    await publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" });
     const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(fetchCall[0]).toBe("https://platform.example.com/api/publish-token");
   });
@@ -158,21 +162,21 @@ describe("publishPage — broker + GitHub path", () => {
     configurePlatform();
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) as unknown as typeof fetch;
     await expect(
-      publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" }),
+      publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" }),
     ).rejects.toMatchObject({ code: "broker-unreachable" });
   });
 
   it("throws broker-rejected when broker returns non-200", async () => {
     configurePlatform({ ok: false, status: 401, body: { ok: false } });
     await expect(
-      publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" }),
+      publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" }),
     ).rejects.toBeInstanceOf(PublishError);
   });
 
   it("throws broker-rejected when broker response is malformed", async () => {
     configurePlatform({ body: { ok: true, token: "x" } }); // missing repo + expiresAt
     await expect(
-      publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" }),
+      publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" }),
     ).rejects.toMatchObject({ code: "broker-rejected" });
   });
 
@@ -180,14 +184,14 @@ describe("publishPage — broker + GitHub path", () => {
     configurePlatform();
     commitFilesMock.mockRejectedValue(new Error("ref not found"));
     await expect(
-      publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" }),
+      publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" }),
     ).rejects.toMatchObject({ code: "github-failed" });
   });
 
   it("includes a Stagecraft-Publish-Id trailer in the commit message", async () => {
     configurePlatform();
     commitFilesMock.mockResolvedValue("sha");
-    await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
+    await publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" });
     const message = commitFilesMock.mock.calls[0][0].message as string;
     expect(message).toMatch(/^Update publish-test/);
     expect(message).toMatch(/Stagecraft-Publish-Id: [0-9a-f-]{36}$/);
@@ -197,7 +201,7 @@ describe("publishPage — broker + GitHub path", () => {
     configurePlatform();
     process.env.SITE_GIT_BRANCH = "develop";
     commitFilesMock.mockResolvedValue("sha");
-    await publishPage({ pageSlug: TEST_SLUG, data: {}, authorEmail: "a@e.com" });
+    await publishPage({ pageSlug: TEST_SLUG, data: { content: [], root: { props: { title: "x" } } }, authorEmail: "a@e.com" });
     expect(commitFilesMock.mock.calls[0][0].branch).toBe("develop");
   });
 });
@@ -209,92 +213,18 @@ describe("publish — multi-target API", () => {
     ).rejects.toBeInstanceOf(PublishError);
   });
 
-  it("dev fallback writes site-config to disk", async () => {
-    // Writes into the worker-scoped tmpdir (see STAGECRAFT_CONTENT_DIR in
-    // beforeEach) so parallel test files can't clobber the on-disk state.
-    const sitePath = path.join(TMP_CONTENT_DIR, "config/site.json");
-    const cfg = { ...DEFAULT_SITE_CONFIG, artistName: "Multi-target Test" };
-    const out = await publish({
-      targets: [{ kind: "site-config", data: cfg }],
-      authorEmail: "a@e.com",
-    });
-    expect(out.mode).toBe("local");
-    const written = JSON.parse(await fs.readFile(sitePath, "utf-8"));
-    expect(written.artistName).toBe("Multi-target Test");
-    await fs.rm(sitePath, { force: true });
-  });
-
-  it("commits multiple targets in a single GitHub commit when configured", async () => {
-    configurePlatform();
-    commitFilesMock.mockResolvedValue("multi-sha");
-    const result = await publish({
-      targets: [
-        { kind: "page", slug: TEST_SLUG, data: { content: [], root: {} } },
-        { kind: "site-config", data: DEFAULT_SITE_CONFIG },
-        { kind: "header-config", data: DEFAULT_HEADER_CONFIG },
-        { kind: "appearance", data: DEFAULT_APPEARANCE },
-      ],
-      authorEmail: "a@e.com",
-    });
-    expect(result.commitSha).toBe("multi-sha");
-    expect(commitFilesMock).toHaveBeenCalledTimes(1);
-    const call = commitFilesMock.mock.calls[0][0];
-    expect(call.files.map((f: { path: string }) => f.path)).toEqual([
-      `src/content/pages/${TEST_SLUG}.json`,
-      "src/content/config/site.json",
-      "src/content/config/header.json",
-      "src/content/config/appearance.json",
-    ]);
-  });
-
-  it("delete-page produces a deletePath rather than a file write", async () => {
-    configurePlatform();
-    commitFilesMock.mockResolvedValue("del-sha");
-    await publish({
-      targets: [{ kind: "delete-page", slug: TEST_SLUG }],
-      authorEmail: "a@e.com",
-    });
-    const call = commitFilesMock.mock.calls[0][0];
-    expect(call.files).toHaveLength(0);
-    expect(call.deletePaths).toEqual([`src/content/pages/${TEST_SLUG}.json`]);
-  });
-
-  it("validates site-config before commit (fails on bad email)", async () => {
-    configurePlatform();
-    commitFilesMock.mockResolvedValue("sha");
-    await expect(
-      publish({
-        targets: [
-          {
-            kind: "site-config",
-            data: { ...DEFAULT_SITE_CONFIG, contactEmail: "not-an-email" } as never,
-          },
-        ],
-        authorEmail: "a@e.com",
-      }),
-    ).rejects.toThrow();
-    expect(commitFilesMock).not.toHaveBeenCalled();
-  });
-
-  it("commit subject summarises targets", async () => {
-    configurePlatform();
-    commitFilesMock.mockResolvedValue("sha");
-    await publish({
-      targets: [
-        { kind: "page", slug: "home", data: {} },
-        { kind: "site-config", data: DEFAULT_SITE_CONFIG },
-      ],
-      authorEmail: "a@e.com",
-    });
-    const message = commitFilesMock.mock.calls[0][0].message as string;
-    expect(message).toMatch(/^Update pages: home \+ site settings/);
-  });
-
   it("custom commitSubject overrides the auto summary", async () => {
     configurePlatform();
     commitFilesMock.mockResolvedValue("sha");
     await publish({
-      targets: [{ kind: "page", slug: TEST_SLUG, data: {} }],
+      targets: [
+        {
+          kind: "collection-item",
+          collectionSlug: "pages",
+          itemSlug: TEST_SLUG,
+          data: { id: "i", ...TS, values: {} },
+        },
+      ],
       authorEmail: "a@e.com",
       commitSubject: "Custom subject line",
     });

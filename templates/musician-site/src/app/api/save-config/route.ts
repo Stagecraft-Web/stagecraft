@@ -3,6 +3,24 @@ import { z } from "zod";
 
 import { getSession } from "@/lib/auth";
 import {
+  readSingleton,
+  SINGLETON_ITEM_SLUG,
+  generateItemId,
+  type CollectionDef,
+  type Item,
+} from "@/lib/collections";
+import {
+  appearanceCollectionDef,
+  headerCollectionDef,
+  pagesCollectionDef,
+  siteCollectionDef,
+} from "@/lib/collections/seeds";
+import {
+  appearanceToItemValues,
+  headerConfigToItemValues,
+  siteConfigToItemValues,
+} from "@/lib/collections/migrate-from-legacy";
+import {
   writeAppearance,
   writeHeaderConfig,
   writeSiteConfig,
@@ -12,16 +30,21 @@ import {
   appearanceSchema,
   headerConfigSchema,
   siteConfigSchema,
+  type SiteConfig,
 } from "@/lib/site-config-types";
+import { readItem, listItemSlugs } from "@/lib/collections";
 
 /**
  * POST /api/save-config — persist one of the singletons (site, header,
- * appearance). The body discriminator identifies which.
+ * appearance). The body discriminator identifies which. Site writes
+ * fan out to the pages collection (per ADR-009 §14): `pageOrder`
+ * lands in `items/_order.json`, `hiddenFromNav` flips per-page
+ * `showInNav`.
  *
- * Always writes to disk first so the dev preview reflects the change
- * immediately, then publishes through the broker → GitHub path when
- * configured. A publish failure surfaces as a warning rather than rolling
- * back the local save — same convention as page create/delete.
+ * Local writes go first so the dev preview reflects the change
+ * immediately, then we publish through the broker → GitHub path when
+ * configured. A publish failure surfaces as a warning rather than
+ * rolling back the local save.
  */
 
 const requestSchema = z.discriminatedUnion("kind", [
@@ -51,27 +74,36 @@ export async function POST(request: Request) {
   }
 
   // Write to disk synchronously so the dev preview reflects the change.
-  // Each branch corresponds to one Singleton; the discriminator narrows the
-  // data type so .data is statically typed inside the switch.
-  let target: PublishTarget;
+  // Then construct the publish targets from the freshly-written state
+  // — read-back guarantees the targets carry the canonical `id` and
+  // timestamps the store just stamped.
+  let targets: PublishTarget[];
   switch (parsed.data.kind) {
     case "site-config":
       await writeSiteConfig(parsed.data.data);
-      target = { kind: "site-config", data: parsed.data.data };
+      targets = await siteConfigTargets(parsed.data.data);
       break;
     case "header-config":
       await writeHeaderConfig(parsed.data.data);
-      target = { kind: "header-config", data: parsed.data.data };
+      targets = [
+        await singletonTarget("header", headerCollectionDef, headerConfigToItemValues(parsed.data.data)),
+      ];
       break;
     case "appearance":
       await writeAppearance(parsed.data.data);
-      target = { kind: "appearance", data: parsed.data.data };
+      targets = [
+        await singletonTarget(
+          "appearance",
+          appearanceCollectionDef,
+          appearanceToItemValues(parsed.data.data),
+        ),
+      ];
       break;
   }
 
   try {
     const result = await publish({
-      targets: [target],
+      targets,
       authorEmail: session.email,
     });
     return NextResponse.json({
@@ -90,4 +122,71 @@ export async function POST(request: Request) {
     }
     throw cause;
   }
+}
+
+/**
+ * Build the singleton's `collection-item` publish target by reading
+ * the just-written item back. The read captures whatever `id`,
+ * `createdAt`, and `updatedAt` the store assigned, so the commit
+ * matches what's on disk exactly.
+ */
+async function singletonTarget(
+  slug: string,
+  def: CollectionDef,
+  values: Item["values"],
+): Promise<PublishTarget> {
+  const existing = await readSingleton(slug, def);
+  const now = new Date().toISOString();
+  const item: Item = {
+    id: existing?.id ?? generateItemId(),
+    slug: SINGLETON_ITEM_SLUG,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: existing?.updatedAt ?? now,
+    values,
+  };
+  return {
+    kind: "collection-item",
+    collectionSlug: slug,
+    itemSlug: SINGLETON_ITEM_SLUG,
+    data: {
+      id: item.id,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      values: item.values,
+    },
+  };
+}
+
+/**
+ * Site config fan-out: one singleton write + the pages-collection
+ * order file + one collection-item per page whose `showInNav` changed.
+ * Done after `writeSiteConfig` has applied the changes locally, so
+ * the targets reflect the canonical on-disk state.
+ */
+async function siteConfigTargets(config: SiteConfig): Promise<PublishTarget[]> {
+  const targets: PublishTarget[] = [
+    await singletonTarget("site", siteCollectionDef, siteConfigToItemValues(config)),
+    { kind: "collection-order", collectionSlug: "pages", data: config.pageOrder },
+  ];
+  // Re-read every page item so each commit carries the post-write
+  // `showInNav` state plus a fresh `updatedAt`.
+  const slugs = await listItemSlugs("pages");
+  await Promise.all(
+    slugs.map(async (slug) => {
+      const item = await readItem("pages", slug, pagesCollectionDef);
+      if (!item) return;
+      targets.push({
+        kind: "collection-item",
+        collectionSlug: "pages",
+        itemSlug: slug,
+        data: {
+          id: item.id,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          values: item.values,
+        },
+      });
+    }),
+  );
+  return targets;
 }

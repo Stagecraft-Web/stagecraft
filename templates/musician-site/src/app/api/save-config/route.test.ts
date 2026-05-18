@@ -14,23 +14,31 @@ vi.mock("@/lib/publish", async () => {
 
 import { POST } from "./route";
 import {
+  APPEARANCE_FIELD_IDS,
+  HEADER_FIELD_IDS,
+  SITE_FIELD_IDS,
+} from "@/lib/collections/seeds";
+import {
   DEFAULT_APPEARANCE,
   DEFAULT_HEADER_CONFIG,
   DEFAULT_SITE_CONFIG,
 } from "@/lib/site-config-types";
 
 // Worker-scoped tmpdir keeps these tests isolated from other test files that
-// also touch src/content/config/*.json (publish.test.ts, content.test.ts).
+// also touch the collection store (publish.test.ts, content.test.ts).
 let TMP_CONTENT_DIR: string;
-let SITE_PATH: string;
-let HEADER_PATH: string;
-let APPEARANCE_PATH: string;
+let SITE_ITEM_PATH: string;
+let HEADER_ITEM_PATH: string;
+let APPEARANCE_ITEM_PATH: string;
 
 beforeAll(async () => {
   TMP_CONTENT_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "stagecraft-saveconfig-"));
-  SITE_PATH = path.join(TMP_CONTENT_DIR, "config/site.json");
-  HEADER_PATH = path.join(TMP_CONTENT_DIR, "config/header.json");
-  APPEARANCE_PATH = path.join(TMP_CONTENT_DIR, "config/appearance.json");
+  SITE_ITEM_PATH = path.join(TMP_CONTENT_DIR, "collections/site/items/_singleton.json");
+  HEADER_ITEM_PATH = path.join(TMP_CONTENT_DIR, "collections/header/items/_singleton.json");
+  APPEARANCE_ITEM_PATH = path.join(
+    TMP_CONTENT_DIR,
+    "collections/appearance/items/_singleton.json",
+  );
 });
 
 afterAll(async () => {
@@ -45,10 +53,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  // Clear any singleton a test wrote.
-  await fs.rm(SITE_PATH, { force: true });
-  await fs.rm(HEADER_PATH, { force: true });
-  await fs.rm(APPEARANCE_PATH, { force: true });
+  // Wipe the collections tree between tests so each one starts clean
+  // (including the prebaked `_collection.json`s the wrapper bootstraps
+  // on first read).
+  await fs.rm(path.join(TMP_CONTENT_DIR, "collections"), { recursive: true, force: true });
 });
 
 function postJson(body: unknown) {
@@ -91,16 +99,21 @@ describe("POST /api/save-config", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
 
-    const onDisk = JSON.parse(await fs.readFile(SITE_PATH, "utf-8"));
-    expect(onDisk.artistName).toBe("Pumpkin Bread");
+    // On disk: the site singleton item carries the artistName under
+    // its corresponding field id.
+    const onDisk = JSON.parse(await fs.readFile(SITE_ITEM_PATH, "utf-8"));
+    expect(onDisk.values[SITE_FIELD_IDS.artistName].value).toBe("Pumpkin Bread");
 
-    expect(publishMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targets: [
-          expect.objectContaining({ kind: "site-config", data: expect.objectContaining({ artistName: "Pumpkin Bread" }) }),
-        ],
-      }),
+    // Publish was called with a collection-item target for the site
+    // singleton (plus a pages order target — the call fans out per
+    // ADR-009 §14).
+    const call = publishMock.mock.calls[0][0];
+    const siteTarget = call.targets.find(
+      (t: { kind: string; collectionSlug?: string }) =>
+        t.kind === "collection-item" && t.collectionSlug === "site",
     );
+    expect(siteTarget).toBeDefined();
+    expect(siteTarget.data.values[SITE_FIELD_IDS.artistName].value).toBe("Pumpkin Bread");
   });
 
   it("persists header-config", async () => {
@@ -108,8 +121,8 @@ describe("POST /api/save-config", () => {
     const data = { ...DEFAULT_HEADER_CONFIG, headerSubtitle: "Bandleader" };
     const res = await POST(postJson({ kind: "header-config", data }));
     expect(res.status).toBe(200);
-    const onDisk = JSON.parse(await fs.readFile(HEADER_PATH, "utf-8"));
-    expect(onDisk.headerSubtitle).toBe("Bandleader");
+    const onDisk = JSON.parse(await fs.readFile(HEADER_ITEM_PATH, "utf-8"));
+    expect(onDisk.values[HEADER_FIELD_IDS.headerSubtitle].value).toBe("Bandleader");
   });
 
   it("persists appearance", async () => {
@@ -120,8 +133,8 @@ describe("POST /api/save-config", () => {
     };
     const res = await POST(postJson({ kind: "appearance", data }));
     expect(res.status).toBe(200);
-    const onDisk = JSON.parse(await fs.readFile(APPEARANCE_PATH, "utf-8"));
-    expect(onDisk.colors.primary).toBe("#ff0066");
+    const onDisk = JSON.parse(await fs.readFile(APPEARANCE_ITEM_PATH, "utf-8"));
+    expect(onDisk.values[APPEARANCE_FIELD_IDS.color("primary")].value).toBe("#ff0066");
   });
 
   it("returns publishWarning when local write succeeds but publish fails", async () => {
@@ -137,8 +150,11 @@ describe("POST /api/save-config", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.publishWarning).toContain("down");
-    // Disk write happened.
-    expect(JSON.parse(await fs.readFile(SITE_PATH, "utf-8")).artistName).toBe("Fallback");
+    // Disk write happened — the artistName landed in the singleton item.
+    expect(
+      JSON.parse(await fs.readFile(SITE_ITEM_PATH, "utf-8")).values[SITE_FIELD_IDS.artistName]
+        .value,
+    ).toBe("Fallback");
   });
 
   it("rejects an invalid contact email payload", async () => {

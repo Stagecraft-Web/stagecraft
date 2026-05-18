@@ -33,7 +33,7 @@ export async function DELETE(
 
   try {
     const result = await publish({
-      targets: [{ kind: "delete-page", slug }],
+      targets: [{ kind: "delete-collection-item", collectionSlug: "pages", itemSlug: slug }],
       authorEmail: session.email,
       commitSubject: `Delete page ${slug}`,
     });

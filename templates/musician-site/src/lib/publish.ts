@@ -1,12 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  APPEARANCE_REPO_PATH,
-  HEADER_CONFIG_REPO_PATH,
-  pageRepoPath,
-  SITE_CONFIG_REPO_PATH,
-} from "./content";
-import {
   collectionDefRepoPath,
   collectionDefSchema,
   itemFileShellSchema,
@@ -24,15 +18,6 @@ import {
   writeText,
 } from "./fs-helpers";
 import { commitFiles, type FileToCommit } from "./git-commit";
-import {
-  appearanceSchema,
-  headerConfigSchema,
-  pageSlugSchema,
-  siteConfigSchema,
-  type Appearance,
-  type HeaderConfig,
-  type SiteConfig,
-} from "./site-config-types";
 import { publishTokenResponseSchema } from "./publish-types";
 
 export class PublishError extends Error {
@@ -50,21 +35,19 @@ export class PublishError extends Error {
 }
 
 /**
- * Targets the publish flow can write. Each target maps to a known repo path
- * and a known on-disk JSON shape so the API can validate before committing.
+ * Targets the publish flow can write. Each target maps to a known
+ * repo path under `src/content/collections/<slug>/...`. Item payloads
+ * are validated against the collection's dynamic schema at the API-
+ * route level (which has the CollectionDef in hand); this layer only
+ * enforces the structural shell (`{ id, createdAt, updatedAt, values }`)
+ * so an obviously malformed payload fails before commit.
  *
- * The `collection-*` kinds (ADR-009) extend the same machinery: each
- * resolves to a path under `src/content/collections/<slug>/...`. Item
- * payloads are validated against the collection's dynamic schema at the
- * API-route level (since validation requires reading the collection
- * def); this layer only enforces the structural shape.
+ * The legacy `page` / `site-config` / `header-config` / `appearance` /
+ * `delete-page` kinds were removed in ADR-009 PR 3 — every editable
+ * surface is now a collection, and `content.ts` translates the legacy
+ * API into `collection-item` writes.
  */
 export type PublishTarget =
-  | { kind: "page"; slug: string; data: unknown }
-  | { kind: "site-config"; data: SiteConfig }
-  | { kind: "header-config"; data: HeaderConfig }
-  | { kind: "appearance"; data: Appearance }
-  | { kind: "delete-page"; slug: string }
   | { kind: "collection-def"; collectionSlug: string; data: CollectionDef }
   | {
       kind: "collection-item";
@@ -177,35 +160,6 @@ function planFiles(targets: PublishTarget[]): {
 
   for (const target of targets) {
     switch (target.kind) {
-      case "page": {
-        const slug = pageSlugSchema.parse(target.slug);
-        // Pages aren't validated against a per-block schema here; the Puck
-        // editor is the source of truth for block shape. We just persist what
-        // it gives us, but format consistently.
-        const content = stringifyContent(target.data);
-        writes.push({ path: pageRepoPath(slug), content });
-        break;
-      }
-      case "site-config": {
-        const parsed = siteConfigSchema.parse(target.data);
-        writes.push({ path: SITE_CONFIG_REPO_PATH, content: stringifyContent(parsed) });
-        break;
-      }
-      case "header-config": {
-        const parsed = headerConfigSchema.parse(target.data);
-        writes.push({ path: HEADER_CONFIG_REPO_PATH, content: stringifyContent(parsed) });
-        break;
-      }
-      case "appearance": {
-        const parsed = appearanceSchema.parse(target.data);
-        writes.push({ path: APPEARANCE_REPO_PATH, content: stringifyContent(parsed) });
-        break;
-      }
-      case "delete-page": {
-        const slug = pageSlugSchema.parse(target.slug);
-        deletePaths.push(pageRepoPath(slug));
-        break;
-      }
       case "collection-def": {
         const collectionSlug = slugSchema.parse(target.collectionSlug);
         const parsed = collectionDefSchema.parse(target.data);
@@ -260,13 +214,6 @@ function planFiles(targets: PublishTarget[]): {
 function summariseTargets(targets: PublishTarget[]): string {
   // Stable order so re-runs produce the same commit subject.
   const parts: string[] = [];
-  const pages = targets
-    .filter((t): t is { kind: "page"; slug: string; data: unknown } => t.kind === "page")
-    .map((t) => t.slug);
-  if (pages.length) parts.push(`pages: ${pages.join(", ")}`);
-  if (targets.some((t) => t.kind === "site-config")) parts.push("site settings");
-  if (targets.some((t) => t.kind === "header-config")) parts.push("header & navigation");
-  if (targets.some((t) => t.kind === "appearance")) parts.push("appearance");
   const collectionDefs = targets
     .filter((t): t is Extract<PublishTarget, { kind: "collection-def" }> => t.kind === "collection-def")
     .map((t) => t.collectionSlug);
@@ -279,10 +226,6 @@ function summariseTargets(targets: PublishTarget[]): string {
     .filter((t): t is Extract<PublishTarget, { kind: "collection-order" }> => t.kind === "collection-order")
     .map((t) => t.collectionSlug);
   if (orders.length) parts.push(`order: ${orders.join(", ")}`);
-  const deletes = targets
-    .filter((t): t is Extract<PublishTarget, { kind: "delete-page" }> => t.kind === "delete-page")
-    .map((t) => t.slug);
-  if (deletes.length) parts.push(`delete: ${deletes.join(", ")}`);
   const itemDeletes = targets
     .filter((t): t is Extract<PublishTarget, { kind: "delete-collection-item" }> => t.kind === "delete-collection-item")
     .map((t) => `${t.collectionSlug}/${t.itemSlug}`);
@@ -334,19 +277,50 @@ export async function publish(args: PublishArgs): Promise<PublishResult> {
 }
 
 /**
- * Back-compat helper preserved for callers that publish a single page (the
- * common case from the Puck editor's onPublish handler).
+ * Convenience for the Puck editor's onPublish handler: write a page
+ * locally via the wrapper layer (so the editor sees fresh values on
+ * the next read) and then push a `collection-item` commit through the
+ * broker / GitHub. Local writes happen before the commit so a publish
+ * failure leaves the artist with a saved-but-undeployed page rather
+ * than nothing.
+ *
+ * Splitting "local write" from "commit" matches the existing
+ * `/api/publish` semantics: a `publishWarning` in the response means
+ * the local write succeeded but the commit didn't.
  */
 export async function publishPage(args: {
   pageSlug: string;
+  /** Legacy PuckData shape: `{ content, root: { props: {...} } }`. */
   data: unknown;
   authorEmail: string;
   authorName?: string;
 }): Promise<PublishResult> {
+  const { writePage, readPage } = await import("./content");
+  await writePage(args.pageSlug, args.data as Parameters<typeof writePage>[1]);
+  // Read back to capture the canonical id + createdAt + updatedAt
+  // that `writePage` either preserved or generated, so the published
+  // commit reflects the on-disk state exactly.
+  const fresh = await readPage(args.pageSlug);
+  const { readItem } = await import("./collections");
+  const { pagesCollectionDef } = await import("./collections/seeds");
+  const item = await readItem("pages", args.pageSlug, pagesCollectionDef);
+  if (!item) {
+    throw new PublishError("github-failed", `Page ${args.pageSlug} disappeared after write`);
+  }
   return publish({
-    targets: [{ kind: "page", slug: args.pageSlug, data: args.data }],
+    targets: [
+      {
+        kind: "collection-item",
+        collectionSlug: "pages",
+        itemSlug: args.pageSlug,
+        data: { id: item.id, createdAt: item.createdAt, updatedAt: item.updatedAt, values: item.values },
+      },
+    ],
     authorEmail: args.authorEmail,
     authorName: args.authorName,
     commitSubject: `Update ${args.pageSlug}`,
   });
+  // `fresh` is fetched to assert the round-trip but isn't returned
+  // — callers re-read via the wrapper layer if they need the data.
+  void fresh;
 }

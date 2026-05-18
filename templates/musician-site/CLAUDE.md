@@ -79,7 +79,7 @@ src/
     site-config-types.ts    Zod schemas for site / header / appearance
                             singletons and pages list contract
     collections/            ADR-009 Collection abstraction (foundation
-                            only — no UI yet):
+                            + template renderer — no editor UI yet):
                               schema.ts   Zod schemas as SSOT; TS types
                                           inferred via z.infer
                               store.ts    Filesystem layer (uses
@@ -87,6 +87,28 @@ src/
                               accessors.ts Runtime-narrowing field
                                           accessors (getText, getImage,
                                           ...)
+                              template/   PR 2 — template renderer.
+                                            Walker resolves Bindables
+                                            top-down; Puck's <Render>
+                                            then renders the resolved
+                                            data. Block components
+                                            are pure (no context, no
+                                            "use client"), see only
+                                            literal props.
+                                binding.ts    Bindable<T> resolution
+                                              (resolveBindable,
+                                              resolveStringBindable)
+                                primitives.tsx  Primitive block library
+                                              (Section, Stack, Text,
+                                              Image, Button, Link,
+                                              RichTextRender) +
+                                              PRIMITIVE_BLOCKS registry
+                                              (frozen).
+                                puck-config.ts  templatePuckConfig
+                                              built from the registry
+                                tiptap-render.tsx  Tiptap doc → React
+                                renderer.tsx  <TemplateRenderer> +
+                                              `resolveTemplate` walker
                               index.ts    Public API
                               test-fixtures.ts  Shared fixtures
                                           (tourDatesDef, tourDateItem)
